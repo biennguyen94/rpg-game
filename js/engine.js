@@ -66,8 +66,8 @@
     return {
       id: def.id, name: def.name, level: L, boss: !!isBoss, final: !!def.final,
       special: def.special || null,
-      maxHp: Math.round((40 + L * 30 + L * L * 0.5) * m * (isBoss ? 2.4 : 1)),
-      atk: Math.round((18 + L * 6) * m * (isBoss ? 0.85 : 1)),
+      maxHp: Math.round((20 + L * 26 + L * L * 0.6) * m * (isBoss ? 2.4 : 1)),
+      atk: Math.round((10 + L * 6.4) * m * (isBoss ? 1 : 1)),
       def: Math.round((1 + L * 2.0) * m),
       crit: 0.05,
       dodge: 0.03 + L * 0.001,
@@ -86,7 +86,9 @@
     if (!zoneUnlocked(p, zi)) return { ok: false, msg: 'Khu vực chưa mở.' };
     if (p.hp <= 0) return { ok: false, msg: 'Bạn cần hồi máu trước.' };
     const z = ZONES[zi];
-    const m = makeMonster(boss ? z.boss : pick(z.monsters), boss);
+    // Quái thường: ưu tiên con không quá cấp người chơi + 1 để người mới không bị đánh úp.
+    const fair = z.monsters.filter((x) => x.level <= p.level + 1);
+    const m = makeMonster(boss ? z.boss : pick(fair.length ? fair : [z.monsters[0]]), boss);
     m.hp = m.maxHp;
     p.battle = { zone: zi, monster: m, turn: 0, skillCd: 0, log: [], over: false, result: null, reward: null };
     log(p, boss ? `⚔️ ${m.name} (Cấp ${m.level}) xuất hiện!` : `Bạn gặp ${m.name} (Cấp ${m.level}).`, 'info');
