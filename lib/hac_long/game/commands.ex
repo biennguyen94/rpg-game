@@ -9,9 +9,11 @@ defmodule HacLong.Game.Commands do
   alias HacLong.Game.{
     Achievements,
     Chests,
+    Crafting,
     Daily,
     Data,
     Engine,
+    Events,
     Fishing,
     Home,
     Pets,
@@ -67,7 +69,19 @@ defmodule HacLong.Game.Commands do
         Engine.unequip(p, c["slot"])
 
       "use" ->
-        Engine.use_potion(p, c["id"])
+        case Data.item(c["id"]) do
+          %{slot: "food"} -> Crafting.eat(p, c["id"])
+          _ -> Engine.use_potion(p, c["id"])
+        end
+
+      "cook" ->
+        at_npc(p, ["cook"], "Bác Đầu Bếp ở Làng", fn _ -> Crafting.cook(p, c["id"]) end)
+
+      "smith" ->
+        at_npc(p, ["shop"], "Thợ Rèn ở Làng", fn _ -> Crafting.smith(p, c["slot"]) end)
+
+      "event_exchange" ->
+        at_npc(p, ["event"], "Người Tổ Chức Hội ở Làng", fn _ -> Events.exchange(p, c["id"]) end)
 
       "sell" ->
         sell(p, c["id"])
@@ -171,7 +185,7 @@ defmodule HacLong.Game.Commands do
   defp craft(p, id) do
     at_npc(p, ["herbalist"], "Bà Lang", fn _ ->
       case Data.recipe(id) do
-        nil ->
+        r when r == nil or r.npc != "herbalist" ->
           {%{ok: false, msg: "Không có công thức này."}, p}
 
         r ->

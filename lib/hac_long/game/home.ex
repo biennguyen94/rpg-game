@@ -38,6 +38,9 @@ defmodule HacLong.Game.Home do
       f == nil ->
         {%{ok: false, msg: "Không có món này."}, p}
 
+      f[:event] ->
+        {%{ok: false, msg: "Món này chỉ đổi được ở lễ hội."}, p}
+
       p.gold < f.price ->
         {%{ok: false, msg: "Cần #{f.price} vàng."}, p}
 

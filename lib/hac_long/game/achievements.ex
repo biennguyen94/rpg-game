@@ -251,6 +251,30 @@ defmodule HacLong.Game.Achievements do
       title: "Bậc Thầy Thuần Thú"
     },
     %{
+      id: "chef",
+      name: "Đầu Bếp Làng",
+      desc: "Nghề Nấu ăn đạt cấp tối đa.",
+      stat: :cook_level,
+      goal: :max_craft_level,
+      title: "Đầu Bếp"
+    },
+    %{
+      id: "master_smith",
+      name: "Thợ Cả",
+      desc: "Nghề Rèn đồ đạt cấp tối đa.",
+      stat: :smith_level,
+      goal: :max_craft_level,
+      title: "Thợ Cả"
+    },
+    %{
+      id: "festival",
+      name: "Người Đi Hội",
+      desc: "Đổi quà ở lễ hội 10 lần.",
+      stat: :festival,
+      goal: 10,
+      title: "Người Đi Hội"
+    },
+    %{
       id: "stubborn",
       name: "Lì Đòn",
       desc: "Gục ngã 10 lần mà vẫn chiến.",
@@ -268,6 +292,7 @@ defmodule HacLong.Game.Achievements do
   defp goal(%{goal: :all_species}), do: length(Bestiary.species())
   defp goal(%{goal: :all_pets}), do: length(Data.pets())
   defp goal(%{goal: :max_pet_level}), do: Pets.max_level()
+  defp goal(%{goal: :max_craft_level}), do: HacLong.Game.Crafting.max_level()
   defp goal(%{goal: :all_waystones}), do: length(Maps.waystone_ids())
   defp goal(%{goal: g}), do: g
 
@@ -289,6 +314,9 @@ defmodule HacLong.Game.Achievements do
   def value(p, :tamed), do: Enum.count(Map.get(p, :pets) || [], &String.starts_with?(&1, "tame:"))
   def value(p, :daily_done), do: Map.get(p, :daily_done) || 0
   def value(p, :boss_top), do: Map.get(p, :boss_top) || 0
+  def value(p, :cook_level), do: HacLong.Game.Crafting.level(p, :cook)
+  def value(p, :smith_level), do: HacLong.Game.Crafting.level(p, :smith)
+  def value(p, :festival), do: Map.get(p, :festival) || 0
 
   def value(p, :pet_level),
     do: (Map.get(p, :pets) || []) |> Enum.map(&Pets.level(p, &1)) |> Enum.max(fn -> 0 end)

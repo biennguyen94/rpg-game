@@ -677,6 +677,89 @@ defmodule HacLongWeb.GameChannelTest do
     end
   end
 
+  describe "bạn bè và tin riêng" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    defp fop(socket, op, payload \\ %{}) do
+      ref = push(socket, "friends", Map.put(payload, "op", op))
+      assert_reply ref, status, r
+      {status, r}
+    end
+
+    test "mời kết bạn theo tên, nhận lời, nhắn tin, chưa đọc, xóa bạn" do
+      ua = create_user()
+      pa = player_at(ua, %{map: "village", x: 12, y: 14})
+      ub = create_user()
+      pb = player_at(ub, %{map: "village", x: 13, y: 14})
+      {_, sa} = join_game(ua)
+      {_, sb} = join_game(ub)
+
+      assert {:error, %{msg: "Không tự kết bạn với mình được."}} =
+               fop(sa, "request", %{"uid" => ua.id})
+
+      assert {:error, %{msg: "Không có nhân vật tên này."}} =
+               fop(sa, "request", %{"name" => "Không Ai"})
+
+      # chưa là bạn thì không nhắn được
+      ref = push(sa, "dm", %{"op" => "send", "uid" => ub.id, "text" => "chào"})
+      assert_reply ref, :error, %{msg: "Chỉ nhắn riêng được cho bạn bè."}
+
+      assert {:ok, %{msg: "Đã gửi lời mời kết bạn.", outgoing: [%{id: bid}]}} =
+               fop(sa, "request", %{"name" => String.upcase(pb.name)})
+
+      assert bid == ub.id
+      assert_push "friends", %{msg: "👋 " <> _}
+      assert {:error, _} = fop(sa, "request", %{"uid" => ub.id})
+      assert {:ok, %{incoming: [%{id: aid}]}} = fop(sb, "list")
+      assert aid == ua.id
+
+      assert {:ok, %{friends: [%{id: ^aid, online: true, unread: 0}], incoming: []}} =
+               fop(sb, "accept", %{"uid" => ua.id})
+
+      assert {:ok, %{friends: [%{name: name}]}} = fop(sa, "list")
+      assert name == pb.name
+
+      ref = push(sa, "dm", %{"op" => "send", "uid" => ub.id, "text" => "  chào   bạn  "})
+      assert_reply ref, :ok, %{message: %{text: "chào bạn"}}
+      assert_push "dm", %{text: "chào bạn", from: from}
+      assert from == ua.id
+      assert {:ok, %{unread: 1, friends: [%{unread: 1}]}} = fop(sb, "list")
+
+      ref = push(sb, "dm", %{"op" => "history", "uid" => ua.id})
+
+      assert_reply ref, :ok, %{messages: [%{text: "chào bạn"}], unread: 0, with: %{name: aname}}
+      assert aname == pa.name
+
+      assert {:ok, %{unread: 0}} = fop(sb, "list")
+
+      ref = push(sa, "dm", %{"op" => "send", "uid" => ub.id, "text" => "   "})
+      assert_reply ref, :error, %{msg: "Tin nhắn trống."}
+
+      assert {:ok, %{friends: []}} = fop(sa, "remove", %{"uid" => ub.id})
+      assert {:ok, %{friends: []}} = fop(sb, "list")
+    end
+
+    test "hai người cùng mời thì thành bạn; bị chặn thì không mời được" do
+      ua = create_user()
+      player_at(ua, %{map: "village", x: 12, y: 14})
+      ub = create_user()
+      player_at(ub, %{map: "village", x: 13, y: 14})
+      {_, sa} = join_game(ua)
+      {_, sb} = join_game(ub)
+
+      assert {:ok, _} = fop(sa, "request", %{"uid" => ub.id})
+      assert {:ok, %{friends: [_]}} = fop(sb, "request", %{"uid" => ua.id})
+      assert {:ok, _} = fop(sa, "remove", %{"uid" => ub.id})
+
+      ref = push(sb, "block", %{"uid" => ua.id})
+      assert_reply ref, :ok, _
+      assert {:error, %{msg: "Không gửi được lời mời."}} = fop(sa, "request", %{"uid" => ub.id})
+    end
+  end
+
   describe "thăm nhà" do
     setup do
       HacLong.RateLimit.reset()

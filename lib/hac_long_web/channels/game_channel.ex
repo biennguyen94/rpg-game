@@ -28,6 +28,10 @@ defmodule HacLongWeb.GameChannel do
   - `"trade"` `%{"op" => ...}`: giao dịch trực tiếp (`request {uid}`, `accept`, `decline`,
     `cancel`, `offer {offer: {items, gear, gold}}`, `ready`, `info`); server đẩy `"trade"`
     (`%{trade: bảng | nil}`) và `"trade_request"` (`%{from, name}`). Xem `HacLong.Trade`.
+  - `"friends"` `%{"op" => ...}`: bạn bè (`list`, `request {uid | name}`, `accept {uid}`,
+    `decline {uid}`, `remove {uid}`); server đẩy `"friends"` (`%{msg}`) khi danh sách đổi.
+    `"dm"`: tin riêng (`history {uid}`, `send {uid, text}`); server đẩy `"dm"` (một tin, cả
+    cho người gửi để các tab khác thấy). Xem `HacLong.Friends`.
   - `"inspect"` `%{"uid"}`: xem thông tin người chơi khác (chạm vào họ trên bản đồ).
   - `"visit"` `%{"uid"}`: xem nhà đã trang trí của người khác; `"home_like"` `%{"uid"}`: khen nhà
     (mỗi nhà một lần, chủ nhà nhận `"notice"`). Xem `HacLong.Homes`.
@@ -43,6 +47,7 @@ defmodule HacLongWeb.GameChannel do
     Accounts,
     Arena,
     Chat,
+    Friends,
     Guilds,
     Homes,
     Leaderboard,
@@ -89,6 +94,7 @@ defmodule HacLongWeb.GameChannel do
       mail: Mailbox.unread(uid),
       party: party_view(uid),
       trade: Trade.of(uid),
+      dm: Friends.unread(uid),
       player: present(player)
     }
 
@@ -176,6 +182,52 @@ defmodule HacLongWeb.GameChannel do
     with :ok <- limit({:party, uid}, 40, :timer.minutes(1)),
          :ok <- result do
       {:reply, {:ok, %{party: party_view(uid)}}, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("friends", %{"op" => op} = p, socket) do
+    uid = socket.assigns.user_id
+    target = p["uid"]
+
+    result =
+      case op do
+        "list" -> {:ok, nil}
+        "request" when is_integer(target) -> Friends.request(uid, target)
+        "request" -> Friends.request_by_name(uid, p["name"])
+        "accept" when is_integer(target) -> Friends.accept(uid, target)
+        "decline" when is_integer(target) -> Friends.decline(uid, target)
+        "remove" when is_integer(target) -> Friends.remove(uid, target)
+        _ -> {:error, "Thao tác không hợp lệ."}
+      end
+
+    with :ok <- limit({:friends, uid}, 40, :timer.minutes(1)),
+         {:ok, msg} <- result do
+      {:reply, {:ok, Map.put(Friends.list(uid), :msg, msg)}, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("dm", %{"op" => "history", "uid" => other}, socket) when is_integer(other) do
+    uid = socket.assigns.user_id
+
+    with :ok <- limit({:dm_read, uid}, 60, :timer.minutes(1)) do
+      {:reply, {:ok, Map.put(Friends.history(uid, other), :unread, Friends.unread(uid))}, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("dm", %{"op" => "send", "uid" => to, "text" => text}, socket)
+      when is_integer(to) do
+    uid = socket.assigns.user_id
+
+    with :ok <- chat_limit(uid),
+         :ok <- not_muted(uid),
+         {:ok, msg} <- Friends.send_message(uid, to, text) do
+      {:reply, {:ok, %{message: msg}}, socket}
     else
       {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
     end
@@ -656,6 +708,17 @@ defmodule HacLongWeb.GameChannel do
     {:noreply, socket}
   end
 
+  def handle_info({:friends, text}, socket) do
+    push(socket, "friends", %{msg: text})
+    {:noreply, socket}
+  end
+
+  # tin riêng: người đã chặn thì không nhận
+  def handle_info({:dm, msg}, socket) do
+    unless msg.from in socket.assigns.blocked, do: push(socket, "dm", msg)
+    {:noreply, socket}
+  end
+
   def handle_info({:trade_request, req}, socket) do
     push(socket, "trade_request", req)
     {:noreply, socket}
@@ -735,6 +798,26 @@ defmodule HacLongWeb.GameChannel do
   end
 
   # Kèm các chỉ số tính sẵn (máu tối đa, tấn công, giá nghỉ trọ...) cho client hiển thị.
+  # sự kiện đang diễn ra (quà đổi được) hoặc sự kiện sắp tới
+  defp event_view(player) do
+    case HacLong.Game.Events.current() do
+      nil ->
+        {e, days} = HacLong.Game.Events.next(Daily.today())
+        %{active: false, next: %{name: e.name, icon: e.icon, days: days}}
+
+      e ->
+        %{
+          active: true,
+          id: e.id,
+          name: e.name,
+          icon: e.icon,
+          desc: e.desc,
+          token: e.token,
+          shop: HacLong.Game.Events.shop(e, player)
+        }
+    end
+  end
+
   defp present(nil), do: nil
 
   defp present(player) do
@@ -753,6 +836,12 @@ defmodule HacLongWeb.GameChannel do
         tutorial: Tutorial.view(player),
         achievements: Achievements.view(player),
         chestReady: player[:chest_day] != Daily.today(),
+        event: event_view(player),
+        crafting: %{
+          cook: HacLong.Game.Crafting.level(player, :cook),
+          smith: HacLong.Game.Crafting.level(player, :smith),
+          smithGold: HacLong.Game.Crafting.smith_gold(player)
+        },
         chests:
           Enum.map(Chests.tiers(), fn t ->
             %{

@@ -176,6 +176,27 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   - [x] Hạ đủ 100 con một loài quái thường thì thuần phục ở Người Nuôi Thú (1.000 + cấp × 100
     vàng): thú thuần đi theo như thú cưng, +3% tấn công.
 
+## H. Mùa, nghề, bạn bè
+
+- [x] **Lễ hội theo mùa** (`HacLong.Game.Events`, `EVENTS` trong `game_data.json`): Tết Trung Thu
+  (15/9–10/10), Lễ Hội Bí Ngô (25/10–7/11), Giáng Sinh (15/12–2/1), Tết Nguyên Đán (20/1–20/2,
+  gần đúng vì Tết âm lịch đổi ngày). Trong mùa: quái thường 20% rơi quà lễ hội, trùm rơi 3,
+  kinh nghiệm +10%, tên lễ hội trên bản đồ. Người Tổ Chức Hội đổi quà: đồ trang trí chỉ có trong
+  mùa (30), túi quà ra đồ ngẫu nhiên (12), 3 bình máu lớn (6), vàng (3). Ngoài mùa thì báo lễ
+  hội sắp tới. Thử bằng `EVENT=<id>`.
+- [x] **Nghề** (`HacLong.Game.Crafting`, cấp 1–5 theo số lần làm: 5/15/30/50):
+  - Nấu ăn ở Bác Đầu Bếp: Chả Cá (tấn công), Bánh Mì Cá (phòng thủ), Bánh Xèo Lươn (máu, tấn
+    công, cần cấp 3), Mâm Cỗ Cá Vàng (kinh nghiệm, vàng, cần cấp 5). Ăn ngoài trận, có tác dụng
+    5–10 trận (bỏ chạy, thua cũng tính), mỗi lúc một món.
+  - Rèn đồ ở Thợ Rèn: chọn vũ khí/giáp/khiên, tốn quặng + vàng (cấp × 15), ra đồ chỉ số ngẫu
+    nhiên hợp cấp; Sử Thi 6% mỗi cấp nghề, Hiếm 50%.
+- [x] **Bạn bè và tin riêng** (`HacLong.Friends`): kết bạn theo tên hoặc từ bảng người chơi,
+  nhận/từ chối/rút lời mời, xóa bạn; tối đa 50 bạn; người đã chặn mình thì không mời được. Tin
+  riêng chỉ giữa bạn bè, lưu lại, đến ngay nếu người kia online, đếm tin chưa đọc (số trên nút
+  👥 ở HUD).
+- [x] Thành tựu mới: Đầu Bếp Làng, Thợ Cả (nghề cấp tối đa), Người Đi Hội (đổi quà lễ hội 10
+  lần).
+
 ## G. Khác
 
 - [ ] **Đóng gói app Android** (PWA hoặc Capacitor).

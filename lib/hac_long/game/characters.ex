@@ -95,6 +95,12 @@ defmodule HacLong.Game.Characters do
       pet_xp: c.pet_xp || %{},
       daily_done: c.daily_done || 0,
       boss_top: c.boss_top || 0,
+      food: food(c.food),
+      crafting: %{
+        cook: (c.crafting || %{})["cook"] || 0,
+        smith: (c.crafting || %{})["smith"] || 0
+      },
+      festival: c.festival || 0,
       furniture:
         Map.filter(c.furniture || %{}, fn {id, _} -> HacLong.Game.Data.furniture(id) end),
       decor:
@@ -103,6 +109,13 @@ defmodule HacLong.Game.Characters do
         end
     }
   end
+
+  # món ăn đang có tác dụng (bỏ nếu món không còn trong dữ liệu)
+  defp food(%{"id" => id, "left" => left}) when is_integer(left) and left > 0 do
+    if HacLong.Game.Data.item(id), do: %{id: id, left: left}
+  end
+
+  defp food(_), do: nil
 
   # Bỏ nhiệm vụ không còn trong dữ liệu game (đổi tên, xóa bớt).
   defp quests(%{"active" => active, "done" => done}) do

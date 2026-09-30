@@ -710,6 +710,88 @@
       "sprite": "nodes/dragon_scale",
       "price": 1000,
       "desc": "Chiến lợi phẩm từ trùm thế giới. Bán được giá cao."
+    },
+    "cha_ca": {
+      "name": "Chả Cá",
+      "slot": "food",
+      "sprite": "food/cha_ca",
+      "price": 20,
+      "food": {
+        "buff": {
+          "atk": 0.1
+        },
+        "battles": 5
+      },
+      "desc": "Tấn công +10% trong 5 trận."
+    },
+    "banh_mi_ca": {
+      "name": "Bánh Mì Cá",
+      "slot": "food",
+      "sprite": "food/banh_mi_ca",
+      "price": 40,
+      "food": {
+        "buff": {
+          "def": 0.12
+        },
+        "battles": 5
+      },
+      "desc": "Phòng thủ +12% trong 5 trận."
+    },
+    "banh_xeo_luon": {
+      "name": "Bánh Xèo Lươn",
+      "slot": "food",
+      "sprite": "food/banh_xeo_luon",
+      "price": 120,
+      "food": {
+        "buff": {
+          "hp": 0.12,
+          "atk": 0.08
+        },
+        "battles": 8
+      },
+      "desc": "Máu tối đa +12%, tấn công +8% trong 8 trận."
+    },
+    "mam_co": {
+      "name": "Mâm Cỗ Cá Vàng",
+      "slot": "food",
+      "sprite": "food/mam_co",
+      "price": 600,
+      "food": {
+        "buff": {
+          "xp": 0.2,
+          "gold": 0.1
+        },
+        "battles": 10
+      },
+      "desc": "Kinh nghiệm +20%, vàng +10% trong 10 trận."
+    },
+    "moon_cake": {
+      "name": "Bánh Trung Thu",
+      "slot": "material",
+      "sprite": "items/moon_cake",
+      "price": 1,
+      "desc": "Quà Tết Trung Thu. Mang tới Người Tổ Chức Hội đổi quà."
+    },
+    "pumpkin_candy": {
+      "name": "Kẹo Bí Ngô",
+      "slot": "material",
+      "sprite": "items/pumpkin_candy",
+      "price": 1,
+      "desc": "Quà lễ hội Bí Ngô. Mang tới Người Tổ Chức Hội đổi quà."
+    },
+    "gift_box": {
+      "name": "Hộp Quà Giáng Sinh",
+      "slot": "material",
+      "sprite": "items/gift_box",
+      "price": 1,
+      "desc": "Quà Giáng Sinh. Mang tới Người Tổ Chức Hội đổi quà."
+    },
+    "lucky_apple": {
+      "name": "Quả Lộc",
+      "slot": "material",
+      "sprite": "items/lucky_apple",
+      "price": 1,
+      "desc": "Lộc đầu xuân. Mang tới Người Tổ Chức Hội đổi quà."
     }
   },
   "BOSS_DROPS": {
@@ -783,6 +865,46 @@
         "fish_eel": 2
       },
       "npc": "herbalist"
+    },
+    {
+      "id": "cook_cha_ca",
+      "out": "cha_ca",
+      "needs": {
+        "fish_small": 2,
+        "herb": 1
+      },
+      "npc": "cook",
+      "level": 1
+    },
+    {
+      "id": "cook_banh_mi_ca",
+      "out": "banh_mi_ca",
+      "needs": {
+        "fish_carp": 1,
+        "herb": 2
+      },
+      "npc": "cook",
+      "level": 1
+    },
+    {
+      "id": "cook_banh_xeo_luon",
+      "out": "banh_xeo_luon",
+      "needs": {
+        "fish_eel": 1,
+        "herb_rare": 1
+      },
+      "npc": "cook",
+      "level": 3
+    },
+    {
+      "id": "cook_mam_co",
+      "out": "mam_co",
+      "needs": {
+        "fish_gold": 1,
+        "herb_rare": 2
+      },
+      "npc": "cook",
+      "level": 5
     }
   ],
   "QUESTS": [
@@ -1258,6 +1380,76 @@
       "name": "Tượng Vàng",
       "price": 15000,
       "comfort": 8
+    },
+    {
+      "id": "lamp_festival",
+      "name": "Đèn Kéo Quân",
+      "price": 0,
+      "comfort": 6,
+      "event": "mid_autumn"
+    },
+    {
+      "id": "statue_snail",
+      "name": "Tượng Ốc Ma",
+      "price": 0,
+      "comfort": 6,
+      "event": "pumpkin"
+    },
+    {
+      "id": "fountain_sparkle",
+      "name": "Đài Phun Lấp Lánh",
+      "price": 0,
+      "comfort": 8,
+      "event": "christmas"
+    },
+    {
+      "id": "statue_elephant",
+      "name": "Tượng Voi Chúc Phúc",
+      "price": 0,
+      "comfort": 8,
+      "event": "tet"
+    }
+  ],
+  "EVENTS": [
+    {
+      "id": "mid_autumn",
+      "name": "Tết Trung Thu",
+      "icon": "🏮",
+      "from": "09-15",
+      "to": "10-10",
+      "token": "moon_cake",
+      "decor": "lamp_festival",
+      "desc": "Đêm hội trăng rằm: quái rơi Bánh Trung Thu, kinh nghiệm +10%."
+    },
+    {
+      "id": "pumpkin",
+      "name": "Lễ Hội Bí Ngô",
+      "icon": "🎃",
+      "from": "10-25",
+      "to": "11-07",
+      "token": "pumpkin_candy",
+      "decor": "statue_snail",
+      "desc": "Ma quỷ đi chơi: quái rơi Kẹo Bí Ngô, kinh nghiệm +10%."
+    },
+    {
+      "id": "christmas",
+      "name": "Giáng Sinh",
+      "icon": "🎄",
+      "from": "12-15",
+      "to": "01-02",
+      "token": "gift_box",
+      "decor": "fountain_sparkle",
+      "desc": "Mùa đông an lành: quái rơi Hộp Quà, kinh nghiệm +10%."
+    },
+    {
+      "id": "tet",
+      "name": "Tết Nguyên Đán",
+      "icon": "🧧",
+      "from": "01-20",
+      "to": "02-20",
+      "token": "lucky_apple",
+      "decor": "statue_elephant",
+      "desc": "Xuân về: quái rơi Quả Lộc, kinh nghiệm +10%."
     }
   ]
 }

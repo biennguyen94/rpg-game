@@ -8,7 +8,7 @@ defmodule HacLong.Game.Engine do
   để test cố định được kết quả.
   """
 
-  alias HacLong.Game.{Bestiary, Data, Gear, Home, Pets, Rng}
+  alias HacLong.Game.{Bestiary, Crafting, Data, Events, Gear, Home, Pets, Rng}
 
   @save_version 1
   @points_per_level 3
@@ -67,6 +67,9 @@ defmodule HacLong.Game.Engine do
           pet_xp: %{},
           daily_done: 0,
           boss_top: 0,
+          food: nil,
+          crafting: %{cook: 0, smith: 0},
+          festival: 0,
           furniture: %{},
           decor: [],
           fish_caught: 0,
@@ -94,7 +97,8 @@ defmodule HacLong.Game.Engine do
     up = fn id -> if id, do: upgrade_bonus(p, id), else: 0 end
 
     # thú cưng đang dắt theo cộng phần trăm
-    pet = fn key -> 1 + Pets.bonus(p, key) end
+    # thú cưng đang dắt theo và món đang ăn cộng phần trăm
+    pet = fn key -> 1 + Pets.bonus(p, key) + Crafting.food_bonus(p, key) end
 
     %{
       maxHp: round((40 + s.vit * 12 + p.level * 10) * pet.(:hp)),
@@ -718,6 +722,26 @@ defmodule HacLong.Game.Engine do
     end
   end
 
+  # lễ hội: quái thường có thể rơi vật phẩm lễ hội, trùm rơi 3 cái
+  defp event_drop(p, _m, nil, reward), do: {p, reward}
+
+  defp event_drop(p, m, event, reward) do
+    n =
+      cond do
+        m.boss or m[:world] -> 3
+        chance(Events.drop_chance()) -> 1
+        true -> 0
+      end
+
+    if n > 0 do
+      name = Data.item(event.token).name
+      p = p |> add_item(event.token, n) |> log("#{event.icon} Nhặt được #{name} ×#{n}.", "good")
+      {p, %{reward | items: reward.items ++ [event.token]}}
+    else
+      {p, reward}
+    end
+  end
+
   @doc "Kết thúc trận bằng chiến thắng dù quái chưa hết máu ở trận này (đồng đội hạ quái)."
   def finish_win(%{battle: %{over: false}} = p) do
     p |> put_in([:battle, :monster, :hp], 0) |> win()
@@ -728,8 +752,16 @@ defmodule HacLong.Game.Engine do
   defp win(p) do
     m = p.battle.monster
     # thú cưng (vàng, kinh nghiệm) và nhà trang trí (kinh nghiệm) cộng thêm
-    gold = round(m.gold * (1 + Pets.bonus(p, :gold)))
-    xp = round(m.xp * (1 + Pets.bonus(p, :xp) + Home.xp_bonus(p)))
+    event = if m[:pvp], do: nil, else: Events.current()
+    gold = round(m.gold * (1 + Pets.bonus(p, :gold) + Crafting.food_bonus(p, :gold)))
+
+    xp =
+      round(
+        m.xp *
+          (1 + Pets.bonus(p, :xp) + Home.xp_bonus(p) + Crafting.food_bonus(p, :xp) +
+             Events.xp_bonus(event))
+      )
+
     p = %{p | kills: p.kills + 1, gold: p.gold + gold}
     reward = %{xp: xp, gold: gold, items: [], levels: 0}
 
@@ -752,6 +784,8 @@ defmodule HacLong.Game.Engine do
       else
         {p, reward}
       end
+
+    {p, reward} = event_drop(p, m, event, reward)
 
     {p, reward} =
       if m.boss and m.id not in p.bosses, do: first_boss_kill(p, m, reward), else: {p, reward}
@@ -867,7 +901,7 @@ defmodule HacLong.Game.Engine do
   end
 
   defp finish(p, result) do
-    p = update_in(p.battle, &%{&1 | over: true, result: result})
+    p = update_in(p.battle, &%{&1 | over: true, result: result}) |> Crafting.tick()
     {%{ok: true, result: result}, p}
   end
 

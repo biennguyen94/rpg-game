@@ -42,7 +42,10 @@ defmodule HacLongWeb.PageController do
         guildMinDonate: HacLong.Guilds.min_donate(),
         tameKills: HacLong.Game.Pets.tame_kills(),
         petMaxLevel: HacLong.Game.Pets.max_level(),
-        petSkillLevel: HacLong.Game.Pets.skill_level()
+        petSkillLevel: HacLong.Game.Pets.skill_level(),
+        craftLevels: HacLong.Game.Crafting.levels(),
+        smithCosts: HacLong.Game.Crafting.smith_costs(),
+        friendsMax: HacLong.Friends.max()
       },
       WORLD: Maps.client_data()
     }

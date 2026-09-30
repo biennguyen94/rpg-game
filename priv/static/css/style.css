@@ -408,3 +408,9 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 
 /* Chợ */
 .market-mine { display: grid; gap: 4px; justify-items: end; }
+
+/* Tin nhắn riêng */
+.dm-log { max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin: 8px 0; overscroll-behavior: contain; }
+.dm { align-self: flex-start; max-width: 80%; background: #221b2b; border: 1px solid var(--line); border-radius: 12px 12px 12px 4px; padding: 6px 10px; word-break: break-word; }
+.dm.me { align-self: flex-end; background: #3a2f1c; border-radius: 12px 12px 4px 12px; }
+.dm small { display: block; font-size: 0.7rem; opacity: 0.6; margin-top: 2px; }

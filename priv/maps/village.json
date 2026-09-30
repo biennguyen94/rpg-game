@@ -285,6 +285,32 @@
         "Ai có đồ tốt thì mang ra đây rao, ai cần thì vào mua. Chợ lấy 5% phí thôi.",
         "Bán được thì tiền gửi về hộp thư, khỏi phải ngồi chờ."
       ]
+    },
+    {
+      "id": "cook",
+      "name": "Bác Đầu Bếp",
+      "sprite": "cook",
+      "at": [
+        3,
+        9
+      ],
+      "role": "cook",
+      "lines": [
+        "Cá tươi, rau thơm, lửa to: ăn vào đánh quái khỏe cả buổi!"
+      ]
+    },
+    {
+      "id": "festival",
+      "name": "Người Tổ Chức Hội",
+      "sprite": "festival",
+      "at": [
+        9,
+        5
+      ],
+      "role": "event",
+      "lines": [
+        "Mùa nào lễ nấy! Mang quà lễ hội tới đây đổi thưởng nhé."
+      ]
     }
   ],
   "spawns": []

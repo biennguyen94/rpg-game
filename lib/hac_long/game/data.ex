@@ -48,6 +48,7 @@ defmodule HacLong.Game.Data do
   @boss_drops raw["BOSS_DROPS"]
   @pets atomize.(atomize, raw["PETS"])
   @furniture atomize.(atomize, raw["FURNITURE"])
+  @events atomize.(atomize, raw["EVENTS"])
   @shop raw["SHOP"]
   @recipes atomize.(atomize, raw["RECIPES"])
            |> Enum.map(
@@ -82,6 +83,8 @@ defmodule HacLong.Game.Data do
   def recipe(id), do: Enum.find(@recipes, &(&1.id == id))
   def pets, do: @pets
   def pet(id), do: Enum.find(@pets, &(&1.id == id))
+  def events, do: @events
+  def event(id), do: Enum.find(@events, &(&1.id == id))
   def furniture, do: @furniture
   def furniture(id), do: Enum.find(@furniture, &(&1.id == id))
   def quests, do: @quests

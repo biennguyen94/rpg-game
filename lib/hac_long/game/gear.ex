@@ -96,18 +96,22 @@ defmodule HacLong.Game.Gear do
   end
 
   @doc """
-  Tạo một món ngẫu nhiên hợp với quái cấp `level` (nil nếu không có đồ gốc phù hợp).
+  Tạo một món ngẫu nhiên hợp với quái cấp `level` (nil nếu không có đồ gốc phù hợp);
+  `slot` chọn loại đồ (mặc định ngẫu nhiên).
   `weights`: tỉ lệ các độ hiếm `[{độ_hiếm, tỉ_lệ}]` (mặc định 5% Sử Thi, 25% Hiếm, 70% Tốt).
   """
-  def roll(level, weights \\ [{3, 5}, {2, 25}, {1, 70}]) do
-    r = Rng.uniform()
-
+  def roll(level, weights \\ [{3, 5}, {2, 25}, {1, 70}], slot \\ nil) do
     slot =
-      cond do
-        r < 0.45 -> "weapon"
-        r < 0.8 -> "armor"
-        true -> "shield"
-      end
+      slot ||
+        (
+          r = Rng.uniform()
+
+          cond do
+            r < 0.45 -> "weapon"
+            r < 0.8 -> "armor"
+            true -> "shield"
+          end
+        )
 
     bases =
       Data.items()
