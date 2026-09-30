@@ -46,6 +46,9 @@ defmodule HacLong.World.MapServer do
 
   def leave(map_id, uid), do: GenServer.call(via(map_id), {:leave, uid})
 
+  @doc "Đổi thông tin người khác thấy (tên, cấp, ngoại hình...) của người đang ở bản đồ."
+  def update(map_id, uid, info), do: GenServer.call(via(map_id), {:update, uid, info})
+
   @doc """
   Người chơi bước sang ô `{x, y}` (đã kiểm tra địa hình). Trả về:
   `:ok` (đã đi), `{:engage, quái}` (ô có quái, quái đã bị khóa cho người này, người
@@ -110,6 +113,13 @@ defmodule HacLong.World.MapServer do
   end
 
   def handle_call({:leave, uid}, _from, s), do: {:reply, :ok, remove_player(s, uid)}
+
+  def handle_call({:update, uid, info}, _from, s) do
+    case s.players[uid] do
+      nil -> {:reply, :ok, s}
+      pl -> {:reply, :ok, changed(put_in(s.players[uid], Map.merge(pl, info)))}
+    end
+  end
 
   def handle_call({:step, uid, pos, confirm?}, _from, s) do
     case node_at(s, pos) do
@@ -377,7 +387,17 @@ defmodule HacLong.World.MapServer do
       players:
         Enum.map(s.players, fn {uid, p} ->
           {x, y} = p.pos
-          %{id: uid, name: p.name, cls: p.cls, level: p.level, x: x, y: y}
+
+          %{
+            id: uid,
+            name: p.name,
+            cls: p.cls,
+            level: p.level,
+            look: p[:look],
+            tag: p[:tag],
+            x: x,
+            y: y
+          }
         end)
     }
   end

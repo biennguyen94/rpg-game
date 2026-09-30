@@ -393,3 +393,7 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 .item.member .btn-row { margin-top: 6px; flex-wrap: wrap; }
 .item.member .btn-row .btn { flex: none; }
 .gift-form label input[type="checkbox"] { width: auto; }
+
+/* Trang trí nhà */
+.decor-panel .chip { display: inline-flex; align-items: center; gap: 4px; }
+.decor-panel .chip .ic { width: 22px; height: 22px; }

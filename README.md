@@ -36,6 +36,8 @@ mix test           # chạy test (cần PostgreSQL)
 - Ngày và đêm theo giờ Việt Nam; ban đêm có quái Bóng Đêm
 - Rương Báu ở Thợ Rèn (ra đồ ngẫu nhiên), Rương Gia Truyền ở Nhà mở mỗi ngày
 - Bang hội: lập/vào bang, chat bang, quỹ bang lên cấp, bảng xếp hạng bang
+- Nhân vật mặc đúng đồ đang trang bị (người khác cũng thấy); thú cưng đi theo sau
+- Trang trí nhà bằng đồ mua ở Thợ Mộc; nhà tiện nghi thì thêm kinh nghiệm
 - Lên cấp nhận 3 điểm tiềm năng để cộng vào Sức mạnh, Thể lực, Nhanh nhẹn, Phòng thủ
 - NPC trong Làng: Trưởng Làng giao nhiệm vụ, Thợ Rèn bán vũ khí/giáp/khiên, Bà Lang bán và pha
   thuốc, Chủ Quán Trọ cho nghỉ; mua bán phải đến gặp họ. 2 món đồ hiếm chỉ rơi từ trùm
@@ -102,7 +104,7 @@ HacLongWeb.GameChannel ── lệnh {"act": "attack"} ──▶ HacLong.Game.Se
 ```
 priv/game_data.json                 Dữ liệu game: lớp nhân vật, vùng đất, quái, vật phẩm, công thức, nhiệm vụ
 priv/maps/*.json                    Bản đồ (vẽ bằng ký tự), cổng, NPC, chỗ sinh quái và điểm thu thập
-priv/static/                        Giao diện: index.html, css/, js/ (ui, map, net, sound), assets/
+priv/static/                        Giao diện: index.html, css/, js/ (ui, map, net, sound, doll), assets/
 lib/hac_long/game/data.ex           Đọc game_data.json (giải thích các trường)
 lib/hac_long/game/engine.ex         Luật chơi (hàm thuần)
 lib/hac_long/game/commands.ex       Lệnh từ client → hàm engine
@@ -117,6 +119,8 @@ lib/hac_long/game/achievements.ex   Thành tựu và danh hiệu
 lib/hac_long/game/gear.ex           Đồ có chỉ số ngẫu nhiên
 lib/hac_long/game/bestiary.ex       Sổ tay quái vật
 lib/hac_long/game/chests.ex         Rương Báu, Rương Gia Truyền
+lib/hac_long/game/pets.ex           Thú cưng
+lib/hac_long/game/home.ex           Trang trí nhà
 lib/hac_long/world/clock.ex         Ngày và đêm
 lib/hac_long/guilds.ex              Bang hội
 lib/hac_long/game/names.ex          Kiểm tra và chuẩn hóa tên nhân vật
@@ -173,7 +177,7 @@ lúc hạ từng trùm.
 | join `"game"` | → `{username, user_id, admin, blocked, mail, player}` (`player` là `null` nếu chưa tạo nhân vật; `blocked` là `[{id, name}]` người đã chặn; `mail` là số thư chưa mở) |
 | push `"cmd"` | `{act, ...}` → `{ok, msg?, result?, player}` |
 | server push `"player"` | `{player}` khi nhân vật đổi từ tab khác |
-| server push `"map"` | `{map, phase, monsters, nodes, players}` (`phase`: dawn/day/dusk/night; quái Bóng Đêm có `rare: true`) của bản đồ đang đứng, mỗi khi có thay đổi |
+| server push `"map"` | `{map, phase, monsters, nodes, players}` (người chơi kèm `look`, `tag`) (`phase`: dawn/day/dusk/night; quái Bóng Đêm có `rare: true`) của bản đồ đang đứng, mỗi khi có thay đổi |
 | push `"chat"` | `{text}` → ok hoặc `{msg}` lỗi (cả khi bị cấm chat); server đẩy `"chat"` `{id, uid, name, title, tag, map, text, at, guild?}` cho mọi người (trừ người đã chặn `uid`), `"chat_history"` lúc mới vào |
 | push `"block"`, `"unblock"` | `{uid}` → `{blocked}`: chặn/bỏ chặn chat của một người |
 | push `"report"` | `{id}` (id tin chat) → ok hoặc `{msg}` lỗi; tối đa 10 lần/10 phút |
@@ -192,7 +196,9 @@ bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: tr
 (Trưởng Làng, cấp 50), `mail_claim {id}` (mở thư, nhận quà), `title_set {id}` (`null` để
 bỏ danh hiệu), `fish_cast` (đứng cạnh nước; trả `wait` mili giây tới lúc cá cắn và `window`),
 `fish_reel`, `chest_open` (Rương Gia Truyền ở Nhà), `chest_buy {tier}` (Thợ Rèn: wood/silver/gold),
-`guild_create {name, tag}`, `guild_donate {amount}`. Bước vào NPC thì nhận `npc: id`; các lệnh sau phải đứng cạnh
+`guild_create {name, tag}`, `guild_donate {amount}`, `pet_buy {id}` (Người Nuôi Thú),
+`pet_choose {id}` (`null` để thú ở nhà), `decor_buy {id}` (Thợ Mộc), `decor_place {id, x, y}`,
+`decor_take {x, y}` (ở Nhà). Bước vào NPC thì nhận `npc: id`; các lệnh sau phải đứng cạnh
 đúng NPC: `buy {id, n}`, `sell {id}` (Thợ Rèn, Bà Lang), `upgrade {slot}` (Thợ Rèn), `craft {id}` (Bà Lang), `rest`
 (Chủ Quán Trọ), `quest_accept {id}`, `quest_turnin {id}` (Trưởng Làng), `daily_claim {i}`
 (Bảng Tin), `tower_enter {floor}` (Người Gác Tháp).
@@ -200,7 +206,9 @@ bỏ danh hiệu), `fish_cast` (đứng cạnh nước; trả `wait` mili giây 
 Trạng thái nhân vật có `pos: {map, x, y}`, `waystones` (các đá đã ghi nhớ),
 `quests: {active: {id: số_đã_hạ}, done: [id]}`, `daily: {date, tasks}`, `upgrades: {id_đồ: cấp}`,
 `guild` (bang đang ở: `{id, name, tag, level, role}`, không lưu trong bảng characters),
-`chest_day`, `fish_caught`, `gear: [{uid, base, rarity, bonus}]` (đồ ngẫu nhiên; `view.gear` có tên, chỉ số,
+`chest_day`, `pet`, `pets`, `furniture: {id: số}` (đồ trang trí trong kho), `decor: [{id, x, y}]`
+(đồ đã đặt), `view.look` (`{hair, weapon, armor, shield, pet}`: lớp hình để vẽ nhân vật),
+`view.comfort`, `fish_caught`, `gear: [{uid, base, rarity, bonus}]` (đồ ngẫu nhiên; `view.gear` có tên, chỉ số,
 giá bán), `bestiary: {id_quái: số}`, `rebirths`, `battle.effects: {player, monster}` (hiệu ứng
 `[{id, turns, power}]`), `battle.cds` (hồi chiêu `[{id, turns}]`), `achievements: [id]`, `title` (id thành tựu làm danh hiệu), `view.achievements`
 (`[{id, done, have}]`), `view.forge` (đồ đang mặc, cấp nâng và giá lên cấp tiếp), `tutorial` (bước

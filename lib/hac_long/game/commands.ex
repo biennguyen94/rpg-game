@@ -6,7 +6,20 @@ defmodule HacLong.Game.Commands do
   Client chỉ gửi *ý định* (tấn công, mua món X...), mọi con số đều do server tính.
   """
 
-  alias HacLong.Game.{Achievements, Chests, Daily, Data, Engine, Fishing, Quests, Tower, Tutorial}
+  alias HacLong.Game.{
+    Achievements,
+    Chests,
+    Daily,
+    Data,
+    Engine,
+    Fishing,
+    Home,
+    Pets,
+    Quests,
+    Tower,
+    Tutorial
+  }
+
   alias HacLong.World
   alias HacLong.World.Maps
 
@@ -73,6 +86,21 @@ defmodule HacLong.Game.Commands do
 
       "fish_reel" ->
         Fishing.reel(p, System.monotonic_time(:millisecond))
+
+      "pet_buy" ->
+        at_npc(p, ["pets"], "Người Nuôi Thú ở Làng", fn _ -> Pets.buy(p, c["id"]) end)
+
+      "pet_choose" ->
+        Pets.choose(p, c["id"])
+
+      "decor_buy" ->
+        at_npc(p, ["carpenter"], "Thợ Mộc ở Làng", fn _ -> Home.buy(p, c["id"]) end)
+
+      "decor_place" ->
+        Home.place(p, c["id"], int(c["x"]), int(c["y"]))
+
+      "decor_take" ->
+        Home.take(p, int(c["x"]), int(c["y"]))
 
       "chest_buy" ->
         at_npc(p, ["shop"], "Thợ Rèn ở Làng", fn _ -> Chests.buy(p, c["tier"]) end)

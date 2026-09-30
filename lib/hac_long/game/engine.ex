@@ -8,7 +8,7 @@ defmodule HacLong.Game.Engine do
   để test cố định được kết quả.
   """
 
-  alias HacLong.Game.{Bestiary, Data, Gear, Rng}
+  alias HacLong.Game.{Bestiary, Data, Gear, Home, Pets, Rng}
 
   @save_version 1
   @points_per_level 3
@@ -62,6 +62,10 @@ defmodule HacLong.Game.Engine do
           bestiary: %{},
           rebirths: 0,
           chest_day: nil,
+          pet: nil,
+          pets: [],
+          furniture: %{},
+          decor: [],
           fish_caught: 0,
           achievements: [],
           title: nil,
@@ -86,16 +90,20 @@ defmodule HacLong.Game.Engine do
 
     up = fn id -> if id, do: upgrade_bonus(p, id), else: 0 end
 
+    # thú cưng đang dắt theo cộng phần trăm
+    pet = fn key -> 1 + Pets.bonus(p, key) end
+
     %{
-      maxHp: round(40 + s.vit * 12 + p.level * 10),
+      maxHp: round((40 + s.vit * 12 + p.level * 10) * pet.(:hp)),
       atk:
         round(
-          s.str * 2.2 + s.agi * 0.9 + if(w, do: w.atk, else: 0) + up.(p.equip.weapon) + p.level
+          (s.str * 2.2 + s.agi * 0.9 + if(w, do: w.atk, else: 0) + up.(p.equip.weapon) + p.level) *
+            pet.(:atk)
         ),
       def:
         round(
-          s.def * 1.6 + if(a, do: a.def, else: 0) + if(sh, do: sh.def, else: 0) +
-            up.(p.equip.armor) + up.(p.equip.shield) + p.level * 0.5
+          (s.def * 1.6 + if(a, do: a.def, else: 0) + if(sh, do: sh.def, else: 0) +
+             up.(p.equip.armor) + up.(p.equip.shield) + p.level * 0.5) * pet.(:def)
         ),
       crit: clamp(0.04 + s.agi * 0.008, 0, 0.6),
       critMult: min(2.5, 1.6 + s.agi * 0.006),
@@ -113,6 +121,8 @@ defmodule HacLong.Game.Engine do
       xpToNext: xp_to_next(p.level),
       restCost: rest_cost(p),
       unlocked: Enum.map(0..(Data.zone_count() - 1), &zone_unlocked?(p, &1)),
+      look: look(p),
+      comfort: Home.comfort(p),
       # cộng thêm của đồ đã nâng cấp (để client so sánh đồ) và giá nâng cấp đồ đang mặc
       bonus: upgrades(p) |> Map.keys() |> Map.new(&{&1, upgrade_bonus(p, &1)}),
       forge:
@@ -651,13 +661,16 @@ defmodule HacLong.Game.Engine do
 
   defp win(p) do
     m = p.battle.monster
-    p = %{p | kills: p.kills + 1, gold: p.gold + m.gold}
-    reward = %{xp: m.xp, gold: m.gold, items: [], levels: 0}
+    # thú cưng (vàng, kinh nghiệm) và nhà trang trí (kinh nghiệm) cộng thêm
+    gold = round(m.gold * (1 + Pets.bonus(p, :gold)))
+    xp = round(m.xp * (1 + Pets.bonus(p, :xp) + Home.xp_bonus(p)))
+    p = %{p | kills: p.kills + 1, gold: p.gold + gold}
+    reward = %{xp: xp, gold: gold, items: [], levels: 0}
 
     p =
       if m[:world],
         do: log(p, "🏆 #{m.name} gục ngã dưới đòn của bạn!", "win"),
-        else: log(p, "🏆 Bạn đã hạ #{m.name}! +#{m.xp} kinh nghiệm, +#{m.gold} vàng.", "win")
+        else: log(p, "🏆 Bạn đã hạ #{m.name}! +#{xp} kinh nghiệm, +#{gold} vàng.", "win")
 
     {p, reward} =
       if not m.boss and !m[:world] and chance(0.12) do
@@ -692,7 +705,7 @@ defmodule HacLong.Game.Engine do
            %{reward | gold: reward.gold + mark.gold}}
       end
 
-    {levels, p} = gain_xp(p, m.xp)
+    {levels, p} = gain_xp(p, xp)
 
     p =
       if levels > 0,
@@ -795,6 +808,24 @@ defmodule HacLong.Game.Engine do
       p = if levels > 0, do: %{p | hp: derived(p).maxHp}, else: p
       {levels, p}
     end
+  end
+
+  # ---------- Ngoại hình ----------
+
+  @doc """
+  Ngoại hình để vẽ nhân vật (và gửi cho người khác trên bản đồ): lớp tóc theo lớp nhân vật,
+  lớp hình của vũ khí, giáp, khiên đang mặc (`doll` trong dữ liệu đồ) và thú cưng đang dắt.
+  """
+  def look(p) do
+    doll = fn id -> (it = Gear.item(p, id)) && it[:doll] end
+
+    %{
+      hair: Data.class(p.cls)[:hair],
+      weapon: doll.(p.equip.weapon),
+      armor: doll.(p.equip.armor),
+      shield: doll.(p.equip.shield),
+      pet: Map.get(p, :pet)
+    }
   end
 
   # ---------- Nâng cấp đồ (Thợ Rèn) ----------

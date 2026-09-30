@@ -2,7 +2,7 @@
  * Mọi thao tác gửi lên server qua Net (net.js); server tính toán rồi trả trạng thái mới.
  * P.view chứa các chỉ số server tính sẵn (máu tối đa, tấn công, giá nghỉ trọ...). */
 (function () {
-  const { CLASSES, ZONES, ITEMS, RULES, RECIPES, QUESTS, WORLD, ACHIEVEMENTS } = window.GAME_DATA;
+  const { CLASSES, ZONES, ITEMS, RULES, RECIPES, QUESTS, WORLD, ACHIEVEMENTS, PETS, FURNITURE } = window.GAME_DATA;
   const Net = window.Net;
 
   let P = null;          // trạng thái người chơi
@@ -27,7 +27,8 @@
   let mail = { unread: 0, list: null, open: false }; // hộp thư
   let guildUi = { open: false, list: null, requested: [], info: null, q: '', confirm: null }; // bang hội
   let chatTo = 'world';  // 'world' | 'guild'
-  let fishing = null;    // lượt câu: { phase: 'wait' | 'bite', timers: [] }
+  let fishing = null;
+  let decor = { on: false, pick: null }; // trang trí nhà: đang bật, món đang chọn để đặt    // lượt câu: { phase: 'wait' | 'bite', timers: [] }
   let wb = { alive: false }; // trùm thế giới; `skew`: lệch đồng hồ máy chủ - máy này
   const Map_ = window.MapView;
   const Sound = window.Sound;
@@ -40,6 +41,8 @@
   const icon = (name, cls) => `<img class="ic ${cls || ''}" src="${asset('icons/' + name + '.svg')}" alt="">`;
   // Hình vật phẩm: nguyên liệu dùng ảnh PNG (`sprite`), còn lại dùng icon SVG.
   const itemIcon = (it, rarity) => (it.sprite ? `<img class="ic lg px" src="${asset(it.sprite + '.png')}" alt="">` : icon(it.icon, 'lg' + (rarity ? ` rar-ic-${rarity}` : '')));
+  // hình nhân vật mặc đúng đồ đang trang bị (doll.js)
+  const heroSprite = (cls) => `<img class="sprite ${cls || ''}" src="${window.Doll.url(P && P.view.look)}" alt="${esc(P ? P.name : '')}">`;
   const sprite = (id, cls, alt) => `<img class="sprite ${cls || ''}" src="${asset('monsters/' + id + '.png')}" alt="${esc(alt || '')}">`;
 
   let toastTimer;
@@ -88,7 +91,7 @@
       ['bag', 'backpack', 'Túi đồ'],
       ['quests', 'scroll-unfurled', 'Nhiệm vụ'],
     ].concat(Net.isAdmin ? [['admin', 'crowned-skull', 'Quản trị']] : []).map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = mail.open ? viewMail() : guildUi.open ? viewGuild() : P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + Map_.html(P, viewDialog() + viewFishing()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests, admin: viewAdmin }[tab])();
+    view.innerHTML = mail.open ? viewMail() : guildUi.open ? viewGuild() : P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + viewDecorPanel() + Map_.html(P, viewDialog() + viewFishing() + viewDecorButton()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests, admin: viewAdmin }[tab])();
     if (tab === 'map' && !npc && !mail.open && !guildUi.open) {
       Map_.mount(() => P);
       const log = $('#chat-log');
@@ -420,7 +423,7 @@
     const d = P.view.derived, need = P.view.xpToNext;
     return `
       <div class="hud-top">
-        ${sprite('hero', '', 'Nhân vật')}
+        ${heroSprite()}
         <div class="hud-who">
           <div class="hud-name">${esc(P.name)}</div>
           <div class="small muted">${CLASSES[P.cls].name} · ${P.rebirths ? `<span class="tag gold num" title="Số lần chuyển sinh">CS ${P.rebirths}</span> ` : ''}Cấp ${P.level}</div>
@@ -756,7 +759,7 @@
     return `
       <div class="card">
         <div class="row">
-          ${sprite('hero', '', '')}
+          ${heroSprite()}
           <div class="grow">${P.title ? `<span class="title-tag">${esc(achTitle(P.title))}</span>` : ''}<h2 class="display">${esc(P.name)}</h2><div class="small muted">${c.name} · Cấp ${P.level}</div></div>
         </div>
         <div class="stat-grid">
@@ -794,6 +797,8 @@
         </div>
       </div>
 
+      ${viewPets()}
+
       <div class="card"><h3>Kỹ năng</h3><div class="list">
         ${c.skills.map((k) => `<div class="item ${k.level > P.level ? 'locked' : ''}">${icon(k.icon, 'lg')}<div class="grow">
           <div class="name">${k.name}${k.level > P.level ? ` <span class="small" style="color:var(--bad)">· mở ở cấp ${k.level}</span>` : ''}</div>
@@ -801,6 +806,40 @@
       </div></div>
 
       ${viewAchievements()}`;
+  }
+
+  // ---------- Thú cưng ----------
+  function viewPets() {
+    const owned = PETS.filter((pt) => (P.pets || []).includes(pt.id));
+    if (!owned.length) return `<div class="card"><h3>Thú cưng</h3><p class="small muted">Chưa có thú cưng. Gặp Người Nuôi Thú ở góc dưới bên phải Làng.</p></div>`;
+    return `<div class="card"><h3>Thú cưng</h3><div class="list">${owned.map((pt) => `<div class="item"><img class="sprite" src="${asset('pets/' + pt.id + '.png')}" alt=""><div class="grow"><div class="name">${esc(pt.name)}</div><div class="small muted">${esc(pt.desc)}</div></div>
+      ${P.pet === pt.id ? '<button class="btn" data-act="pet_choose" data-id="">Để ở nhà</button>' : `<button class="btn primary" data-act="pet_choose" data-id="${pt.id}">Dắt theo</button>`}</div>`).join('')}</div></div>`;
+  }
+
+  // ---------- Trang trí nhà ----------
+  function viewDecorButton() {
+    if (P.pos.map !== 'home' || decor.on) return '';
+    return `<div class="fish-ui idle"><button class="btn" data-act="decor-on">${icon('village')} Trang trí</button></div>`;
+  }
+
+  function viewDecorPanel() {
+    if (P.pos.map !== 'home' || !decor.on) return '';
+    const stock = Object.entries(P.furniture || {}).filter(([, n]) => n > 0);
+    if (decor.pick && !(P.furniture || {})[decor.pick]) decor.pick = null;
+    const name = (id) => (FURNITURE.find((f) => f.id === id) || { name: id }).name;
+    return `<div class="card decor-panel">
+      <div class="row"><h3 class="grow">Trang trí nhà</h3><span class="tag gold num">Tiện nghi ${P.view.comfort}</span><button class="btn" data-act="decor-off">Xong</button></div>
+      <p class="small muted">${decor.pick ? `Chạm vào ô trống để đặt <b>${esc(name(decor.pick))}</b>.` : 'Chọn một món trong kho rồi chạm vào ô để đặt. Chạm vào đồ đã đặt để cất vào kho.'}</p>
+      ${stock.length ? `<div class="chips">${stock.map(([id, n]) => `<button class="chip ${decor.pick === id ? 'on' : ''}" data-act="decor-pick" data-id="${id}"><img class="ic px" src="${asset('decor/' + id + '.png')}" alt=""> ${esc(name(id))}${n > 1 ? ` ×${n}` : ''}</button>`).join('')}</div>`
+        : '<p class="small muted">Kho trống. Mua đồ trang trí ở Thợ Mộc trong Làng.</p>'}
+    </div>`;
+  }
+
+  async function decorTap(x, y) {
+    const placed = (P.decor || []).find((d) => d.x === x && d.y === y);
+    if (placed) return sendCommand({ act: 'decor_take', x, y });
+    if (!decor.pick) { toast('Chọn một món trong kho trước.', true); return; }
+    await sendCommand({ act: 'decor_place', id: decor.pick, x, y });
   }
 
   // ---------- Thành tựu, danh hiệu ----------
@@ -1051,6 +1090,25 @@
     if (n.role === 'daily') {
       sections.push(`<div class="card"><div class="row"><h3 class="grow">Việc hôm nay</h3><span class="small muted">Việc mới sau ${dailyLeft()}</span></div>${dailyList(true)}</div>`);
     }
+    if (n.role === 'pets') {
+      const owned = P.pets || [];
+      sections.push(`<div class="card"><h3>Thú cưng</h3><p class="small muted">Dắt theo một con để nó đi sau bạn trên bản đồ và giúp một tay. Đổi con dắt theo ở tab Nhân vật.</p>
+        <div class="list">${PETS.map((pt) => {
+          const has = owned.includes(pt.id), poor = P.gold < pt.price;
+          return `<div class="item"><img class="sprite" src="${asset('pets/' + pt.id + '.png')}" alt=""><div class="grow"><div class="name">${esc(pt.name)}</div><div class="small muted">${esc(pt.desc)}</div></div>
+            ${has ? (P.pet === pt.id ? '<span class="tag good">Đang dắt</span>' : `<button class="btn" data-act="pet_choose" data-id="${pt.id}">Dắt theo</button>`)
+              : `<button class="btn ${poor ? '' : 'primary'}" data-act="pet_buy" data-id="${pt.id}" ${poor ? 'disabled' : ''}>${icon('two-coins')}${fmt(pt.price)}</button>`}</div>`;
+        }).join('')}</div></div>`);
+    }
+    if (n.role === 'carpenter') {
+      const stock = P.furniture || {};
+      sections.push(`<div class="card"><h3>Đồ trang trí</h3><p class="small muted">Mua rồi về Nhà bấm Trang trí để đặt. Mỗi 10 điểm tiện nghi của đồ đã đặt: +1% kinh nghiệm mỗi trận (tối đa +5%). Nhà bạn đang có ${P.view.comfort} điểm.</p>
+        <div class="list">${FURNITURE.map((fu) => {
+          const poor = P.gold < fu.price;
+          return `<div class="item"><img class="sprite" src="${asset('decor/' + fu.id + '.png')}" alt=""><div class="grow"><div class="name">${esc(fu.name)}</div><div class="small muted">Tiện nghi +${fu.comfort}${stock[fu.id] ? ` · trong kho ${stock[fu.id]}` : ''}</div></div>
+            <button class="btn ${poor ? '' : 'primary'}" data-act="decor_buy" data-id="${fu.id}" ${poor ? 'disabled' : ''}>${icon('two-coins')}${fmt(fu.price)}</button></div>`;
+        }).join('')}</div></div>`);
+    }
     if (n.role === 'chest') {
       sections.push(`<div class="card"><p>“${esc(n.lines[0])}”</p>
         <button class="btn ${P.view.chestReady ? 'primary' : ''} block" data-act="chest_open" ${P.view.chestReady ? '' : 'disabled'}>${P.view.chestReady ? 'Mở rương' : 'Hôm nay đã mở, mai quay lại'}</button></div>`);
@@ -1141,7 +1199,7 @@
         ${effectTags(fxs.monster)}
       </div>
       <div class="me ${fx && fx.pDmg ? 'hurt' : ''}">
-        ${sprite('hero', '', '')}
+        ${heroSprite()}
         <div class="grow" style="flex:1;min-width:0">${bar('hp', P.hp, d.maxHp, `${esc(P.name)} · ${fmt(P.hp)} / ${fmt(d.maxHp)}`)}${effectTags(fxs.player)}</div>
       </div>
       <div class="log" aria-live="polite">${b.log.map((l) => `<div class="${l.kind}">${esc(l.text)}</div>`).join('')}</div>
@@ -1184,13 +1242,15 @@
       case 'skill': return { act, skill: d.skill };
       case 'mail_claim': return { act, id: +d.id };
       case 'chest_buy': return { act, tier: d.tier };
+      case 'pet_buy': case 'decor_buy': return { act, id: d.id };
+      case 'pet_choose': return { act, id: d.id || null };
       case 'title_set': return { act, id: d.id || null };
       default: return { act };
     }
   }
 
   // Âm thanh cho kết quả một lệnh.
-  const CMD_SOUND = { chest_buy: 'rare', chest_open: 'rare', rebirth: 'levelup', buy: 'coin', sell: 'coin', mail_claim: 'coin', craft: 'brew', upgrade: 'forge', quest_turnin: 'quest', daily_claim: 'quest', quest_accept: 'notice', rest: 'potion', use: 'potion', tower_enter: 'portal', potion: 'potion' };
+  const CMD_SOUND = { pet_buy: 'rare', decor_buy: 'coin', decor_place: 'forge', decor_take: 'gather', chest_buy: 'rare', chest_open: 'rare', rebirth: 'levelup', buy: 'coin', sell: 'coin', mail_claim: 'coin', craft: 'brew', upgrade: 'forge', quest_turnin: 'quest', daily_claim: 'quest', quest_accept: 'notice', rest: 'potion', use: 'potion', tower_enter: 'portal', potion: 'potion' };
 
   function commandSound(cmd, r, old) {
     if (!r.ok) { Sound.play('error'); return; }
@@ -1305,6 +1365,7 @@
   function onMapTap(e) {
     if (e.target.id !== 'map-canvas' || !P || P.battle) return;
     const [x, y] = Map_.tileFromEvent(e);
+    if (decor.on && P.pos.map === 'home') { decorTap(x, y); return; }
     walkTo(x, y);
   }
 
@@ -1328,7 +1389,7 @@
     const t = e.target.closest('button');
     if (!t) return;
     if (t.dataset.cls) { pickCls = t.dataset.cls; document.querySelectorAll('.class-opt').forEach((b) => b.setAttribute('aria-pressed', b.dataset.cls === pickCls)); return; }
-    if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; mail.open = false; guildUi.open = false; stopFishing(); render(); $('#view').scrollTop = 0; return; }
+    if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; mail.open = false; guildUi.open = false; stopFishing(); if (decor.on) { decor = { on: false, pick: null }; Map_.setDecorating(false); } render(); $('#view').scrollTop = 0; return; }
     if (t.dataset.auth) { authMode = t.dataset.auth; render(); return; }
     if (t.dataset.board) { board.kind = t.dataset.board; const el = $('#board'); if (el) el.outerHTML = viewBoard(); loadBoard(); return; }
     if (t.dataset.move) { walk = null; step(t.dataset.move); return; }
@@ -1361,6 +1422,8 @@
     if (act === 'mail-close') { mail.open = false; render(); return; }
     if (act === 'fish-cast') { walk = null; castLine(); return; }
     if (act === 'sound-toggle') { Sound.toggle(); render(); return; }
+    if (act === 'decor-on' || act === 'decor-off') { decor = { on: act === 'decor-on', pick: null }; walk = null; Map_.setDecorating(decor.on); render(); return; }
+    if (act === 'decor-pick') { decor.pick = decor.pick === t.dataset.id ? null : t.dataset.id; render(); return; }
     if (act === 'bestiary-toggle') { bestiaryOpen = !bestiaryOpen; render(); return; }
     if (act === 'guild-open') { guildUi.open = true; guildUi.list = null; guildUi.info = null; render(); $('#view').scrollTop = 0; loadGuild(); return; }
     if (act === 'guild-close') { guildUi.open = false; guildUi.confirm = null; render(); return; }
@@ -1454,6 +1517,7 @@
     Net.onChat(onChatMessage);
     Net.onWorldBoss(onWorldBoss);
     Net.onNotice((msg) => { toast(msg); Sound.play(/Thành tựu/.test(msg) ? 'achieve' : 'notice'); });
+    window.Doll.onReady(() => { if (P) refresh(); });
     Net.onGuild((g) => {
       if (!P) return;
       const before = P.guild;

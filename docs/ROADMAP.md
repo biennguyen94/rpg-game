@@ -7,12 +7,10 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 
 Ước lượng công sức: nhỏ (vài giờ), vừa (khoảng một ngày), lớn (nhiều ngày).
 
-1. **Tổ đội** (vừa–lớn): đánh chung một trận, chia kinh nghiệm; hợp với bang hội vừa làm.
-2. **Trang trí nhà** (vừa–lớn), **nhân vật mặc đúng đồ** (vừa), **thú cưng** (vừa): thêm chỗ
-   tiêu vàng lâu dài (hiện có Rương Báu và quỹ bang).
-3. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
+1. **Tổ đội** (vừa–lớn): đánh chung một trận, chia kinh nghiệm; hợp với bang hội.
+2. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
    **chợ giữa người chơi** (lớn).
-4. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
+3. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
 
 ---
 
@@ -119,8 +117,12 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [x] **Giai đoạn 2**: mỗi vùng gồm 2 bản đồ quái (bản đồ 2 mạnh hơn) và một phòng trùm; di
   chuyển mượt; đá dịch chuyển; hỏi xác nhận trước khi đấu trùm.
 - [x] **Giai đoạn 3**: NPC ở Làng thay tab Cửa hàng; điểm thu thập; nhiệm vụ.
-- [ ] **Giai đoạn 4**: trang trí nhà. (Rương mở mỗi ngày một lần và trùm thế giới, dự tính cho
-  giai đoạn này, đã làm.)
+- [x] **Giai đoạn 4**: trang trí nhà, rương mở mỗi ngày một lần, trùm thế giới.
+- [x] **Trang trí nhà** (`HacLong.Game.Home`): Thợ Mộc trong Làng bán 13 món (chậu cây, đèn lồng,
+  tượng, cây, đài phun nước, tượng vàng...); về Nhà bấm Trang trí, chọn món rồi chạm ô để đặt,
+  chạm đồ đã đặt để cất. Đồ chặn đường, không được chắn lối; mỗi 10 điểm tiện nghi +1% kinh
+  nghiệm mỗi trận (tối đa +5%).
+  - [ ] Cho người khác vào thăm nhà.
 - [x] **Rương** (`HacLong.Game.Chests`): Rương Gia Truyền ở Nhà mở mỗi ngày một lần (vàng, bình
   máu, nguyên liệu, 20% kèm đồ); Thợ Rèn bán Rương Gỗ/Bạc/Vàng ra đồ chỉ số ngẫu nhiên, giá gấp
   2/4/8 lần giá bán lại vũ khí tốt nhất cùng cấp nên mua về bán lại luôn lỗ. Mô phỏng: bot mua
@@ -141,11 +143,14 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   cổng, rèn, pha thuốc, nhiệm vụ, thư mới, câu cá, thành tựu. Bật/tắt và âm lượng ở tab Hành
   trình.
   - [ ] Nhạc nền nhẹ (cần bộ nhạc CC0 hoặc tự tổng hợp).
-- [ ] **Nhân vật mặc đúng đồ đang trang bị**: ghép hình áo giáp, vũ khí, khiên lên hình nhân
-  vật (bộ tile Dungeon Crawl có sẵn các phần này ở `player/`, phải đối chiếu danh sách chưa rõ
-  giấy phép như các hình khác). Hiện ai cũng cùng một hình.
-- [ ] **Thú cưng**: thuần phục quái đã hạ nhiều lần, cho đi theo sau nhân vật trên bản đồ, có
-  thể hỗ trợ đánh.
+- [x] **Nhân vật mặc đúng đồ đang trang bị** (`priv/static/js/doll.js`): ghép thân, quần, giày,
+  tóc theo lớp nhân vật, giáp, vũ khí, khiên (`doll` trong dữ liệu đồ, lớp hình từ `player/`
+  của Dungeon Crawl, đã đối chiếu danh sách chưa rõ giấy phép). Hiện ở HUD, tab Nhân vật, trận
+  đánh và trên bản đồ; người cùng bản đồ thấy đồ của nhau (`look` gửi kèm trạng thái bản đồ).
+- [x] **Thú cưng** (`HacLong.Game.Pets`): Người Nuôi Thú trong Làng bán 6 con (Cừu Bông, Chó
+  Săn, Heo Hồng, Sóc Túi, Bướm Lửa, Bằng Mã Lửa), mỗi con cộng một ít máu/tấn công/phòng thủ/
+  vàng/kinh nghiệm. Thú đang dắt đi sau nhân vật một ô, người khác cũng thấy; đổi ở tab Nhân vật.
+  - [ ] Thuần phục quái đã hạ nhiều lần; thú hỗ trợ đánh trong trận.
 
 ## G. Khác
 

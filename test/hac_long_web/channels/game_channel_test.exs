@@ -656,6 +656,40 @@ defmodule HacLongWeb.GameChannelTest do
     end
   end
 
+  test "người cùng bản đồ thấy đồ đang mặc và thú cưng của nhau" do
+    ua = create_user()
+
+    player_at(ua, %{map: "village", x: 12, y: 14}, %{
+      gold: 10_000,
+      level: 10,
+      inv: %{"broadsword" => 1}
+    })
+
+    {_, sa} = join_game(ua)
+    ub = create_user()
+    player_at(ub, %{map: "village", x: 13, y: 14})
+    {_, _sb} = join_game(ub)
+
+    cmd(sa, %{"act" => "equip", "id" => "broadsword"})
+    look = fn -> Enum.find(MapServer.snapshot("village").players, &(&1.id == ua.id)).look end
+    assert look.().weapon == "hand1/broadsword"
+
+    # dắt thú: phải mua ở Người Nuôi Thú trước
+    assert %{ok: false, msg: "Hãy đến gặp Người Nuôi Thú ở Làng."} =
+             cmd(sa, %{"act" => "pet_buy", "id" => "sheep"})
+
+    p = Session.get(ua.id)
+    {_, p} = HacLong.Game.Pets.buy(p, "sheep")
+    Characters.save!(ua.id, p)
+    [{pid, _}] = Registry.lookup(HacLong.Game.Registry, ua.id)
+    DynamicSupervisor.terminate_child(HacLong.Game.SessionSupervisor, pid)
+    {_, sa} = join_game(ua)
+    cmd(sa, %{"act" => "pet_choose", "id" => nil})
+    assert look.().pet == nil
+    cmd(sa, %{"act" => "pet_choose", "id" => "sheep"})
+    assert look.().pet == "sheep"
+  end
+
   test "người chơi khác thấy nhau trên bản đồ, tab đóng thì rời bản đồ" do
     a = create_user()
     b = create_user()

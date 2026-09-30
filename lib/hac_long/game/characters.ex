@@ -89,7 +89,15 @@ defmodule HacLong.Game.Characters do
       gear: HacLong.Game.Gear.load(c.gear),
       bestiary: c.bestiary || %{},
       rebirths: c.rebirths || 0,
-      chest_day: c.chest_day
+      chest_day: c.chest_day,
+      pets: Enum.filter(c.pets || [], &HacLong.Game.Data.pet/1),
+      pet: if(c.pet && HacLong.Game.Data.pet(c.pet), do: c.pet),
+      furniture:
+        Map.filter(c.furniture || %{}, fn {id, _} -> HacLong.Game.Data.furniture(id) end),
+      decor:
+        for d <- c.decor || [], HacLong.Game.Data.furniture(d["id"]) do
+          %{id: d["id"], x: d["x"], y: d["y"]}
+        end
     }
   end
 

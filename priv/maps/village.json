@@ -243,6 +243,34 @@
         "Trong tháp máu không tự hồi đâu, mang đủ bình máu vào.",
         "Vượt mỗi 10 tầng thì lần sau ta cho vào thẳng từ tầng đó."
       ]
+    },
+    {
+      "id": "carpenter",
+      "name": "Thợ Mộc",
+      "sprite": "carpenter",
+      "at": [
+        4,
+        14
+      ],
+      "role": "carpenter",
+      "lines": [
+        "Tượng, cây cảnh, đài phun nước... nhà đẹp thì ở mới sướng.",
+        "Nhà càng tiện nghi, nghỉ ngơi càng mau lại sức mà đi săn."
+      ]
+    },
+    {
+      "id": "pet_keeper",
+      "name": "Người Nuôi Thú",
+      "sprite": "pet_keeper",
+      "at": [
+        21,
+        14
+      ],
+      "role": "pets",
+      "lines": [
+        "Mấy đứa nhỏ này ngoan lắm, dắt theo đi săn là có ích ngay.",
+        "Mỗi con một tài, cậu cứ chọn con hợp ý."
+      ]
     }
   ],
   "spawns": []

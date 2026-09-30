@@ -28,6 +28,14 @@ Tác giả:
   village, walk, war-axe, wood-club
 - **Willdabeast** (http://wjbstories.blogspot.com): chain-mail, round-shield
 
+## Nhân vật mặc đồ, thú cưng, đồ trang trí (`priv/static/assets/doll/`, `pets/`, `decor/`)
+
+Cũng từ bộ tile Dungeon Crawl Stone Soup ở trên (CC0): các lớp nhân vật trong `player/` (thân,
+quần, giày, tóc, giáp, vũ khí, khiên), thú (`mon/animals`, `mon/hippogriff`), tượng, đài phun
+nước, cây, đồ vật (`dngn/`, `item/misc`, `mon/fungi_plants`), NPC Thợ Mộc (`deep_dwarf`) và
+Người Nuôi Thú (`halfling`). Đã đối chiếu từng file với danh sách chưa rõ giấy phép
+(`TILES_UNDER_UNKNOWN_LICENSE.md`) và chỉ dùng file không có trong danh sách đó.
+
 ## Hình cá, rương (`priv/static/assets/items/`)
 
 - `fish_gold.png` (giant_goldfish), `fish_eel.png` (electric_eel), `old_boot.png` (boots1_brown):

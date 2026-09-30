@@ -142,6 +142,22 @@ defmodule HacLong.Game.Achievements do
       title: "Thần Binh"
     },
     %{
+      id: "cozy",
+      name: "Tổ Ấm",
+      desc: "Trang trí nhà đạt 30 điểm tiện nghi.",
+      stat: :comfort,
+      goal: 30,
+      title: "Chủ Nhà Khéo Tay"
+    },
+    %{
+      id: "pet_lover",
+      name: "Bạn Của Muông Thú",
+      desc: "Có đủ mọi loài thú cưng.",
+      stat: :pets,
+      goal: :all_pets,
+      title: "Người Nuôi Thú"
+    },
+    %{
       id: "reborn",
       name: "Tái Sinh",
       desc: "Chuyển sinh lần đầu.",
@@ -197,6 +213,7 @@ defmodule HacLong.Game.Achievements do
   defp goal(%{goal: :max_level}), do: Engine.max_level()
   defp goal(%{goal: :all_quests}), do: length(Data.quests())
   defp goal(%{goal: :all_species}), do: length(Bestiary.species())
+  defp goal(%{goal: :all_pets}), do: length(Data.pets())
   defp goal(%{goal: :all_waystones}), do: length(Maps.waystone_ids())
   defp goal(%{goal: g}), do: g
 
@@ -213,6 +230,8 @@ defmodule HacLong.Game.Achievements do
   def value(p, :scale), do: min(1, Map.get(p.inv, "dragon_scale", 0))
   def value(p, :gold), do: p.gold
   def value(p, :rebirths), do: Map.get(p, :rebirths) || 0
+  def value(p, :comfort), do: HacLong.Game.Home.comfort(p)
+  def value(p, :pets), do: length(Map.get(p, :pets) || [])
 
   def value(p, :species),
     do: Enum.count(Bestiary.species(), &(Bestiary.count(p, &1) > 0))

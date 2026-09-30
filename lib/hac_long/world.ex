@@ -9,7 +9,7 @@ defmodule HacLong.World do
   Session luôn gọi MapServer, không bao giờ ngược lại, nên không thể bị treo chờ nhau.
   """
 
-  alias HacLong.Game.{Daily, Data, Engine, Tower}
+  alias HacLong.Game.{Daily, Data, Engine, Home, Tower}
   alias HacLong.WorldBoss
   alias HacLong.World.{Maps, MapServer}
 
@@ -29,7 +29,24 @@ defmodule HacLong.World do
 
   defp shared?(%{map: id}), do: not Maps.get(id).private
 
-  defp info(p), do: %{name: p.name, cls: p.cls, level: p.level}
+  @doc "Những gì người khác thấy về mình trên bản đồ: tên, lớp, cấp, ngoại hình, ký hiệu bang."
+  def info(p) do
+    %{
+      name: p.name,
+      cls: p.cls,
+      level: p.level,
+      look: Engine.look(p),
+      tag: Map.get(p, :guild) && p.guild.tag
+    }
+  end
+
+  @doc "Cập nhật thông tin người khác thấy (vd. vừa đổi đồ, lên cấp, dắt thú khác)."
+  def refresh(%{pos: pos} = p, uid) do
+    if shared?(pos), do: MapServer.update(pos.map, uid, info(p))
+    :ok
+  end
+
+  def refresh(_p, _uid), do: :ok
 
   @doc "Có mặt trên bản đồ hiện tại (khi người chơi mở game)."
   def enter(%{pos: pos} = p, uid) do
@@ -79,6 +96,7 @@ defmodule HacLong.World do
         Maps.tile(map, tx, ty) == "W" -> touch_waystone(p, map)
         map.world_boss == {tx, ty} and WorldBoss.hp() != nil -> world_boss(p, uid, confirm?)
         not Maps.walkable?(map, tx, ty) -> {%{ok: false}, p}
+        map.private and Home.at(p, tx, ty) != nil -> {%{ok: false}, p}
         map.private -> {%{ok: true}, put_pos(p, map_id, tx, ty)}
         true -> step_shared(p, uid, map, {tx, ty}, confirm?)
       end

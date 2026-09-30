@@ -116,6 +116,7 @@ defmodule HacLong.Game.Session do
     p = with_guild(s.player, s.user_id)
     s = %{s | player: p}
     broadcast(s, p, nil)
+    if map_size(s.tabs) > 0, do: World.refresh(p, s.user_id)
     Phoenix.PubSub.broadcast(HacLong.PubSub, topic(s.user_id), {:guild, p.guild})
     {:noreply, s, timeout(s)}
   end
@@ -308,6 +309,10 @@ defmodule HacLong.Game.Session do
     s =
       if player != old do
         broadcast(s, player, origin)
+        # đổi đồ, lên cấp, dắt thú khác: người cùng bản đồ thấy ngay
+        if player && old && map_size(s.tabs) > 0 && World.info(player) != World.info(old),
+          do: World.refresh(player, s.user_id)
+
         if player, do: save(s, player), else: delete(s)
       else
         s

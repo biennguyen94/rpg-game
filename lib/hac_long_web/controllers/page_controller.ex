@@ -29,6 +29,8 @@ defmodule HacLongWeb.PageController do
       SHOP: Data.shop(),
       RECIPES: Data.recipes(),
       QUESTS: Data.quests(),
+      PETS: Data.pets(),
+      FURNITURE: Data.furniture(),
       ACHIEVEMENTS: Achievements.client_data(),
       RULES: %{
         maxLevel: Engine.max_level(),
