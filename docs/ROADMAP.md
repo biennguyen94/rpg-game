@@ -7,16 +7,14 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 
 Ước lượng công sức: nhỏ (vài giờ), vừa (khoảng một ngày), lớn (nhiều ngày).
 
-1. **Đồ có chỉ số ngẫu nhiên** (vừa) và **thêm kỹ năng theo cấp** (vừa): trận đánh hiện gần
-   như chỉ là bấm kỹ năng rồi tấn công.
-2. **Hiệu ứng trạng thái** (vừa), **chuyển sinh** (nhỏ–vừa), **sổ tay quái vật** (nhỏ),
-   **ngày và đêm** (nhỏ).
-3. **Bang hội** (lớn), **tổ đội** (vừa–lớn): giữ người chơi lâu dài.
-4. **Rương** (nhỏ), **trang trí nhà** (vừa–lớn), **nhân vật mặc đúng đồ** (vừa),
+1. **Ngày và đêm** (nhỏ) và **chỗ tiêu vàng** (nhỏ–vừa): đồ rơi làm vàng thừa cuối game tăng
+   gấp đôi (mô phỏng ~11.000–15.000 vàng); cần thêm thứ đáng mua (rương, trang trí nhà, chợ).
+2. **Bang hội** (lớn), **tổ đội** (vừa–lớn): giữ người chơi lâu dài.
+3. **Rương** (nhỏ), **trang trí nhà** (vừa–lớn), **nhân vật mặc đúng đồ** (vừa),
    **thú cưng** (vừa).
-5. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
+4. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
    **chợ giữa người chơi** (lớn).
-6. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
+5. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
 
 ---
 
@@ -59,23 +57,29 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   cho mình; tầng N có quái cấp N, từ tầng 37 mạnh thêm 4% mỗi tầng (không có trần); 5 tầng một
   trùm tầng; hạ hết quái thì lên tầng và nhận thưởng; máu không tự hồi, gục ngã là hết lượt;
   vượt mỗi 10 tầng thì lần sau vào thẳng được.
-- [ ] **Chuyển sinh**: về cấp 1, nhận chỉ số cộng thêm vĩnh viễn.
+- [x] **Chuyển sinh**: ở cấp 50 gặp Trưởng Làng để về cấp 1, giữ vàng, đồ, vùng đã mở, nhiệm vụ,
+  thành tựu; mỗi lần cho thêm 15 điểm tiềm năng vĩnh viễn (tối đa 10 lần). Bảng xếp hạng cấp
+  tính số lần chuyển sinh trước.
 - [x] **Danh hiệu và thành tựu** (`HacLong.Game.Achievements`): 21 thành tựu (săn quái, trùm,
   diệt rồng, cấp, nhiệm vụ, đá dịch chuyển, tháp, câu cá, rèn +5, Vảy Cổ Long, vàng, số lần
   gục ngã), tính từ trạng thái nhân vật nên người cũ nhận ngay; 15 cái cho danh hiệu, chọn ở tab
   Nhân vật, hiện cạnh tên trong chat và bảng xếp hạng.
   - [ ] Thành tựu cần đếm thêm: top 3 trùm thế giới, số việc hằng ngày đã làm.
-- [ ] **Sổ tay quái vật**: ghi số con đã hạ của từng loài; hạ đủ mốc (vd. 100 con) thì được
-  thưởng nhỏ, vd. +1% sát thương lên loài đó. Cho lý do quay lại các vùng thấp.
+- [x] **Sổ tay quái vật** (`HacLong.Game.Bestiary`): đếm số con đã hạ của 30 loài; 25 con thì
+  +5% sát thương lên loài đó, 100 con +10%, mỗi mốc thưởng vàng. Thẻ ở tab Hành trình, loài
+  chưa gặp hiện bóng đen.
 
 ## C. Làm game sâu hơn
 
 - [x] **Thu thập và pha chế**: Thảo Dược, Linh Chi, Quặng Sắt, Quặng Mithril mọc trên bản đồ
   vùng; Bà Lang pha bình máu từ thảo dược.
-- [ ] **Đồ có chỉ số ngẫu nhiên** rơi từ quái (vd. "Kiếm Sắt +3, Chí mạng +2%").
-- [ ] **Thêm kỹ năng theo cấp**: kỹ năng thứ 2 ở cấp 15, thứ 3 ở cấp 30 cho mỗi lớp.
-- [ ] **Hiệu ứng trạng thái**: độc, choáng, chảy máu (vd. quái Đầm Lầy gây độc). Mở rộng từ
-  cơ chế `special` / `every` có sẵn trong engine.
+- [x] **Đồ có chỉ số ngẫu nhiên** (`HacLong.Game.Gear`): quái rơi đồ (4% quái thường, 35% trùm,
+  50% trùm tầng tháp) theo đồ gốc hợp cấp quái, kèm 1–3 dòng chỉ số cộng thêm (Tốt, Hiếm, Sử
+  Thi). Mỗi món một bản riêng; mặc, bán, nâng cấp như đồ thường; túi tối đa 20 món.
+- [x] **Thêm kỹ năng theo cấp**: mỗi lớp thêm 2 kỹ năng ở cấp 10 và 25 (choáng, cuồng nộ, tẩm
+  độc, ảnh bộ, thủ thế, làm suy yếu), hồi chiêu riêng từng kỹ năng.
+- [x] **Hiệu ứng trạng thái**: độc, bỏng, chảy máu, choáng, suy yếu, cuồng nộ, thủ thế, ảnh bộ.
+  Đòn đặc biệt của trùm và một số quái gây hiệu ứng; bình máu giải độc/bỏng/chảy máu.
 - [x] **Công dụng cho quặng**: Thợ Rèn nâng đồ đang mặc tới +5 (mỗi cấp +8% chỉ số gốc) bằng
   Quặng Sắt hoặc Mithril và vàng; +5 cần thêm Vảy Cổ Long. Cấp nâng giữ theo món đồ. Mô phỏng:
   không đổi số trận (tiến độ theo cấp) nhưng hút bớt khoảng một nửa vàng thừa cuối game.

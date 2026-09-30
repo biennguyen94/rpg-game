@@ -89,4 +89,25 @@ defmodule HacLong.Game.GearTest do
     assert q.upgrades == %{"#KIEM" => 2}
     assert Engine.derived(q) == Engine.derived(p)
   end
+
+  test "trận đang đánh có hiệu ứng, hồi chiêu, đồ rơi vẫn lưu và nạp lại đúng" do
+    {:ok, user} =
+      HacLong.Accounts.register(%{
+        "username" => "tran#{System.unique_integer([:positive])}",
+        "password" => "matkhau1"
+      })
+
+    Rng.put_sequence([0.99])
+    {:ok, p} = Engine.new_player("Trận #{System.unique_integer([:positive])}", "rogue")
+    p = %{p | level: 10} |> Map.put(:pos, %{map: "forest_1", x: 5, y: 5})
+    {_, p} = Engine.start_battle(p, 0, false)
+    p = put_in(p.battle.monster.hp, 10_000)
+    {_, p} = Engine.act(p, "skill", "venom")
+    p = put_in(p.battle.reward, %{xp: 1, gold: 1, items: [], levels: 0, gear: ["Kiếm"]})
+    Characters.save!(user.id, p)
+    q = Characters.load(user.id)
+    assert q.battle.effects == p.battle.effects and q.battle.cds == p.battle.cds
+    assert q.battle.reward.gear == ["Kiếm"]
+    assert {%{ok: true}, _} = Engine.act(q, "attack")
+  end
 end

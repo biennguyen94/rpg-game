@@ -20,14 +20,19 @@ mix test           # chạy test (cần PostgreSQL)
 
 ## Nội dung
 
-- 3 lớp nhân vật: **Chiến Binh**, **Thích Khách**, **Hiệp Sĩ**, mỗi lớp một kỹ năng riêng
+- 3 lớp nhân vật: **Chiến Binh**, **Thích Khách**, **Hiệp Sĩ**, mỗi lớp 3 kỹ năng (mở ở cấp 1,
+  10, 25)
 - Bản đồ ô vuông: Nhà riêng, Làng và 6 vùng đất; mỗi vùng có 2 bản đồ quái và một phòng trùm,
   nối với nhau bằng cổng. Quái dùng chung giữa mọi người, đi lang thang và hồi lại sau khi bị hạ;
   thấy người chơi khác trên cùng bản đồ. Nhân vật và quái di chuyển mượt
 - Đá dịch chuyển ở Làng và sâu trong mỗi vùng: chạm để ghi nhớ, rồi dịch chuyển qua lại
 - 24 loại quái thường, 6 trùm trong phòng riêng (hỏi xác nhận trước khi đấu; hạ trùm để mở
   cổng sang vùng tiếp theo)
-- Chiến đấu theo lượt: tấn công, kỹ năng (có hồi chiêu), uống máu, bỏ chạy
+- Chiến đấu theo lượt: tấn công, kỹ năng (có hồi chiêu), uống máu, bỏ chạy; hiệu ứng trạng thái
+  (độc, bỏng, choáng, suy yếu, cuồng nộ...)
+- Đồ có chỉ số ngẫu nhiên rơi từ quái (Tốt, Hiếm, Sử Thi)
+- Sổ tay quái vật: hạ đủ mốc mỗi loài thì đánh loài đó mạnh hơn
+- Chuyển sinh ở cấp 50: về cấp 1 với điểm tiềm năng cộng thêm
 - Lên cấp nhận 3 điểm tiềm năng để cộng vào Sức mạnh, Thể lực, Nhanh nhẹn, Phòng thủ
 - NPC trong Làng: Trưởng Làng giao nhiệm vụ, Thợ Rèn bán vũ khí/giáp/khiên, Bà Lang bán và pha
   thuốc, Chủ Quán Trọ cho nghỉ; mua bán phải đến gặp họ. 2 món đồ hiếm chỉ rơi từ trùm
@@ -106,6 +111,8 @@ lib/hac_long/game/tower.ex          Tháp Vô Tận: sinh tầng, quái, lên t�
 lib/hac_long/game/tutorial.ex       Hướng dẫn người mới
 lib/hac_long/game/fishing.ex        Câu cá
 lib/hac_long/game/achievements.ex   Thành tựu và danh hiệu
+lib/hac_long/game/gear.ex           Đồ có chỉ số ngẫu nhiên
+lib/hac_long/game/bestiary.ex       Sổ tay quái vật
 lib/hac_long/game/names.ex          Kiểm tra và chuẩn hóa tên nhân vật
 lib/hac_long/game/simulator.ex      Bot chơi thử để kiểm tra cân bằng
 lib/hac_long/world.ex               Đi lại trên bản đồ, qua cổng, chạm quái, kết thúc trận
@@ -173,8 +180,9 @@ lúc hạ từng trùm.
 Các `act`: `create {name, cls}`, `reset`, `move {dir, confirm?}` (`up`/`down`/`left`/`right`;
 bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: true` để đấu),
 `teleport {to}` (đứng cạnh đá dịch chuyển; bước vào đá thì nhận `waystone: true`),
-`attack`, `skill`, `potion`, `flee`, `leave`, `alloc {stat, n}`, `equip {id}`,
-`unequip {slot}`, `use {id}`, `mail_claim {id}` (mở thư, nhận quà), `title_set {id}` (`null` để
+`attack`, `skill {skill?}` (id kỹ năng, không có thì dùng kỹ năng đầu), `potion`, `flee`, `leave`, `alloc {stat, n}`, `equip {id}`,
+`unequip {slot}`, `use {id}` (`equip`, `sell`, `upgrade` nhận cả id đồ ngẫu nhiên `#...`), `rebirth`
+(Trưởng Làng, cấp 50), `mail_claim {id}` (mở thư, nhận quà), `title_set {id}` (`null` để
 bỏ danh hiệu), `fish_cast` (đứng cạnh nước; trả `wait` mili giây tới lúc cá cắn và `window`),
 `fish_reel`. Bước vào NPC thì nhận `npc: id`; các lệnh sau phải đứng cạnh
 đúng NPC: `buy {id, n}`, `sell {id}` (Thợ Rèn, Bà Lang), `upgrade {slot}` (Thợ Rèn), `craft {id}` (Bà Lang), `rest`
@@ -183,7 +191,9 @@ bỏ danh hiệu), `fish_cast` (đứng cạnh nước; trả `wait` mili giây 
 
 Trạng thái nhân vật có `pos: {map, x, y}`, `waystones` (các đá đã ghi nhớ),
 `quests: {active: {id: số_đã_hạ}, done: [id]}`, `daily: {date, tasks}`, `upgrades: {id_đồ: cấp}`,
-`fish_caught`, `achievements: [id]`, `title` (id thành tựu làm danh hiệu), `view.achievements`
+`fish_caught`, `gear: [{uid, base, rarity, bonus}]` (đồ ngẫu nhiên; `view.gear` có tên, chỉ số,
+giá bán), `bestiary: {id_quái: số}`, `rebirths`, `battle.effects: {player, monster}` (hiệu ứng
+`[{id, turns, power}]`), `battle.cds` (hồi chiêu `[{id, turns}]`), `achievements: [id]`, `title` (id thành tựu làm danh hiệu), `view.achievements`
 (`[{id, done, have}]`), `view.forge` (đồ đang mặc, cấp nâng và giá lên cấp tiếp), `tutorial` (bước
 hướng dẫn đang làm, `null` khi xong; `view.tutorial` là `{step, total, text, hint, target}`
 với `target` là ô cần tới trên bản đồ đang đứng), `tower` (tầng tháp
