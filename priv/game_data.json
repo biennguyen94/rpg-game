@@ -674,21 +674,21 @@
       "slot": "material",
       "sprite": "items/fish_small",
       "price": 10,
-      "desc": "Câu ở hồ nước. Bán cho Bà Lang hoặc Thợ Rèn."
+      "desc": "Câu ở hồ nước. Bà Lang nấu 2 con thành Bình Máu Nhỏ."
     },
     "fish_carp": {
       "name": "Cá Chép",
       "slot": "material",
       "sprite": "items/fish_carp",
       "price": 25,
-      "desc": "Câu ở hồ nước. Bán được giá khá."
+      "desc": "Câu ở hồ nước. Bà Lang nấu 2 con thành Bình Máu Vừa."
     },
     "fish_eel": {
       "name": "Lươn Điện",
       "slot": "material",
       "sprite": "items/fish_eel",
       "price": 60,
-      "desc": "Chỉ có ở Đầm Lầy và Hang Rồng."
+      "desc": "Chỉ có ở Đầm Lầy và Hang Rồng. Bà Lang nấu 2 con thành Bình Máu Lớn."
     },
     "fish_gold": {
       "name": "Cá Chép Vàng",
@@ -757,6 +757,30 @@
       "out": "potion_l",
       "needs": {
         "herb_rare": 2
+      },
+      "npc": "herbalist"
+    },
+    {
+      "id": "cook_small",
+      "out": "potion_s",
+      "needs": {
+        "fish_small": 2
+      },
+      "npc": "herbalist"
+    },
+    {
+      "id": "cook_carp",
+      "out": "potion_m",
+      "needs": {
+        "fish_carp": 2
+      },
+      "npc": "herbalist"
+    },
+    {
+      "id": "cook_eel",
+      "out": "potion_l",
+      "needs": {
+        "fish_eel": 2
       },
       "npc": "herbalist"
     }

@@ -7,7 +7,8 @@ defmodule HacLong.Game.Daily do
 
   - `kill`: hạ N con một loại quái;
   - `zone`: hạ N quái bất kỳ ở một vùng;
-  - `gather`: hái/đào N một loại nguyên liệu.
+  - `gather`: hái/đào N một loại nguyên liệu;
+  - `fish`: câu được N con cá (ủng cũ không tính).
 
   Việc tự nhận, không cần đến Bảng Tin; làm xong thì đến Bảng Tin nhận thưởng.
   Trạng thái trong nhân vật: `daily: %{date: "2026-10-01", tasks: [...]}`.
@@ -46,7 +47,8 @@ defmodule HacLong.Game.Daily do
     {nz, rng} = range(12, 16, rng)
     {zg, rng} = pick(zones, rng)
     {item, rng} = pick(if(zg < 3, do: ~w(herb ore), else: ~w(herb_rare ore_rare)), rng)
-    {ng, _rng} = range(4, 6, rng)
+    {ng, rng} = range(4, 6, rng)
+    {nf, _rng} = range(3, 5, rng)
 
     [
       task("kill", monster.id, zk, nk, "Hạ #{nk} #{monster.name}"),
@@ -57,7 +59,8 @@ defmodule HacLong.Game.Daily do
         zg,
         ng,
         "#{if(String.starts_with?(item, "ore"), do: "Đào", else: "Hái")} #{ng} #{Data.item(item).name}"
-      )
+      ),
+      task("fish", nil, top, nf, "Câu #{nf} con cá")
     ]
   end
 
@@ -84,6 +87,9 @@ defmodule HacLong.Game.Daily do
 
     reward =
       case kind do
+        "fish" ->
+          %{gold: round(gold_each * count * 1.5), xp: round(xp_each * count / 2)}
+
         "gather" ->
           %{
             gold: round(Data.item(target).price * 0.6 * count + gold_each * 3),
@@ -128,6 +134,14 @@ defmodule HacLong.Game.Daily do
   def on_gather(p, item) do
     update(p, fn
       %{kind: "gather", target: ^item} = t -> bump(t)
+      t -> t
+    end)
+  end
+
+  @doc "Vừa câu được một con cá."
+  def on_fish(p) do
+    update(p, fn
+      %{kind: "fish"} = t -> bump(t)
       t -> t
     end)
   end

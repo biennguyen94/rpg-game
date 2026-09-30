@@ -80,7 +80,7 @@ defmodule HacLongWeb.GameChannelTest do
     assert r.ok and r.player.cls == "knight"
     assert r.player.pos == %{map: "home", x: 5, y: 6}
     assert_push "map", %{map: "home", monsters: []}
-    assert [_, _, _] = r.player.daily.tasks
+    assert [_, _, _, _] = r.player.daily.tasks
     assert Characters.load(user.id).daily.date == HacLong.Game.Daily.today()
     assert Characters.load(user.id).name == "Hiệp"
 

@@ -1114,7 +1114,7 @@
   }
 
   function craftCard() {
-    return `<div class="card"><h3>Pha thuốc</h3><div class="list">${RECIPES.filter((r) => r.npc === 'herbalist').map((r) => {
+    return `<div class="card"><h3>Pha thuốc · nấu cá</h3><div class="list">${RECIPES.filter((r) => r.npc === 'herbalist').map((r) => {
       const out = ITEMS[r.out];
       const needs = Object.entries(r.needs);
       const ok = needs.every(([id, n]) => (P.inv[id] || 0) >= n);
@@ -1168,7 +1168,7 @@
       const right = t.claimed ? '<span class="tag good">Đã nhận</span>'
         : claim ? `<button class="btn ${done ? 'primary' : ''}" data-act="daily_claim" data-i="${i}" ${done ? '' : 'disabled'}>Nhận</button>` : '';
       return `<div class="item quest"><div class="grow">
-        <div class="name">${esc(t.name)} <span class="small muted">· ${ZONES[t.zone].name}</span></div>
+        <div class="name">${esc(t.name)} <span class="small muted">· ${t.zone == null ? 'Bất kỳ hồ nào' : ZONES[t.zone].name}</span></div>
         <div class="small ${done ? '' : 'muted'}" style="${done && !t.claimed ? 'color:var(--good)' : ''}">${t.claimed ? 'Xong' : done ? 'Đã xong, đến Bảng Tin nhận thưởng' : `Tiến độ ${t.progress}/${t.count}`}</div>
         <div class="small" style="color:var(--gold)">Thưởng: ${fmt(t.reward.gold)} vàng · ${fmt(t.reward.xp)} kinh nghiệm</div>
       </div>${right}</div>`;
