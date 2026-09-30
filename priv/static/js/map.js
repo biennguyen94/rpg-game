@@ -109,11 +109,16 @@
     return target.zone != null && !P.view.unlocked[target.zone];
   }
 
+  // Ngày và đêm (server gửi `phase` kèm trạng thái bản đồ): [nhãn, độ tối]
+  const PHASES = { dawn: ['🌅', 0.25], day: ['☀️', 0], dusk: ['🌇', 0.3], night: ['🌙', 0.62] };
+  const outdoors = (P) => P.pos.map !== 'home' && P.pos.map !== 'tower';
+
   function top(P) {
     const m = cur(P);
     const z = m.zone != null ? ZONES[m.zone] : null;
+    const ph = PHASES[world.phase] && outdoors(P) ? `<span class="phase">${PHASES[world.phase][0]}</span> ` : '';
     return `<div class="map-top">
-        <b>${m.name}</b>
+        <b>${ph}${m.name}</b>
         <span class="small muted">${m.tower ? (m.tower.monsters.length ? `Còn ${m.tower.monsters.length} quái · kỷ lục tầng ${P.tower_best || 0}` : 'Cầu thang đã mở!') : z ? (P.pos.map.endsWith('_boss') ? `Phòng trùm · cấp ${z.boss.level}` : `Quái cấp ${z.levels}`) : P.pos.map === 'home' ? 'Giếng nước hồi đầy máu' : P.pos.map === 'altar' ? 'Nơi trùm thế giới xuất hiện' : 'Bước vào người dân để nói chuyện'}</span>
       </div>`;
   }
@@ -233,8 +238,11 @@
         ctx.strokeRect(px + 1, py + 1, TILE - 2, TILE - 2);
       }
       const im = image('monsters/' + q.kind);
+      if (q.rare) { ctx.shadowColor = '#b36bff'; ctx.shadowBlur = 12; }
       if (im.complete) ctx.drawImage(im, px, py, TILE, TILE);
+      ctx.shadowBlur = 0;
       ctx.globalAlpha = 1;
+      if (q.rare) labels.push(['Bóng Đêm', px + TILE / 2, py - 12, '#d59cff']);
       const lv = q.level || LEVEL[q.kind] || 1;
       ctx.font = '700 9px system-ui, sans-serif';
       ctx.fillStyle = 'rgba(12,9,16,0.85)';
@@ -312,6 +320,16 @@
       ctx.fillStyle = '#f0cf7a';
       ctx.beginPath(); ctx.moveTo(gx - 8, ay); ctx.lineTo(gx + 8, ay); ctx.lineTo(gx, ay + 10); ctx.fill();
       if (!tutTimer) tutTimer = setTimeout(() => { tutTimer = null; draw(); }, 60);
+    }
+    // bóng tối theo giờ: tối dần ra xa nhân vật, quanh nhân vật vẫn sáng
+    const dark = PHASES[world.phase] && outdoors(P) ? PHASES[world.phase][1] : 0;
+    if (dark) {
+      const lx = px + TILE / 2, ly = py + TILE / 2;
+      const g = ctx.createRadialGradient(lx, ly, TILE * 1.2, lx, ly, TILE * 5);
+      g.addColorStop(0, `rgba(8, 10, 32, ${dark * 0.25})`);
+      g.addColorStop(1, `rgba(8, 10, 32, ${dark})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     }
     for (const l of labels) label(...l);
     for (const t of talk) bubble(...t);

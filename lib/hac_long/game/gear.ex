@@ -89,6 +89,7 @@ defmodule HacLong.Game.Gear do
     cond do
       m[:world] -> 0
       m[:elite] -> 0.5
+      m[:night] -> 0.25
       m.boss -> 0.35
       true -> 0.04
     end

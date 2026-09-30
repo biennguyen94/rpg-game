@@ -7,6 +7,8 @@ defmodule HacLong.World.MapServer do
 
   - Quái sinh ra theo `spawns` của bản đồ, đi lang thang mỗi `:wander_ms` (cấu hình),
     bị hạ thì hồi lại sau `respawn` giây. Quái không bước vào ô có người, cổng hay quái khác.
+  - Ban đêm (`HacLong.World.Clock`) quái thường mới sinh có `@rare_chance` là quái Bóng Đêm
+    (`rare: true`): mạnh hơn, thưởng nhiều hơn, dễ rơi đồ hơn (xem `HacLong.World`).
   - Người chơi bước vào ô có quái thì con quái bị khóa cho người đó (`busy`) tới khi trận xong.
   - Điểm thu thập (thảo dược, quặng) mọc theo `gather`; ai bước vào trước thì hái được,
     điểm đó biến mất và mọc lại ở chỗ ngẫu nhiên sau `respawn` giây.
@@ -18,12 +20,13 @@ defmodule HacLong.World.MapServer do
   use GenServer
 
   alias HacLong.Game.Data
-  alias HacLong.World.Maps
+  alias HacLong.World.{Clock, Maps}
 
   @flush_ms 50
   @dirs [{0, -1}, {0, 1}, {-1, 0}, {1, 0}]
   # quái không sinh ra quá gần cổng để người vừa vào không bị đánh ngay
   @safe_radius 3
+  @rare_chance 0.12
 
   def topic(map_id), do: "map:#{map_id}"
 
@@ -62,8 +65,8 @@ defmodule HacLong.World.MapServer do
   def snapshot(map_id), do: GenServer.call(via(map_id), :snapshot)
 
   @doc "Đặt một con quái vào ô cho trước (dùng trong test)."
-  def put_monster(map_id, kind, {x, y}, boss? \\ false),
-    do: GenServer.call(via(map_id), {:put_monster, kind, {x, y}, boss?})
+  def put_monster(map_id, kind, {x, y}, boss? \\ false, rare? \\ false),
+    do: GenServer.call(via(map_id), {:put_monster, kind, {x, y}, boss?, rare?})
 
   @doc "Đặt một điểm thu thập vào ô cho trước (dùng trong test)."
   def put_node(map_id, item, {x, y}), do: GenServer.call(via(map_id), {:put_node, item, {x, y}})
@@ -139,9 +142,11 @@ defmodule HacLong.World.MapServer do
 
   def handle_call(:snapshot, _from, s), do: {:reply, snapshot_of(s), s}
 
-  def handle_call({:put_monster, kind, pos, boss?}, _from, s) do
+  def handle_call({:put_monster, kind, pos, boss?, rare?}, _from, s) do
     origin = if boss?, do: :boss, else: {:manual, kind}
     {m, s} = new_monster(s, kind, pos, boss?, origin)
+    m = %{m | rare: rare?}
+    s = put_in(s.monsters[m.id], m)
     {:reply, public(m), changed(s)}
   end
 
@@ -310,7 +315,8 @@ defmodule HacLong.World.MapServer do
   end
 
   defp new_monster(s, kind, pos, boss?, origin) do
-    m = %{id: s.next_id, kind: kind, pos: pos, boss: boss?, busy: nil, origin: origin}
+    rare = match?({:spawn, _}, origin) and Clock.night?() and :rand.uniform() < @rare_chance
+    m = %{id: s.next_id, kind: kind, pos: pos, boss: boss?, busy: nil, origin: origin, rare: rare}
     {m, %{s | monsters: Map.put(s.monsters, m.id, m), next_id: s.next_id + 1}}
   end
 
@@ -359,12 +365,13 @@ defmodule HacLong.World.MapServer do
 
   defp public(m) do
     {x, y} = m.pos
-    %{id: m.id, kind: m.kind, x: x, y: y, boss: m.boss, busy: m.busy != nil}
+    %{id: m.id, kind: m.kind, x: x, y: y, boss: m.boss, busy: m.busy != nil, rare: m.rare}
   end
 
   defp snapshot_of(s) do
     %{
       map: s.map.id,
+      phase: Clock.phase(),
       monsters: s.monsters |> Map.values() |> Enum.map(&public/1),
       nodes: s.nodes |> Map.values() |> Enum.map(&public_node/1),
       players:

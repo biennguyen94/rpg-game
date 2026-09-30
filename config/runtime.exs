@@ -48,6 +48,12 @@ if proxies = System.get_env("TRUSTED_PROXIES") do
   config :hac_long, :trusted_proxies, String.split(proxies, ",", trim: true)
 end
 
+# Ép một buổi trong ngày để thử (dawn | day | dusk | night), không đặt thì theo giờ thật:
+#   TIME_OF_DAY=night mix phx.server
+if tod = System.get_env("TIME_OF_DAY") do
+  config :hac_long, :time_of_day, tod
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

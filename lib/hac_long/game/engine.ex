@@ -153,6 +153,7 @@ defmodule HacLong.Game.Engine do
       final: Map.get(spec, :final, false),
       special: Map.get(spec, :special),
       on_hit: Map.get(spec, :on_hit),
+      night: Map.get(spec, :night, false),
       maxHp: round((20 + l * 26 + l * l * 0.6) * m * bm),
       atk: round((10 + l * 6.4) * m * 1),
       def: round((1 + l * 2.0) * m),

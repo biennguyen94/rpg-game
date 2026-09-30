@@ -379,3 +379,6 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 .beast.unseen .sprite { filter: brightness(0) opacity(0.5); }
 .beast.unseen { color: var(--dim); }
 .beast .stars { color: var(--gold); }
+
+/* Ngày và đêm */
+.phase { font-size: 0.9em; }

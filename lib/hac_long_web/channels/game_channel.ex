@@ -308,7 +308,13 @@ defmodule HacLongWeb.GameChannel do
 
       if map_id do
         if Maps.get(map_id).private do
-          push(socket, "map", %{map: map_id, monsters: [], nodes: [], players: []})
+          push(socket, "map", %{
+            map: map_id,
+            phase: HacLong.World.Clock.phase(),
+            monsters: [],
+            nodes: [],
+            players: []
+          })
         else
           Phoenix.PubSub.subscribe(HacLong.PubSub, MapServer.topic(map_id))
           push(socket, "map", MapServer.snapshot(map_id))

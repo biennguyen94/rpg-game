@@ -204,6 +204,7 @@ defmodule HacLong.World do
       {:engage, m} ->
         zone = Data.zone(map.zone)
         spec = if m.boss, do: zone.boss, else: Enum.find(zone.monsters, &(&1.id == m.kind))
+        spec = if m[:rare], do: night_variant(spec), else: spec
 
         case Engine.start_encounter(p, map.zone, spec, m.boss) do
           {%{ok: true} = r, p} ->
@@ -214,6 +215,16 @@ defmodule HacLong.World do
             {r, p}
         end
     end
+  end
+
+  # Quái Bóng Đêm (chỉ xuất hiện ban đêm): mạnh gấp rưỡi nên kinh nghiệm, vàng cũng gấp rưỡi;
+  # dễ rơi đồ ngẫu nhiên hơn (`Gear.drop_chance/1`).
+  defp night_variant(spec) do
+    Map.merge(spec, %{
+      name: "#{spec.name} Bóng Đêm",
+      mult: Map.get(spec, :mult, 1) * 1.5,
+      night: true
+    })
   end
 
   # ---------- Đá dịch chuyển ----------
