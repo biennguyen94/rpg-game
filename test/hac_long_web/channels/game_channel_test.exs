@@ -12,10 +12,17 @@ defmodule HacLongWeb.GameChannelTest do
     {reply, socket}
   end
 
+  # Server giới hạn tốc độ thao tác; test chạy nhanh hơn người bấm nên đợi rồi gửi lại.
   defp cmd(socket, payload) do
     ref = push(socket, "cmd", payload)
     assert_reply ref, :ok, reply
-    reply
+
+    if reply[:msg] == "Thao tác quá nhanh." do
+      Process.sleep(100)
+      cmd(socket, payload)
+    else
+      reply
+    end
   end
 
   test "từ chối kết nối khi token sai" do
@@ -135,6 +142,22 @@ defmodule HacLongWeb.GameChannelTest do
     refute Enum.find(MapServer.snapshot("village").players, &(&1.id == a.id))
     # vị trí đã đi được ghi lại khi rời game
     assert Characters.load(a.id).pos == %{map: "village", x: 12, y: 13}
+  end
+
+  test "thao tác quá nhanh bị từ chối" do
+    user = create_user()
+    player_at(user, %{map: "village", x: 12, y: 14})
+    {_, socket} = join_game(user)
+
+    refs = for _ <- 1..20, do: push(socket, "cmd", %{"act" => "unequip", "slot" => "shield"})
+
+    msgs =
+      for ref <- refs do
+        assert_reply ref, :ok, reply
+        reply[:msg]
+      end
+
+    assert "Thao tác quá nhanh." in msgs
   end
 
   test "bước đi quá nhanh bị từ chối" do

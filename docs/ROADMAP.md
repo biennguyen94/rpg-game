@@ -14,13 +14,17 @@ Các tính năng dự định cho Hắc Long RPG, xếp theo thứ tự ưu tiê
 
 ## A. Cần làm trước khi mở cho người khác chơi
 
-- [ ] **Giới hạn tần suất (rate limit)**
-  - Đăng nhập: giới hạn theo IP và tên tài khoản, chống dò mật khẩu.
-  - Lệnh game: tối đa khoảng 5 lệnh/giây trong `Session`, chống script cày tự động.
-- [ ] **Đổi mật khẩu, đăng xuất khỏi mọi thiết bị.** Lưu token trong database (giống
-  `phx.gen.auth`) để thu hồi được; hiện token chỉ được ký nên lộ ra là dùng được 30 ngày.
-- [ ] **Tự kết nối lại khi mất mạng.** Hiện "Đang kết nối lại..." rồi tự vào lại kênh,
-  thay vì chỉ báo lỗi khi bấm nút.
+- [x] **Giới hạn tần suất (rate limit)**
+  - Đăng nhập: 10 lần/5 phút mỗi tên tài khoản, 30 lần/5 phút mỗi IP; đăng ký 5 tài
+    khoản/giờ mỗi IP; đổi mật khẩu 5 lần/5 phút (`HacLong.RateLimit`, bộ đếm trong ETS).
+  - Lệnh game: khoảng 12 lệnh/giây (bước đi khoảng 11 bước/giây) trong `Session`.
+- [x] **Đổi mật khẩu, đăng xuất khỏi mọi thiết bị.** Token lưu trong bảng `user_tokens`
+  (chỉ lưu mã băm), mỗi thiết bị một token; đăng xuất, đăng xuất mọi thiết bị, đổi mật
+  khẩu đều thu hồi token và ngắt kết nối game đang mở.
+- [x] **Tự kết nối lại khi mất mạng.** Thanh "Mất kết nối, đang kết nối lại…", tự vào lại
+  kênh và lấy trạng thái mới nhất; token bị thu hồi thì về màn đăng nhập.
+- [ ] Chạy sau proxy (nginx, load balancer): thêm plug đọc `X-Forwarded-For` để giới hạn
+  theo IP thật.
 
 ## B. Giữ người chơi quay lại
 

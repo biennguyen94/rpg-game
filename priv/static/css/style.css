@@ -265,3 +265,12 @@ input[type="text"], input[type="password"] {
 .npc-head .sprite { width: 56px; height: 56px; image-rendering: pixelated; }
 .item.quest { align-items: flex-start; }
 .item.quest .grow { display: grid; gap: 3px; }
+
+/* Thanh báo mất kết nối */
+#netbar {
+  position: fixed; left: 0; right: 0; top: 0; z-index: 20; text-align: center;
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 16px 6px;
+  background: #7a3328; color: #fbe3dc; font-size: 0.85rem; font-weight: 600;
+}
+#netbar[hidden] { display: none; }
+.pw-form { display: grid; gap: 8px; margin-bottom: 8px; }

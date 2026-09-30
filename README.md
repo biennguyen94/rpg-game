@@ -67,7 +67,10 @@ HacLongWeb.GameChannel ── lệnh {"act": "attack"} ──▶ HacLong.Game.Se
   và người chơi, xử lý lần lượt nên hai người cùng lao vào một con quái thì chỉ người đến trước
   được đánh. Server kiểm tra từng bước đi (ô kề bên, không xuyên vật cản, tối đa khoảng 11
   bước/giây). Vị trí được ghi vào database theo lô, khi đổi bản đồ, vào trận hoặc đóng game.
-- Mật khẩu băm bằng PBKDF2. Token đăng nhập ký bằng `Phoenix.Token`, hạn 30 ngày.
+- **Tài khoản**: mật khẩu băm bằng PBKDF2. Mỗi lần đăng nhập tạo một token ngẫu nhiên (hạn
+  30 ngày), database chỉ giữ mã băm nên thu hồi được: đăng xuất, đăng xuất mọi thiết bị, đổi
+  mật khẩu. Giới hạn số lần đăng nhập/đăng ký (`HacLong.RateLimit`) và tốc độ thao tác.
+- **Mất mạng**: client tự kết nối lại, hiện thanh báo và lấy trạng thái mới nhất khi vào lại.
 
 ## Cấu trúc
 
@@ -115,6 +118,9 @@ Kết quả in ra số trận trung bình để thắng, số lần chết và c
 | --- | --- |
 | `POST /api/register`, `POST /api/login` | `{username, password}` → `{token, username}` |
 | `GET /api/me` | Header `Authorization: Bearer <token>` → `{username}` hoặc 401 |
+| `POST /api/logout`, `POST /api/logout_all` | (có token) đăng xuất thiết bị này / mọi thiết bị |
+| `POST /api/password` | (có token) `{current, password}` → `{token, username}`; thiết bị khác bị đăng xuất |
+| | Quá giới hạn thì trả 429 kèm `retry-after` |
 | join `"game"` | → `{username, player}` (`player` là `null` nếu chưa tạo nhân vật) |
 | push `"cmd"` | `{act, ...}` → `{ok, msg?, result?, player}` |
 | server push `"player"` | `{player}` khi nhân vật đổi từ tab khác |
@@ -141,6 +147,9 @@ export PHX_HOST=game.example.com
 MIX_ENV=prod mix do compile, ecto.migrate
 MIX_ENV=prod PHX_SERVER=true mix phx.server
 ```
+
+Nếu chạy sau proxy (nginx, load balancer), giới hạn đăng nhập theo IP sẽ thấy IP của proxy;
+cần thêm plug đọc `X-Forwarded-For` (ví dụ thư viện `remote_ip`).
 
 ## Hướng phát triển tiếp
 

@@ -16,6 +16,7 @@
   let walk = null;       // đích đang đi tới trên bản đồ: { x, y, monster, id }
   let dialog = null;     // bảng trên bản đồ: { type: 'boss', dir, boss } | { type: 'waystone' }
   let npc = null;        // NPC đang nói chuyện: { map, id, line }
+  let pwForm = false;    // đang mở form đổi mật khẩu
   const Map_ = window.MapView;
 
   const $ = (s) => document.querySelector(s);
@@ -223,7 +224,17 @@
       <div class="card">
         <h3>Dữ liệu</h3>
         <p class="small muted">Nhân vật lưu trên máy chủ, tài khoản <b>${esc(Net.username)}</b>.</p>
-        <div class="btn-row" style="margin-bottom:8px"><button class="btn" data-act="logout">Đăng xuất</button></div>
+        <div class="btn-row" style="margin-bottom:8px">
+          <button class="btn" data-act="logout">Đăng xuất</button>
+          <button class="btn" data-act="pw-toggle">Đổi mật khẩu</button>
+        </div>
+        ${pwForm ? `<form id="pw-form" class="pw-form">
+          <label class="field" for="pw-cur">Mật khẩu hiện tại<input type="password" id="pw-cur" autocomplete="current-password" required></label>
+          <label class="field" for="pw-new">Mật khẩu mới<input type="password" id="pw-new" autocomplete="new-password" minlength="6" maxlength="72" required></label>
+          <p class="small muted">Đổi xong, các thiết bị khác sẽ bị đăng xuất.</p>
+          <button class="btn primary" type="submit">Lưu mật khẩu mới</button>
+        </form>` : ''}
+        <button class="btn" data-act="logout-all" style="margin-bottom:8px">Đăng xuất mọi thiết bị</button>
         ${confirmReset
           ? `<p class="small" style="color:var(--bad)">Xóa nhân vật ${esc(P.name)} và chơi lại từ đầu? Không thể hoàn tác.</p>
              <div class="btn-row"><button class="btn" data-act="reset-cancel">Giữ lại</button><button class="btn danger" data-act="reset-yes">Xóa và chơi lại</button></div>`
@@ -642,6 +653,7 @@
   function logout() {
     Net.logout();
     P = null;
+    npc = null; dialog = null; pwForm = false;
     confirmReset = false;
     render();
   }
@@ -655,6 +667,11 @@
     if (t.dataset.move) { walk = null; step(t.dataset.move); return; }
     const act = t.dataset.act;
     if (act === 'logout') return logout();
+    if (act === 'pw-toggle') { pwForm = !pwForm; render(); return; }
+    if (act === 'logout-all') {
+      Net.logoutAll().then(() => { P = null; render(); toast('Đã đăng xuất mọi thiết bị.'); }).catch((err) => toast(err.msg, true));
+      return;
+    }
     if (!act || !P) return;
     if (act === 'reset-ask' || act === 'reset-cancel') { confirmReset = act === 'reset-ask'; render(); return; }
     if (act === 'dialog-close') { dialog = null; render(); return; }
@@ -677,8 +694,24 @@
     busy = false;
   }
 
+  async function onPassword() {
+    if (busy) return;
+    busy = true;
+    try {
+      const r = await Net.changePassword($('#pw-cur').value, $('#pw-new').value);
+      P = r.player;
+      pwForm = false;
+      render();
+      toast('Đã đổi mật khẩu. Các thiết bị khác đã bị đăng xuất.');
+    } catch (err) {
+      toast(err.msg, true);
+    }
+    busy = false;
+  }
+
   function onSubmit(e) {
     if (e.target.id === 'auth') { e.preventDefault(); onAuth(); return; }
+    if (e.target.id === 'pw-form') { e.preventDefault(); onPassword(); return; }
     if (e.target.id !== 'create') return;
     e.preventDefault();
     const name = $('#hero-name').value.trim();
@@ -694,6 +727,19 @@
     window.addEventListener('resize', () => Map_.resize());
     Net.onPlayer((p) => { if (!busy) { P = p; refresh(); } });
     Net.onMap((snap) => Map_.setWorld(snap));
+    Net.onStatus((st) => {
+      const bar = $('#netbar');
+      bar.hidden = st === 'online';
+      bar.textContent = 'Mất kết nối, đang kết nối lại…';
+    });
+    // vào lại sau khi mất mạng: lấy trạng thái mới nhất từ server
+    Net.onRejoin((r) => { P = r.player; walk = null; render(); });
+    Net.onExpired(() => {
+      P = null; npc = null; dialog = null;
+      $('#netbar').hidden = true;
+      render();
+      toast('Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.', true);
+    });
     render();
     Net.resume().then(enter).catch((e) => { toast(e.msg, true); enter(null); });
   }

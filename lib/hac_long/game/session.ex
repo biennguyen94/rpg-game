@@ -12,7 +12,8 @@ defmodule HacLong.Game.Session do
     không ai dùng trong `@idle_timeout` thì tiến trình tự tắt.
   - Bước đi (`"move"`) rất nhiều nên không ghi database mỗi bước: vị trí được ghi dồn sau
     `@flush_ms`, khi đổi bản đồ, khi vào trận, khi đóng game và khi tiến trình tắt.
-  - Bước đi bị giới hạn tốc độ (`@step_ms`) để không chạy nhanh bằng script.
+  - Bước đi bị giới hạn tốc độ (`@step_ms`) để không chạy nhanh bằng script; các lệnh khác
+    (đánh, mua bán...) cũng vậy (`@act_ms`), nhanh hơn tay người bấm nhiều.
   """
   use GenServer, restart: :transient
 
@@ -24,6 +25,8 @@ defmodule HacLong.Game.Session do
   # khoảng cách tối thiểu giữa hai bước, cho phép dồn vài bước khi mạng giật
   @step_ms 90
   @step_burst 4
+  @act_ms 80
+  @act_burst 10
 
   def topic(user_id), do: "player:#{user_id}"
 
@@ -66,7 +69,8 @@ defmodule HacLong.Game.Session do
       tabs: %{},
       dirty: false,
       flush_timer: nil,
-      steps: {@step_burst, now()}
+      steps: {@step_burst, now()},
+      acts: {@act_burst, now()}
     }
 
     {:ok, s, @idle_timeout}
@@ -83,7 +87,7 @@ defmodule HacLong.Game.Session do
 
   def handle_call({:command, %{"act" => act} = cmd, origin}, _from, s)
       when act in ["move", "teleport"] do
-    case take_step(s) do
+    case take(s, :steps, @step_ms, @step_burst) do
       {:ok, s} ->
         {result, player} = run_move(s, cmd)
         old = s.player
@@ -110,6 +114,13 @@ defmodule HacLong.Game.Session do
   end
 
   def handle_call({:command, cmd, origin}, _from, s) do
+    case take(s, :acts, @act_ms, @act_burst) do
+      {:ok, s} -> run_command(s, cmd, origin)
+      :too_fast -> reply({%{ok: false, msg: "Thao tác quá nhanh."}, s.player}, s)
+    end
+  end
+
+  defp run_command(s, cmd, origin) do
     old = s.player
     {result, player} = Commands.run(old, cmd)
     player = after_command(s, old, player, cmd)
@@ -187,13 +198,14 @@ defmodule HacLong.Game.Session do
     end
   end
 
-  # Xô token: mỗi @step_ms hồi một lượt, tối đa @step_burst lượt.
-  defp take_step(%{steps: {tokens, at}} = s) do
+  # Xô token: mỗi `every_ms` hồi một lượt, tối đa `burst` lượt.
+  defp take(s, key, every_ms, burst) do
+    {tokens, at} = Map.fetch!(s, key)
     t = now()
-    tokens = min(@step_burst, tokens + (t - at) / @step_ms)
+    tokens = min(burst, tokens + (t - at) / every_ms)
 
     if tokens >= 1,
-      do: {:ok, %{s | steps: {tokens - 1, t}}},
+      do: {:ok, Map.put(s, key, {tokens - 1, t})},
       else: :too_fast
   end
 
