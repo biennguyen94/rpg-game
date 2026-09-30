@@ -17,7 +17,18 @@ defmodule HacLong.Game.Session do
   """
   use GenServer, restart: :transient
 
-  alias HacLong.Game.{Characters, Commands, Daily, Engine, Names, Quests, Tower, Tutorial}
+  alias HacLong.Game.{
+    Achievements,
+    Characters,
+    Commands,
+    Daily,
+    Engine,
+    Names,
+    Quests,
+    Tower,
+    Tutorial
+  }
+
   alias HacLong.{Mailbox, World, WorldBoss}
 
   @idle_timeout :timer.minutes(10)
@@ -102,7 +113,7 @@ defmodule HacLong.Game.Session do
     case take(s, :steps, @step_ms, @step_burst) do
       {:ok, s} ->
         {result, player} = run_move(s, cmd)
-        {player, note} = Tutorial.check(player)
+        {player, notes} = checks(player)
         old = s.player
 
         s =
@@ -112,7 +123,8 @@ defmodule HacLong.Game.Session do
 
             old.pos.map != player.pos.map or player.battle != nil or
               player.waystones != old.waystones or player[:tower] != old[:tower] or
-                player[:tutorial] != old[:tutorial] ->
+              player[:tutorial] != old[:tutorial] or
+                player[:achievements] != old[:achievements] ->
               save(s, player)
 
             true ->
@@ -120,7 +132,7 @@ defmodule HacLong.Game.Session do
           end
 
         if player != old, do: broadcast(s, player, origin)
-        notify(s, note)
+        Enum.each(notes, &notify(s, &1))
         reply({result, player}, s)
 
       :too_fast ->
@@ -244,7 +256,7 @@ defmodule HacLong.Game.Session do
     {result, player} = run(s, old, cmd)
     # nhân vật vừa tạo cũng có ngay việc hằng ngày
     player = s |> after_command(old, player, cmd) |> Daily.ensure(Daily.today())
-    {player, note} = Tutorial.check(player)
+    {player, notes} = checks(player)
 
     s =
       if player != old do
@@ -254,8 +266,15 @@ defmodule HacLong.Game.Session do
         s
       end
 
-    notify(s, note)
+    Enum.each(notes, &notify(s, &1))
     reply({result, player}, s)
+  end
+
+  # Hướng dẫn người mới và thành tựu: tính lại sau mỗi thay đổi, trả về các thông báo mới.
+  defp checks(player) do
+    {player, tut} = Tutorial.check(player)
+    {player, ach} = Achievements.check(player)
+    {player, Enum.reject([tut, ach], &is_nil/1)}
   end
 
   # Thông báo riêng cho người chơi này (hiện ở mọi tab đang mở), vd. bước hướng dẫn mới.

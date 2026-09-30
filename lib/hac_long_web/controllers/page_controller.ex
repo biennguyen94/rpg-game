@@ -1,7 +1,7 @@
 defmodule HacLongWeb.PageController do
   use HacLongWeb, :controller
 
-  alias HacLong.Game.{Data, Engine}
+  alias HacLong.Game.{Achievements, Data, Engine}
   alias HacLong.World.Maps
 
   @doc """
@@ -29,6 +29,7 @@ defmodule HacLongWeb.PageController do
       SHOP: Data.shop(),
       RECIPES: Data.recipes(),
       QUESTS: Data.quests(),
+      ACHIEVEMENTS: Achievements.client_data(),
       RULES: %{maxLevel: Engine.max_level(), pointsPerLevel: Engine.points_per_level()},
       WORLD: Maps.client_data()
     }

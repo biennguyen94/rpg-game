@@ -80,7 +80,9 @@ defmodule HacLong.Game.Characters do
       tower_best: c.tower_best || 0,
       tutorial: c.tutorial,
       upgrades: Map.filter(c.upgrades || %{}, fn {id, _} -> HacLong.Game.Data.item(id) end),
-      fish_caught: c.fish_caught || 0
+      fish_caught: c.fish_caught || 0,
+      achievements: c.achievements || [],
+      title: c.title
     }
   end
 

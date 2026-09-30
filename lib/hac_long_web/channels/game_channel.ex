@@ -24,7 +24,7 @@ defmodule HacLongWeb.GameChannel do
   use HacLongWeb, :channel
 
   alias HacLong.{Accounts, Chat, Leaderboard, Mailbox, Moderation, RateLimit, WorldBoss}
-  alias HacLong.Game.{Daily, Data, Engine, Quests, Session, Tutorial}
+  alias HacLong.Game.{Achievements, Daily, Data, Engine, Quests, Session, Tutorial}
   alias HacLong.World.{Maps, MapServer}
 
   @impl true
@@ -62,7 +62,13 @@ defmodule HacLongWeb.GameChannel do
     with :ok <- chat_limit(uid),
          :ok <- not_muted(uid),
          %{} = p <- Session.get(uid) || {:error, "Hãy tạo nhân vật trước."},
-         {:ok, _msg} <- Chat.post(%{uid: uid, name: p.name, map: p.pos.map}, text) do
+         from = %{
+           uid: uid,
+           name: p.name,
+           map: p.pos.map,
+           title: Achievements.title_name(p[:title])
+         },
+         {:ok, _msg} <- Chat.post(from, text) do
       {:reply, :ok, socket}
     else
       {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
@@ -334,7 +340,8 @@ defmodule HacLongWeb.GameChannel do
         questReady: ready,
         dailyReady: Daily.ready?(player),
         dailyLeft: Daily.seconds_left(),
-        tutorial: Tutorial.view(player)
+        tutorial: Tutorial.view(player),
+        achievements: Achievements.view(player)
       })
 
     Map.put(player, :view, view)

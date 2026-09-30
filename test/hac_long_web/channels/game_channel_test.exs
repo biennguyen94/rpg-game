@@ -38,6 +38,9 @@ defmodule HacLongWeb.GameChannelTest do
 
     # các test ở đây không nói về hướng dẫn người mới: tắt để không có thông báo lẫn vào
     p = p |> Map.put(:tutorial, nil) |> Map.merge(attrs) |> Map.put(:pos, pos)
+
+    # thành tựu đã đủ điều kiện thì nhận trước, cũng để không có thông báo lẫn vào
+    {p, _} = HacLong.Game.Achievements.check(p)
     Characters.save!(user.id, p)
     p
   end
@@ -401,6 +404,23 @@ defmodule HacLongWeb.GameChannelTest do
 
       ref = push(sa, "unblock", %{"uid" => ub.id})
       assert_reply ref, :ok, %{blocked: []}
+    end
+
+    test "danh hiệu hiện trong chat và bảng xếp hạng" do
+      u = create_user()
+      player_at(u, %{map: "village", x: 12, y: 14}, %{kills: 150})
+      {_, socket} = join_game(u)
+
+      r = cmd(socket, %{"act" => "title_set", "id" => "hunter"})
+      assert r.ok and r.player.title == "hunter"
+      assert Enum.find(r.player.view.achievements, &(&1.id == "hunter")).done
+
+      {:ok, _} = say(socket, "chào")
+      assert_push "chat", %{text: "chào", title: "Thợ Săn"}
+
+      ref = push(socket, "leaderboard", %{})
+      assert_reply ref, :ok, %{kills: kills}
+      assert Enum.find(kills, &(&1.user_id == u.id)).title == "Thợ Săn"
     end
 
     test "người thường không gọi được lệnh quản trị" do

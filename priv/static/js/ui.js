@@ -2,7 +2,7 @@
  * Mọi thao tác gửi lên server qua Net (net.js); server tính toán rồi trả trạng thái mới.
  * P.view chứa các chỉ số server tính sẵn (máu tối đa, tấn công, giá nghỉ trọ...). */
 (function () {
-  const { CLASSES, ZONES, ITEMS, RULES, RECIPES, QUESTS, WORLD } = window.GAME_DATA;
+  const { CLASSES, ZONES, ITEMS, RULES, RECIPES, QUESTS, WORLD, ACHIEVEMENTS } = window.GAME_DATA;
   const Net = window.Net;
 
   let P = null;          // trạng thái người chơi
@@ -322,7 +322,8 @@
   function chatLine(m) {
     if (!m.uid) return `<div class="chat-line system">${esc(m.text)}</div>`;
     const mine = m.uid === Net.userId;
-    const name = mine ? `<b>${esc(m.name)}</b>` : `<button class="chat-name" data-chat="${m.id}">${esc(m.name)}</button>`;
+    const title = m.title ? `<span class="title-tag">${esc(m.title)}</span> ` : '';
+    const name = title + (mine ? `<b>${esc(m.name)}</b>` : `<button class="chat-name" data-chat="${m.id}">${esc(m.name)}</button>`);
     const menu = chatMenu === m.id
       ? `<div class="chat-menu"><button class="btn small-btn" data-act="chat-report" data-id="${m.id}">Báo cáo tin này</button><button class="btn small-btn" data-act="chat-block" data-uid="${m.uid}">Chặn ${esc(m.name)}</button></div>` : '';
     return `<div class="chat-line ${mine ? 'mine' : ''}">${name} <span class="muted small">${esc(mapName(m.map))}</span> ${esc(m.text)}${menu}</div>`;
@@ -385,7 +386,7 @@
       <div class="seg">${kinds.map(([k, label]) => `<button class="btn ${board.kind === k ? 'primary' : ''}" data-board="${k}">${label}</button>`).join('')}</div>
       ${rows == null ? '<p class="small muted">Đang tải…</p>'
         : rows.length === 0 ? `<p class="small muted">${board.kind === 'dragon' ? 'Chưa ai hạ được Hắc Long. Bạn sẽ là người đầu tiên?' : board.kind === 'tower' ? 'Chưa ai leo Tháp Vô Tận. Gặp Người Gác Tháp ở Làng.' : 'Chưa có ai.'}</p>`
-        : `<ol class="board">${rows.map((r) => `<li class="${r.user_id === Net.userId ? 'me' : ''}"><span class="num rank">${r.rank}</span><span class="grow">${esc(r.name)} <span class="small muted">${CLASSES[r.cls] ? CLASSES[r.cls].name : ''}</span></span><span class="num">${value(r)}</span></li>`).join('')}</ol>`}
+        : `<ol class="board">${rows.map((r) => `<li class="${r.user_id === Net.userId ? 'me' : ''}"><span class="num rank">${r.rank}</span><span class="grow">${r.title ? `<span class="title-tag">${esc(r.title)}</span> ` : ''}${esc(r.name)} <span class="small muted">${CLASSES[r.cls] ? CLASSES[r.cls].name : ''}</span></span><span class="num">${value(r)}</span></li>`).join('')}</ol>`}
     </div>`;
   }
 
@@ -616,7 +617,7 @@
       <div class="card">
         <div class="row">
           ${sprite('hero', '', '')}
-          <div class="grow"><h2 class="display">${esc(P.name)}</h2><div class="small muted">${c.name} · Cấp ${P.level}</div></div>
+          <div class="grow">${P.title ? `<span class="title-tag">${esc(achTitle(P.title))}</span>` : ''}<h2 class="display">${esc(P.name)}</h2><div class="small muted">${c.name} · Cấp ${P.level}</div></div>
         </div>
         <div class="stat-grid">
           <div class="stat"><span class="small muted">Tấn công</span><b>${d.atk}</b></div>
@@ -655,7 +656,36 @@
 
       <div class="card">
         <div class="row">${icon(c.skill.icon, 'lg')}<div class="grow"><h3>${c.skill.name}</h3><p class="small muted">${c.skill.desc} Hồi chiêu ${c.skill.cooldown} lượt.</p></div></div>
-      </div>`;
+      </div>
+
+      ${viewAchievements()}`;
+  }
+
+  // ---------- Thành tựu, danh hiệu ----------
+  const achTitle = (id) => { const a = ACHIEVEMENTS.find((x) => x.id === id); return a ? a.title : ''; };
+
+  function viewAchievements() {
+    const prog = Object.fromEntries((P.view.achievements || []).map((a) => [a.id, a]));
+    const done = ACHIEVEMENTS.filter((a) => prog[a.id] && prog[a.id].done);
+    const titles = done.filter((a) => a.title);
+    const titleCard = `<div class="card">
+      <div class="row">${icon('laurels', 'lg')}<div class="grow"><h3>Danh hiệu</h3>
+        <p class="small muted">Hiện cạnh tên bạn trong chat và bảng xếp hạng.</p></div></div>
+      ${titles.length ? `<div class="chips">${titles.map((a) => `<button class="chip ${P.title === a.id ? 'on' : ''}" data-act="title_set" data-id="${P.title === a.id ? '' : a.id}" aria-pressed="${P.title === a.id}">${esc(a.title)}</button>`).join('')}</div>`
+        : '<p class="small muted">Chưa có danh hiệu nào. Đạt thành tựu để nhận.</p>'}
+    </div>`;
+    const list = ACHIEVEMENTS.map((a) => {
+      const pr = prog[a.id] || { done: false, have: 0 };
+      const pct = Math.min(100, Math.round((pr.have / a.goal) * 100));
+      return `<div class="item ach ${pr.done ? 'done' : ''}">${icon('medal', 'lg')}
+        <div class="grow"><div class="name">${esc(a.name)}${a.title ? ` <span class="small" style="color:var(--gold)">· danh hiệu “${esc(a.title)}”</span>` : ''}</div>
+          <div class="small muted">${esc(a.desc)}</div>
+          ${pr.done ? '' : a.goal > 1 ? `<div class="mini-bar"><i style="width:${pct}%"></i></div><div class="small muted num">${fmt(pr.have)} / ${fmt(a.goal)}</div>` : ''}
+        </div>${pr.done ? '<span class="tag good">Đã đạt</span>' : ''}</div>`;
+    }).join('');
+    return `${titleCard}
+      <div class="card"><div class="row"><h3 class="grow">Thành tựu</h3><span class="tag gold num">${done.length}/${ACHIEVEMENTS.length}</span></div>
+        <div class="list">${list}</div></div>`;
   }
 
   // ---------- Túi đồ ----------
@@ -957,6 +987,7 @@
       case 'daily_claim': return { act, i: +d.i };
       case 'tower_enter': return { act, floor: +d.floor };
       case 'mail_claim': return { act, id: +d.id };
+      case 'title_set': return { act, id: d.id || null };
       default: return { act };
     }
   }

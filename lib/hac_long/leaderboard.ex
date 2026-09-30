@@ -10,7 +10,7 @@ defmodule HacLong.Leaderboard do
   import Ecto.Query
 
   alias HacLong.Repo
-  alias HacLong.Game.Character
+  alias HacLong.Game.{Achievements, Character}
 
   @kinds [:level, :kills, :dragon, :tower]
 
@@ -27,11 +27,14 @@ defmodule HacLong.Leaderboard do
       level: c.level,
       kills: c.kills,
       victory_at: c.victory_at,
-      tower_best: c.tower_best
+      tower_best: c.tower_best,
+      title: c.title
     })
     |> Repo.all()
     |> Enum.with_index(1)
-    |> Enum.map(fn {row, i} -> Map.put(row, :rank, i) end)
+    |> Enum.map(fn {row, i} ->
+      %{row | title: Achievements.title_name(row.title)} |> Map.put(:rank, i)
+    end)
   end
 
   defp query(:level), do: from(c in Character, order_by: [desc: c.level, desc: c.xp, asc: c.id])

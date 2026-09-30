@@ -57,6 +57,8 @@ defmodule HacLong.Game.Engine do
           inv: %{"potion_s" => 3},
           upgrades: %{},
           fish_caught: 0,
+          achievements: [],
+          title: nil,
           bosses: [],
           kills: 0,
           deaths: 0,
