@@ -7,20 +7,16 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 
 Ước lượng công sức: nhỏ (vài giờ), vừa (khoảng một ngày), lớn (nhiều ngày).
 
-1. **Hộp thư** (vừa): báo thưởng nhận lúc vắng mặt; nền cho chợ và quà quản trị.
-2. **Âm thanh** (nhỏ), **câu cá** (nhỏ–vừa), **danh hiệu và thành tựu** (nhỏ–vừa): rẻ mà làm
-   game vui hơn hẳn.
-3. **Đồ có chỉ số ngẫu nhiên** (vừa), **công dụng cho quặng** (nhỏ–vừa, Thợ Rèn nâng cấp đồ
-   bằng quặng) và **thêm kỹ năng theo cấp** (vừa): trận đánh hiện gần như chỉ là bấm kỹ năng
-   rồi tấn công, và đồ đạc chỉ là mua món tốt hơn.
-4. **Hiệu ứng trạng thái** (vừa), **chuyển sinh** (nhỏ–vừa), **sổ tay quái vật** (nhỏ),
+1. **Đồ có chỉ số ngẫu nhiên** (vừa) và **thêm kỹ năng theo cấp** (vừa): trận đánh hiện gần
+   như chỉ là bấm kỹ năng rồi tấn công.
+2. **Hiệu ứng trạng thái** (vừa), **chuyển sinh** (nhỏ–vừa), **sổ tay quái vật** (nhỏ),
    **ngày và đêm** (nhỏ).
-5. **Bang hội** (lớn), **tổ đội** (vừa–lớn): giữ người chơi lâu dài.
-6. **Rương** (nhỏ), **trang trí nhà** (vừa–lớn), **nhân vật mặc đúng đồ** (vừa),
+3. **Bang hội** (lớn), **tổ đội** (vừa–lớn): giữ người chơi lâu dài.
+4. **Rương** (nhỏ), **trang trí nhà** (vừa–lớn), **nhân vật mặc đúng đồ** (vừa),
    **thú cưng** (vừa).
-7. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
+5. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
    **chợ giữa người chơi** (lớn).
-8. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
+6. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
 
 ---
 
@@ -48,7 +44,7 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   bằng `mix hac_long.admin TÊN`): xử lý báo cáo, tra cứu người chơi, cấm chat có thời hạn,
   khóa tài khoản (thu hồi token, ngắt kết nối, lúc đăng nhập báo lý do và thời hạn), gửi
   thông báo cho cả server, gọi trùm thế giới. Mọi thao tác ghi log.
-  - [ ] Gửi quà cho người chơi (cần hộp thư).
+  - [x] Gửi quà cho một người hoặc mọi người (qua hộp thư).
 
 ## B. Giữ người chơi quay lại
 
@@ -64,9 +60,11 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   trùm tầng; hạ hết quái thì lên tầng và nhận thưởng; máu không tự hồi, gục ngã là hết lượt;
   vượt mỗi 10 tầng thì lần sau vào thẳng được.
 - [ ] **Chuyển sinh**: về cấp 1, nhận chỉ số cộng thêm vĩnh viễn.
-- [ ] **Danh hiệu và thành tựu**: vd. "Diệt 1.000 quái", "Leo tháp tầng 30", "Top 3 trùm thế
-  giới", "Hạ Hắc Long". Mỗi thành tựu cho một danh hiệu hiện cạnh tên trong chat và bảng xếp
-  hạng. Dữ liệu để đếm phần lớn đã có (kills, bosses, tower_best...).
+- [x] **Danh hiệu và thành tựu** (`HacLong.Game.Achievements`): 21 thành tựu (săn quái, trùm,
+  diệt rồng, cấp, nhiệm vụ, đá dịch chuyển, tháp, câu cá, rèn +5, Vảy Cổ Long, vàng, số lần
+  gục ngã), tính từ trạng thái nhân vật nên người cũ nhận ngay; 15 cái cho danh hiệu, chọn ở tab
+  Nhân vật, hiện cạnh tên trong chat và bảng xếp hạng.
+  - [ ] Thành tựu cần đếm thêm: top 3 trùm thế giới, số việc hằng ngày đã làm.
 - [ ] **Sổ tay quái vật**: ghi số con đã hạ của từng loài; hạ đủ mốc (vd. 100 con) thì được
   thưởng nhỏ, vd. +1% sát thương lên loài đó. Cho lý do quay lại các vùng thấp.
 
@@ -78,8 +76,9 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [ ] **Thêm kỹ năng theo cấp**: kỹ năng thứ 2 ở cấp 15, thứ 3 ở cấp 30 cho mỗi lớp.
 - [ ] **Hiệu ứng trạng thái**: độc, choáng, chảy máu (vd. quái Đầm Lầy gây độc). Mở rộng từ
   cơ chế `special` / `every` có sẵn trong engine.
-- [ ] **Công dụng cho quặng**: hiện quặng chỉ để bán và nộp nhiệm vụ; có thể cho Thợ Rèn
-  nâng cấp vũ khí/giáp bằng quặng.
+- [x] **Công dụng cho quặng**: Thợ Rèn nâng đồ đang mặc tới +5 (mỗi cấp +8% chỉ số gốc) bằng
+  Quặng Sắt hoặc Mithril và vàng; +5 cần thêm Vảy Cổ Long. Cấp nâng giữ theo món đồ. Mô phỏng:
+  không đổi số trận (tiến độ theo cấp) nhưng hút bớt khoảng một nửa vàng thừa cuối game.
 
 ## D. Nhiều người chơi (Phoenix Channels / PubSub)
 
@@ -94,8 +93,11 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [ ] **PvP bất đồng bộ**: đánh với bản sao chỉ số của người chơi khác (đấu trường).
 - [ ] **Chợ giữa người chơi**: rao bán đồ; phải dùng transaction trong database để không bị
   nhân đôi đồ.
-- [ ] **Hộp thư**: thư hệ thống kèm quà (vàng, đồ). Dùng để báo thưởng trùm thế giới nhận lúc
-  vắng mặt (hiện vẫn nhận nhưng không có gì báo), nhận tiền khi bán được đồ ở chợ, quà quản trị.
+- [x] **Hộp thư** (`HacLong.Mailbox`): thư hệ thống kèm quà (vàng, kinh nghiệm, đồ); nút phong
+  bì trên HUD có số thư chưa mở. Mở thư là nhận quà, trong cùng transaction với lần ghi nhân vật
+  nên không nhận đôi. Thưởng trùm thế giới lúc không online gửi qua đây; quản trị viên tặng quà
+  cho một người hoặc mọi người.
+  - [ ] Nhận tiền khi bán được đồ ở chợ (khi có chợ).
 - [ ] **Bang hội**: lập/vào bang, kênh chat riêng của bang, quỹ bang, bảng xếp hạng bang (vd.
   tổng sát thương lên trùm thế giới). Có trong kế hoạch ban đầu ("chat, clan, PvP") nhưng bị
   sót khi viết lộ trình này.
@@ -115,16 +117,21 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [x] **Giai đoạn 3**: NPC ở Làng thay tab Cửa hàng; điểm thu thập; nhiệm vụ.
 - [ ] **Giai đoạn 4**: trang trí nhà, rương mở mỗi ngày một lần. (Trùm thế giới trên bản đồ,
   dự tính cho giai đoạn này, đã làm ở mục D.)
-- [ ] **Câu cá** ở hồ giữa Làng (hiện chỉ để trang trí): trò chơi nhỏ bấm đúng lúc phao chìm,
-  câu được cá để bán, thỉnh thoảng vớt được đồ hiếm. Việc nhẹ nhàng để làm lúc chờ trùm thế giới
-  hay ngồi chat.
+- [x] **Câu cá** (`HacLong.Game.Fishing`): đứng cạnh nước bất kỳ (hồ Làng, Rừng Mê, Đầm Lầy,
+  Hang Rồng) bấm Câu cá; phao chìm sau 3–8 giây, giật trong 1 giây mới được (server tính giờ).
+  Cá Diếc, Cá Chép, Lươn Điện ở vùng sâu, Cá Chép Vàng rất hiếm, và ủng cũ. Tiền câu cá ngang
+  đánh quái lúc đầu game nhưng không có kinh nghiệm.
+  - [ ] Công thức nấu cá ở Bà Lang; việc hằng ngày câu cá.
 - [ ] **Ngày và đêm**: bản đồ tối dần theo giờ thật (giờ Việt Nam); ban đêm có quái hiếm xuất
   hiện, rơi nhiều đồ hơn.
 
 ## F. Hình ảnh và âm thanh
 
-- [ ] **Âm thanh**: tiếng đánh, chí mạng, lên cấp, nhận thưởng, bước chân, nhạc nền nhẹ; có nút
-  tắt. Dùng các bộ âm thanh CC0. Hiện game hoàn toàn im lặng.
+- [x] **Âm thanh** (`priv/static/js/sound.js`): hiệu ứng tổng hợp bằng Web Audio, không cần
+  file: đánh, chí mạng, trượt, bị đánh, kỹ năng, thắng/thua, lên cấp, mua bán, hái/đào, qua
+  cổng, rèn, pha thuốc, nhiệm vụ, thư mới, câu cá, thành tựu. Bật/tắt và âm lượng ở tab Hành
+  trình.
+  - [ ] Nhạc nền nhẹ (cần bộ nhạc CC0 hoặc tự tổng hợp).
 - [ ] **Nhân vật mặc đúng đồ đang trang bị**: ghép hình áo giáp, vũ khí, khiên lên hình nhân
   vật (bộ tile Dungeon Crawl có sẵn các phần này ở `player/`, phải đối chiếu danh sách chưa rõ
   giấy phép như các hình khác). Hiện ai cũng cùng một hình.
