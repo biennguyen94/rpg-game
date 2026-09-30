@@ -66,6 +66,7 @@ defmodule HacLong.Game.DailyTest do
 
     {%{ok: true}, claimed} = Commands.run(board, %{"act" => "daily_claim", "i" => 0})
     assert claimed.gold == p.gold + kill.reward.gold
+    assert claimed.daily_done == 1
 
     assert {%{ok: false, msg: "Đã nhận thưởng rồi."}, _} =
              Commands.run(claimed, %{"act" => "daily_claim", "i" => 0})

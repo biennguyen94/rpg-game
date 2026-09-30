@@ -1030,11 +1030,34 @@
     const pt = PETS.find((x) => x.id === id);
     return pt && { ...pt, sprite: 'pets/' + pt.id };
   }
+  // Cấp thú: lên cấp theo số trận thắng khi được dắt (HacLong.Game.Pets)
+  const petXpFor = (lv) => 5 * lv * (lv - 1);
+  function petLevel(id) {
+    const xp = (P.pet_xp && P.pet_xp[id]) || 0;
+    let lv = 1;
+    while (lv < RULES.petMaxLevel && petXpFor(lv + 1) <= xp) lv++;
+    return { lv, xp, next: lv < RULES.petMaxLevel ? petXpFor(lv + 1) : null, from: petXpFor(lv) };
+  }
+  const TAME_SKILL = { id: 'rend', name: 'Cắn Xé', desc: 'Cú cắn gây gấp đôi sát thương.' };
+  function petSkill(id) {
+    if (id.startsWith('tame:')) return TAME_SKILL;
+    const pt = PETS.find((x) => x.id === id);
+    return pt && pt.skill;
+  }
   function viewPets() {
     const owned = (P.pets || []).map(petInfo).filter(Boolean);
     if (!owned.length) return `<div class="card"><h3>Thú cưng</h3><p class="small muted">Chưa có thú cưng. Gặp Người Nuôi Thú ở góc dưới bên phải Làng.</p></div>`;
-    return `<div class="card"><h3>Thú cưng</h3><p class="small muted">Thú đi theo thỉnh thoảng cắn thêm một đòn trong trận.</p><div class="list">${owned.map((pt) => `<div class="item"><img class="sprite" src="${asset(pt.sprite + '.png')}" alt=""><div class="grow"><div class="name">${esc(pt.name)}</div><div class="small muted">${esc(pt.desc)}</div></div>
-      ${P.pet === pt.id ? '<button class="btn" data-act="pet_choose" data-id="">Để ở nhà</button>' : `<button class="btn primary" data-act="pet_choose" data-id="${pt.id}">Dắt theo</button>`}</div>`).join('')}</div></div>`;
+    return `<div class="card"><h3>Thú cưng</h3><p class="small muted">Thú đi theo thỉnh thoảng cắn thêm một đòn trong trận. Thắng trận khi dắt theo thì thú lên cấp: mạnh hơn, hay cắn hơn; cấp ${RULES.petSkillLevel} học kỹ năng riêng.</p><div class="list">${owned.map((pt) => {
+      const L = petLevel(pt.id), sk = petSkill(pt.id), learned = L.lv >= RULES.petSkillLevel;
+      const pct = L.next ? Math.round(((L.xp - L.from) / (L.next - L.from)) * 100) : 100;
+      return `<div class="item"><img class="sprite" src="${asset(pt.sprite + '.png')}" alt=""><div class="grow">
+        <div class="name">${esc(pt.name)} <span class="small num" style="color:var(--gold)">· Cấp ${L.lv}</span></div>
+        <div class="small muted">${esc(pt.desc)}${L.lv > 1 ? ` (×${(1 + (L.lv - 1) * 0.1).toFixed(1)})` : ''}</div>
+        <div class="bar xp" style="height:6px;margin:4px 0" title="${L.next ? `${L.xp}/${L.next} trận` : 'Cấp tối đa'}"><i style="width:${pct}%"></i></div>
+        <div class="small muted">${L.next ? `${fmt(L.xp)}/${fmt(L.next)} trận thắng` : 'Cấp tối đa'}</div>
+        ${sk ? `<div class="small" style="${learned ? 'color:var(--good)' : ''}">${learned ? '✨' : '🔒'} ${esc(sk.name)}: ${esc(sk.desc)}${learned ? '' : ` (cấp ${RULES.petSkillLevel})`}</div>` : ''}</div>
+      ${P.pet === pt.id ? '<button class="btn" data-act="pet_choose" data-id="">Để ở nhà</button>' : `<button class="btn primary" data-act="pet_choose" data-id="${pt.id}">Dắt theo</button>`}</div>`;
+    }).join('')}</div></div>`;
   }
 
   // ---------- Trang trí nhà ----------

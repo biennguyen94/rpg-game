@@ -9,7 +9,12 @@ defmodule HacLong.Game.Pets do
   Hạ đủ 100 con một loài quái thường thì có thể thuần phục loài đó ở Người Nuôi Thú:
   thú thuần có id `"tame:<id quái>"`, cộng 3% tấn công.
 
-  Trạng thái trong nhân vật: `pets: [id]` (đã có), `pet: id | nil` (đang dắt theo).
+  Thú lên cấp (tối đa 10) theo số trận thắng khi được dắt theo (`gain/2`): mỗi cấp tăng
+  chỉ số cộng thêm, tỷ lệ và sức cắn; từ cấp 5 thú dùng kỹ năng riêng khi cắn (`skill` trong
+  `PETS`; thú thuần dùng Cắn Xé).
+
+  Trạng thái trong nhân vật: `pets: [id]` (đã có), `pet: id | nil` (đang dắt theo),
+  `pet_xp: %{id => số trận}`.
   """
 
   alias HacLong.Game.{Bestiary, Data}
@@ -19,7 +24,55 @@ defmodule HacLong.Game.Pets do
   @bite_chance 0.35
   @bite_power 0.25
 
+  @max_level 10
+  @skill_level 5
+  @tame_skill %{id: "rend", name: "Cắn Xé", desc: "Cú cắn gây gấp đôi sát thương."}
+
   def tame_kills, do: @tame_kills
+  def max_level, do: @max_level
+  def skill_level, do: @skill_level
+
+  # ---------- Cấp của thú ----------
+
+  @doc "Số trận thắng cần để thú lên cấp `level`: 5 × cấp × (cấp - 1)."
+  def xp_for(level), do: 5 * level * (level - 1)
+
+  def xp(p, id), do: Map.get(Map.get(p, :pet_xp) || %{}, id, 0)
+
+  def level(p, id) do
+    n = xp(p, id)
+    Enum.find(@max_level..1//-1, &(xp_for(&1) <= n))
+  end
+
+  defp active_level(p), do: level(p, p.pet)
+
+  @doc "Kỹ năng riêng của thú `id` (mở ở cấp 5)."
+  def skill(id) do
+    case data(id) do
+      %{tame: _} -> @tame_skill
+      %{skill: sk} -> sk
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Thú đang dắt theo được tính một trận thắng (trùm: 5 trận). Trả về
+  `{nhân_vật, cấp_mới | nil}`.
+  """
+  def gain(p, boss?) do
+    case Map.get(p, :pet) && data(p.pet) do
+      nil ->
+        {p, nil}
+
+      _ ->
+        id = p.pet
+        before = level(p, id)
+        all = Map.get(p, :pet_xp) || %{}
+        p = Map.put(p, :pet_xp, Map.put(all, id, xp(p, id) + if(boss?, do: 5, else: 1)))
+        now = level(p, id)
+        {p, if(now > before, do: now)}
+    end
+  end
 
   @doc "Thông tin thú `id`: thú bán ở cửa hàng hoặc thú đã thuần (`tame:<quái>`)."
   def data("tame:" <> mid = id) do
@@ -86,19 +139,34 @@ defmodule HacLong.Game.Pets do
   @doc """
   Thú đang dắt theo cắn thêm: trả về số sát thương (0 nếu không cắn) theo sát thương
   một đòn thường `base` của nhân vật. `roll` là số ngẫu nhiên trong [0, 1).
+  Cấp càng cao càng hay cắn và cắn càng đau (mỗi cấp +2% tỷ lệ, +2% sức cắn).
   """
   def bite(p, base, roll) do
-    if Map.get(p, :pet) && data(p.pet) && roll < @bite_chance,
-      do: max(1, round(base * @bite_power)),
-      else: 0
+    if Map.get(p, :pet) && data(p.pet) do
+      lv = active_level(p) - 1
+
+      if roll < @bite_chance + lv * 0.02,
+        do: max(1, round(base * (@bite_power + lv * 0.02))),
+        else: 0
+    else
+      0
+    end
+  end
+
+  @doc "Kỹ năng riêng của thú đang dắt (nil nếu thú chưa tới cấp 5)."
+  def active_skill(p) do
+    if Map.get(p, :pet) && data(p.pet) && active_level(p) >= @skill_level, do: skill(p.pet)
   end
 
   def name(p), do: data(p.pet).name
 
-  @doc "Phần trăm cộng thêm của thú đang dắt theo cho chỉ số `key` (hp, atk, def, gold, xp)."
+  @doc """
+  Phần trăm cộng thêm của thú đang dắt theo cho chỉ số `key` (hp, atk, def, gold, xp);
+  mỗi cấp trên 1 tăng thêm 10% (cấp 10: gần gấp đôi).
+  """
   def bonus(p, key) do
     case Map.get(p, :pet) && data(p.pet) do
-      %{bonus: b} -> Map.get(b, key, 0)
+      %{bonus: b} -> Map.get(b, key, 0) * (1 + (active_level(p) - 1) * 0.1)
       _ -> 0
     end
   end

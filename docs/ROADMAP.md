@@ -58,7 +58,9 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   diệt rồng, cấp, nhiệm vụ, đá dịch chuyển, tháp, câu cá, rèn +5, Vảy Cổ Long, vàng, số lần
   gục ngã), tính từ trạng thái nhân vật nên người cũ nhận ngay; 15 cái cho danh hiệu, chọn ở tab
   Nhân vật, hiện cạnh tên trong chat và bảng xếp hạng.
-  - [ ] Thành tựu cần đếm thêm: top 3 trùm thế giới, số việc hằng ngày đã làm.
+  - [x] Thêm 7 thành tựu (tổng 33, 25 cho danh hiệu): lọt top 3 sát thương trùm thế giới (1 và
+    10 lần, đếm ở `boss_top`), làm xong 10 và 100 việc hằng ngày (`daily_done`), thuần phục một
+    loài, thú cấp 5 và cấp tối đa.
 - [x] **Sổ tay quái vật** (`HacLong.Game.Bestiary`): đếm số con đã hạ của 30 loài; 25 con thì
   +5% sát thương lên loài đó, 100 con +10%, mỗi mốc thưởng vàng. Thẻ ở tab Hành trình, loài
   chưa gặp hiện bóng đen.
@@ -160,6 +162,11 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   Săn, Heo Hồng, Sóc Túi, Bướm Lửa, Bằng Mã Lửa), mỗi con cộng một ít máu/tấn công/phòng thủ/
   vàng/kinh nghiệm. Thú đang dắt đi sau nhân vật một ô, người khác cũng thấy; đổi ở tab Nhân vật.
   - [x] Thú đang dắt có 35% cắn thêm (25% sát thương một đòn thường) sau mỗi đòn của nhân vật.
+  - [x] **Cấp thú** (tối đa 10): thắng trận khi dắt theo thì thú được tính một trận (trùm: 5);
+    cấp L cần 5 × L × (L - 1) trận. Mỗi cấp: chỉ số cộng thêm +10%, tỷ lệ cắn +2%, sức cắn +2%.
+    Cấp 5 học kỹ năng riêng, dùng khi cắn: Liếm Vết Thương (hồi 5% máu), Cắn Xé (gấp đôi cú
+    cắn, Chó Săn, Bằng Mã Lửa và thú thuần), Húc Ngã (quái suy yếu), Móc Túi (vàng), Phấn Độc
+    (quái trúng độc).
   - [x] Hạ đủ 100 con một loài quái thường thì thuần phục ở Người Nuôi Thú (1.000 + cấp × 100
     vàng): thú thuần đi theo như thú cưng, +3% tấn công.
 

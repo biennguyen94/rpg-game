@@ -205,7 +205,8 @@ defmodule HacLong.WorldBoss do
       gold: round(300 + 5000 * share) + if(killer?, do: 500, else: 0),
       xp: round(1000 + 30_000 * share),
       items: if(top?, do: %{"dragon_scale" => 1}, else: %{}),
-      share: Float.round(share * 100, 1)
+      share: Float.round(share * 100, 1),
+      top: top?
     }
   end
 

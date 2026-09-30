@@ -1101,7 +1101,12 @@
       "bonus": {
         "hp": 0.05
       },
-      "desc": "Máu tối đa +5%."
+      "desc": "Máu tối đa +5%.",
+      "skill": {
+        "id": "heal",
+        "name": "Liếm Vết Thương",
+        "desc": "Khi cắn, hồi cho chủ 5% máu tối đa."
+      }
     },
     {
       "id": "hound",
@@ -1110,7 +1115,12 @@
       "bonus": {
         "atk": 0.04
       },
-      "desc": "Tấn công +4%."
+      "desc": "Tấn công +4%.",
+      "skill": {
+        "id": "rend",
+        "name": "Cắn Xé",
+        "desc": "Cú cắn gây gấp đôi sát thương."
+      }
     },
     {
       "id": "hog",
@@ -1119,7 +1129,12 @@
       "bonus": {
         "def": 0.05
       },
-      "desc": "Phòng thủ +5%."
+      "desc": "Phòng thủ +5%.",
+      "skill": {
+        "id": "bash",
+        "name": "Húc Ngã",
+        "desc": "Khi cắn, quái bị suy yếu: tấn công -15% trong 2 lượt."
+      }
     },
     {
       "id": "quokka",
@@ -1128,7 +1143,12 @@
       "bonus": {
         "gold": 0.1
       },
-      "desc": "Vàng từ quái +10%."
+      "desc": "Vàng từ quái +10%.",
+      "skill": {
+        "id": "pickpocket",
+        "name": "Móc Túi",
+        "desc": "Khi cắn, móc được vàng bằng cấp quái × 3."
+      }
     },
     {
       "id": "butterfly",
@@ -1137,7 +1157,12 @@
       "bonus": {
         "xp": 0.05
       },
-      "desc": "Kinh nghiệm +5%."
+      "desc": "Kinh nghiệm +5%.",
+      "skill": {
+        "id": "venom",
+        "name": "Phấn Độc",
+        "desc": "Khi cắn, quái trúng độc 3 lượt."
+      }
     },
     {
       "id": "hippogriff",
@@ -1147,7 +1172,12 @@
         "atk": 0.05,
         "hp": 0.05
       },
-      "desc": "Tấn công +5%, máu tối đa +5%."
+      "desc": "Tấn công +5%, máu tối đa +5%.",
+      "skill": {
+        "id": "rend",
+        "name": "Cắn Xé",
+        "desc": "Cú cắn gây gấp đôi sát thương."
+      }
     }
   ],
   "FURNITURE": [

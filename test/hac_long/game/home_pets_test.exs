@@ -118,4 +118,68 @@ defmodule HacLong.Game.HomePetsTest do
     # thú thuần không tính vào thành tựu sưu tầm thú ở cửa hàng
     assert HacLong.Game.Achievements.value(p, :pets) == 0
   end
+
+  test "thú lên cấp theo số trận thắng, mạnh dần, cấp 5 học kỹ năng" do
+    {_, p} = Pets.buy(player(), "sheep")
+    assert Pets.level(p, "sheep") == 1 and Pets.active_skill(p) == nil
+    assert Enum.map(1..10, &Pets.xp_for/1) == [0, 10, 30, 60, 100, 150, 210, 280, 360, 450]
+
+    {p, nil} = Pets.gain(p, false)
+    assert Pets.xp(p, "sheep") == 1
+    {p, 2} = Enum.reduce(1..8, p, fn _, p -> elem(Pets.gain(p, false), 0) end) |> Pets.gain(false)
+    # trùm tính 5 trận
+    {p2, nil} = Pets.gain(p, true)
+    assert Pets.xp(p2, "sheep") == 15
+
+    base = Engine.derived(Map.put(p, :pet, nil))
+    lv5 = Map.put(p, :pet_xp, %{"sheep" => 100})
+    assert Pets.level(lv5, "sheep") == 5
+    assert_in_delta Pets.bonus(lv5, :hp), 0.05 * 1.4, 1.0e-9
+    assert Engine.derived(lv5).maxHp == round(base.maxHp * (1 + 0.05 * 1.4))
+    assert %{id: "heal"} = Pets.active_skill(lv5)
+    assert Pets.bite(lv5, 100, 0.42) == 33
+    assert Pets.bite(lv5, 100, 0.44) == 0
+
+    # không lên quá cấp 10; thú thuần có Cắn Xé
+    assert Pets.level(Map.put(p, :pet_xp, %{"sheep" => 99_999}), "sheep") == 10
+    assert %{id: "rend"} = Pets.skill("tame:bat")
+    assert {p, nil} = Pets.gain(Map.put(p, :pet, nil), false)
+    assert Pets.xp(p, "sheep") == 10
+  end
+
+  test "thắng trận thì thú được tính; kỹ năng Cắn Xé nhân đôi cú cắn" do
+    on_exit(&HacLong.Game.Rng.clear/0)
+    {_, p} = Pets.buy(player(), "hound")
+    p = Map.put(p, :pet_xp, %{"hound" => 99})
+    {_, p} = Engine.start_battle(p, 0, false)
+    p = put_in(p.battle.monster.hp, 1) |> put_in([:battle, :monster, :dodge], 0)
+    {_, p} = Engine.act(p, "attack")
+    assert p.battle.result == "win"
+    assert Pets.xp(p, "hound") == 100
+    assert Enum.any?(p.battle.log, &(&1.text =~ "lên cấp 5, học được Cắn Xé"))
+
+    {_, p} = %{p | battle: nil} |> Engine.start_battle(0, false)
+    p = put_in(p.battle.monster.hp, 100_000) |> put_in([:battle, :monster, :dodge], 0)
+    HacLong.Game.Rng.put_sequence([0.0])
+    {_, p} = Engine.act(p, "attack")
+    assert Enum.any?(p.battle.log, &(&1.text =~ "🐾 Chó Săn Cắn Xé: cắn thêm"))
+  end
+
+  test "thành tựu mới: việc hằng ngày, top trùm thế giới, thuần thú, cấp thú" do
+    alias HacLong.Game.Achievements
+
+    p =
+      player()
+      |> Map.merge(%{
+        daily_done: 10,
+        boss_top: 1,
+        pets: ["tame:bat"],
+        pet_xp: %{"tame:bat" => 100}
+      })
+
+    {p, _} = Achievements.check(p)
+    got = p.achievements
+    assert Enum.all?(~w(daily_10 boss_top tamer pet_skill), &(&1 in got))
+    refute Enum.any?(~w(daily_100 boss_top_10 pet_master), &(&1 in got))
+  end
 end

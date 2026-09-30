@@ -317,6 +317,7 @@ defmodule HacLongWeb.GameChannelTest do
       b = wait_for(fn -> Characters.load(ub.id) end, &(&1.gold > pb.gold))
       assert a.gold - pa.gold > b.gold - pb.gold
       assert a.inv["dragon_scale"] == 1 and b.inv["dragon_scale"] == 1
+      assert a.boss_top == 1 and b.boss_top == 1
       # trận của B (đang đánh dở) cũng kết thúc
       assert b.battle.over and b.battle.result == "win"
       assert b.battle.monster.hp == 0

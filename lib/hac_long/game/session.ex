@@ -246,6 +246,12 @@ defmodule HacLong.Game.Session do
           ),
         else: p
 
+    # lọt top 3 sát thương (cho thành tựu), kể cả khi không online
+    p =
+      if info.reward && info.reward[:top],
+        do: Map.put(p, :boss_top, (Map.get(p, :boss_top) || 0) + 1),
+        else: p
+
     {p, notice} =
       case info.reward do
         nil ->

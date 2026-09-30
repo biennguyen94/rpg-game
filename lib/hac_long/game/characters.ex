@@ -92,6 +92,9 @@ defmodule HacLong.Game.Characters do
       chest_day: c.chest_day,
       pets: Enum.filter(c.pets || [], &HacLong.Game.Pets.data/1),
       pet: if(c.pet && HacLong.Game.Pets.data(c.pet), do: c.pet),
+      pet_xp: c.pet_xp || %{},
+      daily_done: c.daily_done || 0,
+      boss_top: c.boss_top || 0,
       furniture:
         Map.filter(c.furniture || %{}, fn {id, _} -> HacLong.Game.Data.furniture(id) end),
       decor:

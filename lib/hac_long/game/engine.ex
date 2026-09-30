@@ -64,6 +64,9 @@ defmodule HacLong.Game.Engine do
           chest_day: nil,
           pet: nil,
           pets: [],
+          pet_xp: %{},
+          daily_done: 0,
+          boss_top: 0,
           furniture: %{},
           decor: [],
           fish_caught: 0,
@@ -463,13 +466,50 @@ defmodule HacLong.Game.Engine do
         else: 0
 
     if bite > 0 do
+      sk = Pets.active_skill(p)
+      bite = if sk && sk.id == "rend", do: bite * 2, else: bite
+      what = if sk && sk.id == "rend", do: "#{sk.name}: ", else: ""
+
       p
       |> update_in([:battle, :monster, :hp], &max(0, &1 - bite))
-      |> log("🐾 #{Pets.name(p)} cắn thêm #{bite} sát thương.", "hit")
+      |> log("🐾 #{Pets.name(p)} #{what}cắn thêm #{bite} sát thương.", "hit")
+      |> pet_skill(sk, d, bite)
     else
       p
     end
   end
+
+  # kỹ năng riêng của thú (từ cấp 5), dùng khi thú cắn
+  defp pet_skill(p, %{id: "heal"} = sk, d, _bite) do
+    healed = min(d.maxHp - p.hp, max(1, round(d.maxHp * 0.05)))
+
+    if healed > 0,
+      do: %{p | hp: p.hp + healed} |> log("🐾 #{sk.name}: hồi #{healed} máu.", "good"),
+      else: p
+  end
+
+  defp pet_skill(p, %{id: "bash"} = sk, _d, _bite) do
+    p
+    |> put_effect(:monster, "weaken", 2, 0.15)
+    |> log("🐾 #{sk.name}: #{p.battle.monster.name} bị suy yếu.", "good")
+  end
+
+  defp pet_skill(p, %{id: "pickpocket"} = sk, _d, _bite) do
+    gold = max(1, p.battle.monster.level * 3)
+    %{p | gold: p.gold + gold} |> log("🐾 #{sk.name}: móc được #{gold} vàng.", "good")
+  end
+
+  defp pet_skill(p, %{id: "venom"} = sk, _d, bite) do
+    if p.battle.monster.hp > 0 do
+      p
+      |> put_effect(:monster, "poison", 3, max(1, round(bite * 0.5)))
+      |> log("🐾 #{sk.name}: #{p.battle.monster.name} trúng độc.", "good")
+    else
+      p
+    end
+  end
+
+  defp pet_skill(p, _sk, _d, _bite), do: p
 
   # Trả về {nhân_vật, tấn_công, phòng_thủ_quái, chí_mạng?, hệ_số, tên, hàm_sau_khi_trúng}.
   defp strike_with(p, nil, _d, atk, dfn, crit),
@@ -732,6 +772,24 @@ defmodule HacLong.Game.Engine do
 
           {%{p | gold: p.gold + mark.gold} |> log(text, "win"),
            %{reward | gold: reward.gold + mark.gold}}
+      end
+
+    {p, pet_up} = if m[:pvp], do: {p, nil}, else: Pets.gain(p, m.boss || m[:world] == true)
+
+    p =
+      cond do
+        pet_up == Pets.skill_level() ->
+          log(
+            p,
+            "🐾 #{Pets.name(p)} lên cấp #{pet_up}, học được #{Pets.skill(p.pet).name}!",
+            "win"
+          )
+
+        pet_up ->
+          log(p, "🐾 #{Pets.name(p)} lên cấp #{pet_up}!", "win")
+
+        true ->
+          p
       end
 
     {levels, p} = gain_xp(p, xp)

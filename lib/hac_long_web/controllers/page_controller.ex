@@ -40,7 +40,9 @@ defmodule HacLongWeb.PageController do
         maxRebirths: Engine.max_rebirths(),
         guildCost: HacLong.Guilds.create_cost(),
         guildMinDonate: HacLong.Guilds.min_donate(),
-        tameKills: HacLong.Game.Pets.tame_kills()
+        tameKills: HacLong.Game.Pets.tame_kills(),
+        petMaxLevel: HacLong.Game.Pets.max_level(),
+        petSkillLevel: HacLong.Game.Pets.skill_level()
       },
       WORLD: Maps.client_data()
     }

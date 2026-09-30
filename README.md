@@ -37,7 +37,8 @@ mix test           # chạy test (cần PostgreSQL)
 - Rương Báu ở Thợ Rèn (ra đồ ngẫu nhiên), Rương Gia Truyền ở Nhà mở mỗi ngày
 - Bang hội: lập/vào bang, chat bang, quỹ bang lên cấp, bảng xếp hạng bang
 - Nhân vật mặc đúng đồ đang trang bị (người khác cũng thấy); thú cưng đi theo sau, thỉnh thoảng
-  cắn thêm một đòn trong trận; hạ đủ 100 con một loài quái thường thì thuần phục được loài đó
+  cắn thêm một đòn trong trận, lên cấp theo số trận thắng (cấp 5 học kỹ năng riêng); hạ đủ 100
+  con một loài quái thường thì thuần phục được loài đó
 - Trang trí nhà bằng đồ mua ở Thợ Mộc; nhà tiện nghi thì thêm kinh nghiệm; thăm và khen nhà
   người khác
 - Tổ đội tối đa 3 người: đánh chung một con quái, chia thưởng, chat tổ đội
@@ -56,7 +57,7 @@ mix test           # chạy test (cần PostgreSQL)
 - Việc hằng ngày ở Bảng Tin: 3 việc mới mỗi ngày cho mỗi người, theo các vùng đã mở
 - Tên nhân vật không trùng nhau (không phân biệt hoa thường)
 - Hướng dẫn người mới 5 bước (có vòng sáng chỉ đường trên bản đồ), xong được quà tân thủ
-- 21 thành tựu, 15 danh hiệu hiện cạnh tên trong chat và bảng xếp hạng
+- 33 thành tựu, 25 danh hiệu hiện cạnh tên trong chat và bảng xếp hạng
 - Hộp thư: thưởng nhận lúc vắng mặt, quà của quản trị viên
 - Âm thanh tự tổng hợp (Web Audio), bật/tắt được
 - Chat thế giới (bong bóng lời nói trên đầu người cùng bản đồ) và bảng xếp hạng: cấp cao nhất,

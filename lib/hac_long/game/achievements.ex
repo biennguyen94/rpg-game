@@ -10,7 +10,7 @@ defmodule HacLong.Game.Achievements do
   Trạng thái trong nhân vật: `achievements: [id]` (theo thứ tự đạt được), `title: id | nil`.
   """
 
-  alias HacLong.Game.{Bestiary, Data, Engine}
+  alias HacLong.Game.{Bestiary, Data, Engine, Pets}
   alias HacLong.World.Maps
 
   @list [
@@ -198,6 +198,59 @@ defmodule HacLong.Game.Achievements do
       title: "Đại Gia"
     },
     %{
+      id: "boss_top",
+      name: "Kình Địch Cổ Long",
+      desc: "Lọt top 3 sát thương khi hạ trùm thế giới.",
+      stat: :boss_top,
+      goal: 1
+    },
+    %{
+      id: "boss_top_10",
+      name: "Khắc Tinh Cổ Long",
+      desc: "Lọt top 3 sát thương trùm thế giới 10 lần.",
+      stat: :boss_top,
+      goal: 10,
+      title: "Khắc Tinh Cổ Long"
+    },
+    %{
+      id: "daily_10",
+      name: "Chăm Chỉ",
+      desc: "Làm xong 10 việc hằng ngày.",
+      stat: :daily_done,
+      goal: 10
+    },
+    %{
+      id: "daily_100",
+      name: "Cần Mẫn",
+      desc: "Làm xong 100 việc hằng ngày.",
+      stat: :daily_done,
+      goal: 100,
+      title: "Người Cần Mẫn"
+    },
+    %{
+      id: "tamer",
+      name: "Thuần Thú",
+      desc: "Thuần phục một loài quái.",
+      stat: :tamed,
+      goal: 1,
+      title: "Người Thuần Thú"
+    },
+    %{
+      id: "pet_skill",
+      name: "Thầy Dạy Thú",
+      desc: "Nuôi một con thú lên cấp 5 (học kỹ năng riêng).",
+      stat: :pet_level,
+      goal: 5
+    },
+    %{
+      id: "pet_master",
+      name: "Bậc Thầy Thuần Thú",
+      desc: "Nuôi một con thú lên cấp tối đa.",
+      stat: :pet_level,
+      goal: :max_pet_level,
+      title: "Bậc Thầy Thuần Thú"
+    },
+    %{
       id: "stubborn",
       name: "Lì Đòn",
       desc: "Gục ngã 10 lần mà vẫn chiến.",
@@ -214,6 +267,7 @@ defmodule HacLong.Game.Achievements do
   defp goal(%{goal: :all_quests}), do: length(Data.quests())
   defp goal(%{goal: :all_species}), do: length(Bestiary.species())
   defp goal(%{goal: :all_pets}), do: length(Data.pets())
+  defp goal(%{goal: :max_pet_level}), do: Pets.max_level()
   defp goal(%{goal: :all_waystones}), do: length(Maps.waystone_ids())
   defp goal(%{goal: g}), do: g
 
@@ -232,6 +286,12 @@ defmodule HacLong.Game.Achievements do
   def value(p, :rebirths), do: Map.get(p, :rebirths) || 0
   def value(p, :comfort), do: HacLong.Game.Home.comfort(p)
   def value(p, :pets), do: Enum.count(Map.get(p, :pets) || [], &Data.pet/1)
+  def value(p, :tamed), do: Enum.count(Map.get(p, :pets) || [], &String.starts_with?(&1, "tame:"))
+  def value(p, :daily_done), do: Map.get(p, :daily_done) || 0
+  def value(p, :boss_top), do: Map.get(p, :boss_top) || 0
+
+  def value(p, :pet_level),
+    do: (Map.get(p, :pets) || []) |> Enum.map(&Pets.level(p, &1)) |> Enum.max(fn -> 0 end)
 
   def value(p, :species),
     do: Enum.count(Bestiary.species(), &(Bestiary.count(p, &1) > 0))

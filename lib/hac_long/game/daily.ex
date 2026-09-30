@@ -168,6 +168,7 @@ defmodule HacLong.Game.Daily do
 
       true ->
         p = %{p | gold: p.gold + t.reward.gold}
+        p = Map.put(p, :daily_done, (Map.get(p, :daily_done) || 0) + 1)
         p = put_in(p.daily.tasks, List.replace_at(tasks, i, %{t | claimed: true}))
         {_levels, p} = Engine.gain_xp(p, t.reward.xp)
 
