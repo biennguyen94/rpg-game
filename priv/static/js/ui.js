@@ -521,9 +521,14 @@
     def: ['Phòng thủ', 'Giảm sát thương nhận vào'],
   };
 
-  function itemStat(it) {
-    if (it.atk) return `Tấn công +${it.atk}`;
-    if (it.def) return `Phòng thủ +${it.def}`;
+  // Tên món đồ kèm cấp nâng cấp (+1…+5) nếu có.
+  const upLevel = (id) => (P.upgrades && P.upgrades[id]) || 0;
+  const itemName = (id) => ITEMS[id].name + (upLevel(id) ? ` <span class="up-lv">+${upLevel(id)}</span>` : '');
+
+  function itemStat(it, id) {
+    const b = id ? P.view.bonus[id] || 0 : 0;
+    if (it.atk) return `Tấn công +${it.atk}${b ? ` <span class="up">+${b}</span>` : ''}`;
+    if (it.def) return `Phòng thủ +${it.def}${b ? ` <span class="up">+${b}</span>` : ''}`;
     if (it.heal) return `Hồi ${it.heal} máu`;
     return '';
   }
@@ -564,7 +569,7 @@
             const id = P.equip[slot], it = id ? ITEMS[id] : null;
             return `<div class="item">
               ${it ? icon(it.icon, 'lg') : `<span class="ic lg"></span>`}
-              <div class="grow"><div class="small muted">${label}</div><div class="name">${it ? it.name : 'Trống'}</div>${it ? `<div class="small muted">${itemStat(it)}</div>` : ''}</div>
+              <div class="grow"><div class="small muted">${label}</div><div class="name">${it ? itemName(id) : 'Trống'}</div>${it ? `<div class="small muted">${itemStat(it, id)}</div>` : ''}</div>
               ${slot === 'shield' && it ? `<button class="btn" data-act="unequip" data-slot="shield">Tháo</button>` : ''}
             </div>`;
           }).join('')}
@@ -577,10 +582,10 @@
   }
 
   // ---------- Túi đồ ----------
-  function compare(it) {
-    const cur = P.equip[it.slot] ? ITEMS[P.equip[it.slot]] : null;
-    const v = (x) => (x ? (x.atk || 0) + (x.def || 0) : 0);
-    const diff = v(it) - v(cur);
+  function compare(it, id) {
+    const curId = P.equip[it.slot];
+    const v = (x) => (x ? (ITEMS[x].atk || 0) + (ITEMS[x].def || 0) + (P.view.bonus[x] || 0) : 0);
+    const diff = v(id) - v(curId);
     return diff > 0 ? `<span class="up">▲ ${diff}</span>` : '';
   }
 
@@ -600,8 +605,8 @@
       return `<div class="item">
         ${itemIcon(it)}
         <div class="grow">
-          <div class="name">${it.name}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div>
-          <div class="small muted">${it.slot === 'material' ? it.desc : itemStat(it)} ${['potion', 'material'].includes(it.slot) ? '' : compare(it)}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}</div>
+          <div class="name">${itemName(id)}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div>
+          <div class="small muted">${it.slot === 'material' ? it.desc : itemStat(it, id)} ${['potion', 'material'].includes(it.slot) ? '' : compare(it, id)}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}</div>
         </div>
         ${main}
       </div>`;
@@ -635,7 +640,7 @@
       ${itemIcon(it)}
       <div class="grow">
         <div class="name">${it.name}</div>
-        <div class="small muted">${itemStat(it)} ${slot !== 'potion' ? compare(it) : ''}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}${worn ? ' · <span style="color:var(--good)">Đang dùng</span>' : ''}${owned ? ` · có ${owned}` : ''}</div>
+        <div class="small muted">${itemStat(it)} ${slot !== 'potion' ? compare(it, id) : ''}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}${worn ? ' · <span style="color:var(--good)">Đang dùng</span>' : ''}${owned ? ` · có ${owned}` : ''}</div>
       </div>
       ${slot === 'potion' ? `<button class="btn" data-act="buy5" data-id="${id}" ${P.gold < it.price * 5 ? 'disabled' : ''}>×5</button>` : ''}
       <button class="btn ${!low && !poor ? 'primary' : ''}" data-act="buy" data-id="${id}" ${low || poor ? 'disabled' : ''}>${icon('two-coins')}${fmt(it.price)}</button>
@@ -647,10 +652,31 @@
     return `<div class="card"><h3>Bán đồ</h3>
       ${ids.length ? `<div class="list">${ids.map((id) => {
         const it = ITEMS[id], n = P.inv[id];
-        return `<div class="item">${itemIcon(it)}<div class="grow"><div class="name">${it.name}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div></div>
+        return `<div class="item">${itemIcon(it)}<div class="grow"><div class="name">${itemName(id)}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div></div>
           <button class="btn" data-act="sell" data-id="${id}" aria-label="Bán ${it.name}">Bán ${fmt(it.sell)}</button></div>`;
       }).join('')}</div>` : '<p class="small muted">Túi trống. Đồ đang mặc không bán được.</p>'}
     </div>`;
+  }
+
+  function forgeCard() {
+    const rows = [['weapon', 'Vũ khí'], ['armor', 'Giáp'], ['shield', 'Khiên']].map(([slot, label]) => {
+      const f = P.view.forge[slot];
+      if (!f) return '';
+      const it = ITEMS[f.id], c = f.cost;
+      const need = c ? Object.entries(c.items) : [];
+      const ok = c && P.gold >= c.gold && need.every(([id, n]) => (P.inv[id] || 0) >= n);
+      const step = it.atk || it.def ? Math.max(1, Math.round((it.atk || it.def) * 0.08)) : 0;
+      return `<div class="item">${icon(it.icon, 'lg')}<div class="grow">
+          <div class="small muted">${label}</div><div class="name">${itemName(f.id)}</div>
+          ${c ? `<div class="small muted">Lên +${f.level + 1}: ${it.atk ? 'tấn công' : 'phòng thủ'} +${step} · ${need.map(([id, n]) => `<span style="${(P.inv[id] || 0) >= n ? '' : 'color:var(--bad)'}">${ITEMS[id].name} ${Math.min(P.inv[id] || 0, n)}/${n}</span>`).join(' · ')}</div>`
+            : '<div class="small" style="color:var(--gold)">Đã nâng tối đa</div>'}
+        </div>
+        ${c ? `<button class="btn ${ok ? 'primary' : ''}" data-act="upgrade" data-slot="${slot}" ${ok ? '' : 'disabled'}>${icon('anvil')}${fmt(c.gold)}</button>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="card"><h3>Rèn đồ đang mặc</h3>
+      <p class="small muted">Mỗi cấp thêm 8% chỉ số của món đồ, tối đa +5. Đồ dưới cấp 17 dùng Quặng Sắt, đồ cao hơn dùng Mithril. Cấp nâng giữ theo món đồ khi tháo ra.</p>
+      <div class="list">${rows}</div></div>`;
   }
 
   function craftCard() {
@@ -725,6 +751,7 @@
     }
     if (n.role === 'shop' || n.role === 'herbalist') {
       if (n.role === 'herbalist') sections.push(craftCard());
+      if (n.role === 'shop') sections.push(forgeCard());
       sections.push(`<div class="card"><h3>Mua</h3><div class="list">${n.stock.map(shopRow).join('')}</div></div>`);
       sections.push(sellCard());
     }
@@ -846,7 +873,7 @@
       case 'buy': return { act, id: d.id, n: 1 };
       case 'buy5': return { act: 'buy', id: d.id, n: 5 };
       case 'equip': case 'use': case 'sell': return { act, id: d.id };
-      case 'unequip': return { act, slot: d.slot };
+      case 'unequip': case 'upgrade': return { act, slot: d.slot };
       case 'reset-yes': return { act: 'reset' };
       case 'teleport': return { act, to: d.to };
       case 'craft': case 'quest_accept': case 'quest_turnin': return { act, id: d.id };

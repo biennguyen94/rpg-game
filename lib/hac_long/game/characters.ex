@@ -78,7 +78,8 @@ defmodule HacLong.Game.Characters do
       daily: daily(c.daily),
       tower: tower(c.tower),
       tower_best: c.tower_best || 0,
-      tutorial: c.tutorial
+      tutorial: c.tutorial,
+      upgrades: Map.filter(c.upgrades || %{}, fn {id, _} -> HacLong.Game.Data.item(id) end)
     }
   end
 

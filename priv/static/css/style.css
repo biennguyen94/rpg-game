@@ -323,3 +323,6 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 .gift-form input[type="number"] { width: 100%; min-width: 0; }
 .gift-form select { flex: 1; min-width: 0; }
 .gift-form .btn-row > input[type="number"] { width: 70px; flex: none; }
+
+/* Rèn đồ */
+.up-lv { color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }

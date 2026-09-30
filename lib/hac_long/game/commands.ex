@@ -65,6 +65,9 @@ defmodule HacLong.Game.Commands do
       "craft" ->
         craft(p, c["id"])
 
+      "upgrade" ->
+        at_npc(p, ["shop"], "Thợ Rèn ở Làng", fn _ -> Engine.upgrade(p, c["slot"]) end)
+
       "quest_accept" ->
         at_npc(p, ["quests"], "Trưởng Làng", fn _ -> Quests.accept(p, c["id"]) end)
 

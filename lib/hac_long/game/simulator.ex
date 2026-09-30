@@ -9,6 +9,8 @@ defmodule HacLong.Game.Simulator do
   - `daily: true` — làm việc hằng ngày; cứ `day_fights` trận (mặc định 60) tính là một ngày.
   - `gather_every: n` — cứ n trận thì hái/đào được một nguyên liệu của vùng đang đánh
     (mặc định 3, `nil` là không hái). Nguyên liệu không cần cho nhiệm vụ thì bán luôn.
+  - `upgrade: true` — giữ quặng để Thợ Rèn nâng cấp đồ đang mặc (không tính cấp +5 vì cần
+    Vảy Cổ Long của trùm thế giới).
   """
 
   alias HacLong.Game.{Daily, Data, Engine, Quests}
@@ -23,7 +25,10 @@ defmodule HacLong.Game.Simulator do
   @doc "Chơi một ván. Trả về số trận, cấp, số lần chết, vàng và các mốc hạ trùm."
   def run(cls, opts \\ []) do
     opts =
-      Map.merge(%{quests: false, daily: false, day_fights: 60, gather_every: 3}, Map.new(opts))
+      Map.merge(
+        %{quests: false, daily: false, upgrade: false, day_fights: 60, gather_every: 3},
+        Map.new(opts)
+      )
 
     {:ok, p} = Engine.new_player("Bot#{System.unique_integer([:positive])}", cls)
     p = Map.put(p, :quests, Quests.empty())
@@ -53,7 +58,7 @@ defmodule HacLong.Game.Simulator do
 
     {p, st} = p |> accept_quests(st) |> turn_in(st)
     {p, st} = claim_daily(p, st)
-    p = p |> allocate_all() |> shop_up()
+    p = p |> allocate_all() |> shop_up() |> forge(st)
 
     {p, st} =
       if p.hp < Engine.derived(p).maxHp * 0.6 do
@@ -152,11 +157,15 @@ defmodule HacLong.Game.Simulator do
 
   defp gather(p, _zi, %{opts: %{gather_every: nil}}), do: p
 
-  defp gather(p, zi, %{fights: f, opts: %{gather_every: n}}) when rem(f, n) == 0 do
+  defp gather(p, zi, %{fights: f, opts: %{gather_every: n}} = st) when rem(f, n) == 0 do
     kinds = if zi < 3, do: ~w(herb ore), else: ~w(herb_rare ore_rare)
     item = Enum.at(kinds, rem(div(f, n), 2))
     p = p |> Engine.add_item(item) |> Daily.on_gather(item)
-    if Map.get(p.inv, item) > needed(p, item), do: elem(Engine.sell(p, item), 1), else: p
+
+    keep =
+      needed(p, item) + if(st.opts.upgrade and String.starts_with?(item, "ore"), do: 99, else: 0)
+
+    if Map.get(p.inv, item) > keep, do: elem(Engine.sell(p, item), 1), else: p
   end
 
   defp gather(p, _zi, _st), do: p
@@ -198,6 +207,32 @@ defmodule HacLong.Game.Simulator do
   defp value(nil), do: 0
   defp value(id), do: (Data.item(id)[:atk] || 0) + (Data.item(id)[:def] || 0)
 
+  # nâng cấp đồ đang mặc khi đủ quặng, còn dư vàng mua bình máu (tới +4)
+  defp forge(p, %{opts: %{upgrade: false}}), do: p
+
+  defp forge(p, st) do
+    Enum.reduce(~w(weapon armor shield), p, fn slot, p ->
+      id = p.equip[String.to_existing_atom(slot)]
+      cost = id && Engine.upgrade_cost(id, Engine.upgrade_level(p, id))
+
+      spare? =
+        cost && not Map.has_key?(cost.items, "dragon_scale") && p.gold >= cost.gold + 100 &&
+          Enum.all?(cost.items, fn {m, n} -> Map.get(p.inv, m, 0) - needed(p, m) >= n end)
+
+      if spare? do
+        case Engine.upgrade(p, slot) do
+          {%{ok: true}, p} -> forge(p, st)
+          _ -> p
+        end
+      else
+        p
+      end
+    end)
+  end
+
+  defp worn(_p, nil), do: 0
+  defp worn(p, id), do: value(id) + Engine.upgrade_bonus(p, id)
+
   defp shop_up(p) do
     p =
       Enum.reduce(~w(weapon armor shield), p, fn slot, p ->
@@ -207,7 +242,7 @@ defmodule HacLong.Game.Simulator do
         owned =
           Enum.find(Map.keys(p.inv), fn id ->
             it = Data.item(id)
-            it.slot == slot and it.level <= p.level and value(id) > value(cur)
+            it.slot == slot and it.level <= p.level and value(id) > worn(p, cur)
           end)
 
         best =
@@ -216,7 +251,7 @@ defmodule HacLong.Game.Simulator do
             it = Data.item(id)
 
             it.slot == slot and it.level <= p.level and it.price <= p.gold - 40 and
-              value(id) > value(cur)
+              value(id) > worn(p, cur)
           end)
           |> Enum.max_by(&value/1, fn -> nil end)
 

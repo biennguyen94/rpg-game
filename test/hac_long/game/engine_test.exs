@@ -93,6 +93,45 @@ defmodule HacLong.Game.EngineTest do
     assert p.hp == Engine.derived(p).maxHp
   end
 
+  test "Thợ Rèn nâng cấp đồ đang mặc bằng quặng và vàng" do
+    p = %{player() | gold: 10_000}
+    atk = Engine.derived(p).atk
+
+    assert {%{ok: false, msg: "Thiếu nguyên liệu: Quặng Sắt 0/1."}, _} =
+             Engine.upgrade(p, "weapon")
+
+    p = Engine.add_item(p, "ore", 20)
+    {%{ok: true, msg: "Đã nâng Gậy Gỗ lên +1."}, p} = Engine.upgrade(p, "weapon")
+    # gậy gỗ tấn công 3: mỗi cấp ít nhất +1
+    assert Engine.derived(p).atk == atk + 1
+    assert p.inv["ore"] == 19 and p.gold == 10_000 - 8
+
+    p = Enum.reduce(1..3, p, fn _, p -> elem(Engine.upgrade(p, "weapon"), 1) end)
+    assert Engine.upgrade_level(p, "club") == 4
+    # +5 cần Vảy Cổ Long
+    assert {%{ok: false, msg: "Thiếu nguyên liệu: Vảy Cổ Long 0/1."}, _} =
+             Engine.upgrade(p, "weapon")
+
+    {%{ok: true}, p} = p |> Engine.add_item("dragon_scale") |> Engine.upgrade("weapon")
+    assert {%{ok: false, msg: "Gậy Gỗ đã nâng cấp tối đa."}, _} = Engine.upgrade(p, "weapon")
+    assert Engine.view(p).bonus == %{"club" => 5}
+    assert Engine.view(p).forge.weapon == %{id: "club", level: 5, cost: nil}
+
+    # đồ cấp cao dùng Mithril; cấp nâng giữ theo món khi tháo ra mặc lại
+    assert Engine.upgrade_cost("waraxe", 0) == %{gold: 600, items: %{"ore_rare" => 1}}
+    p = %{p | level: 10} |> Engine.add_item("broadsword")
+    {_, p} = Engine.equip(p, "broadsword")
+    assert Engine.upgrade_level(p, "broadsword") == 0
+    {_, p} = Engine.equip(p, "club")
+    assert Engine.derived(p).atk == Engine.derived(%{p | upgrades: %{}}).atk + 5
+
+    # bán món cuối cùng thì mất cấp nâng
+    {_, p} = Engine.equip(p, "broadsword")
+    {_, p} = Engine.sell(p, "club")
+    assert p.upgrades == %{}
+    assert {%{ok: false, msg: "Chưa mặc đồ ở chỗ này."}, _} = Engine.upgrade(p, "shield")
+  end
+
   test "bot chơi hết game với mỗi lớp nhân vật" do
     for cls <- ~w(warrior rogue knight) do
       r = Simulator.run(cls)

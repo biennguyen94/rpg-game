@@ -5,7 +5,8 @@ defmodule Mix.Tasks.HacLong.Simulate do
 
   - `chỉ đánh`: chỉ đánh quái, hái nguyên liệu thì bán;
   - `+nhiệm vụ`: làm thêm nhiệm vụ Trưởng Làng;
-  - `+hằng ngày`: làm thêm cả việc hằng ngày (60 trận tính là một ngày).
+  - `+hằng ngày`: làm thêm cả việc hằng ngày (60 trận tính là một ngày);
+  - `+nâng cấp`: giữ quặng để Thợ Rèn nâng cấp đồ.
 
   In số trận trung bình, cấp cuối, số lần chết, vàng, phần vàng/kinh nghiệm đến từ
   nhiệm vụ và việc hằng ngày, và cấp lúc hạ từng trùm (của ván đầu).
@@ -20,7 +21,8 @@ defmodule Mix.Tasks.HacLong.Simulate do
   @modes [
     {"chỉ đánh", []},
     {"+nhiệm vụ", [quests: true]},
-    {"+hằng ngày", [quests: true, daily: true]}
+    {"+hằng ngày", [quests: true, daily: true]},
+    {"+nâng cấp", [quests: true, daily: true, upgrade: true]}
   ]
 
   @impl true

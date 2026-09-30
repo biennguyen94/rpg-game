@@ -17,6 +17,7 @@ defmodule HacLong.Game.Engine do
   @potions ~w(potion_s potion_m potion_l)
   @stats ~w(str vit agi def)a
   @max_batch 99
+  @max_upgrade 5
 
   def points_per_level, do: @points_per_level
   def max_level, do: @max_level
@@ -54,6 +55,7 @@ defmodule HacLong.Game.Engine do
           points: 0,
           equip: %{weapon: "club", armor: "vest", shield: nil},
           inv: %{"potion_s" => 3},
+          upgrades: %{},
           bosses: [],
           kills: 0,
           deaths: 0,
@@ -72,12 +74,18 @@ defmodule HacLong.Game.Engine do
     a = Data.item(p.equip.armor)
     sh = p.equip.shield && Data.item(p.equip.shield)
 
+    up = fn id -> if id, do: upgrade_bonus(p, id), else: 0 end
+
     %{
       maxHp: round(40 + s.vit * 12 + p.level * 10),
-      atk: round(s.str * 2.2 + s.agi * 0.9 + if(w, do: w.atk, else: 0) + p.level),
+      atk:
+        round(
+          s.str * 2.2 + s.agi * 0.9 + if(w, do: w.atk, else: 0) + up.(p.equip.weapon) + p.level
+        ),
       def:
         round(
-          s.def * 1.6 + if(a, do: a.def, else: 0) + if(sh, do: sh.def, else: 0) + p.level * 0.5
+          s.def * 1.6 + if(a, do: a.def, else: 0) + if(sh, do: sh.def, else: 0) +
+            up.(p.equip.armor) + up.(p.equip.shield) + p.level * 0.5
         ),
       crit: clamp(0.04 + s.agi * 0.008, 0, 0.6),
       critMult: min(2.5, 1.6 + s.agi * 0.006),
@@ -94,7 +102,14 @@ defmodule HacLong.Game.Engine do
       derived: derived(p),
       xpToNext: xp_to_next(p.level),
       restCost: rest_cost(p),
-      unlocked: Enum.map(0..(Data.zone_count() - 1), &zone_unlocked?(p, &1))
+      unlocked: Enum.map(0..(Data.zone_count() - 1), &zone_unlocked?(p, &1)),
+      # cộng thêm của đồ đã nâng cấp (để client so sánh đồ) và giá nâng cấp đồ đang mặc
+      bonus: upgrades(p) |> Map.keys() |> Map.new(&{&1, upgrade_bonus(p, &1)}),
+      forge:
+        for {slot, id} <- p.equip, id != nil, into: %{} do
+          {slot,
+           %{id: id, level: upgrade_level(p, id), cost: upgrade_cost(id, upgrade_level(p, id))}}
+        end
     }
   end
 
@@ -462,13 +477,88 @@ defmodule HacLong.Game.Engine do
     end
   end
 
+  # ---------- Nâng cấp đồ (Thợ Rèn) ----------
+  # Cấp nâng cấp lưu theo loại đồ (`upgrades: %{id => cấp}`), giữ nguyên khi tháo ra mặc lại.
+
+  def max_upgrade, do: @max_upgrade
+
+  defp upgrades(p), do: Map.get(p, :upgrades) || %{}
+
+  def upgrade_level(p, id), do: Map.get(upgrades(p), id, 0)
+
+  @doc "Tấn công/phòng thủ cộng thêm: mỗi cấp +8% chỉ số gốc của món đồ (ít nhất +1)."
+  def upgrade_bonus(p, id) do
+    case {upgrade_level(p, id), Data.item(id)} do
+      {0, _} -> 0
+      {_, nil} -> 0
+      {l, it} -> l * max(1, round((it[:atk] || it[:def] || 0) * 0.08))
+    end
+  end
+
+  @doc """
+  Giá nâng món `id` từ cấp `level` lên cấp tiếp theo: `%{gold, items}` hoặc `nil` nếu đã tối
+  đa. Đồ dưới cấp 17 dùng Quặng Sắt, từ cấp 17 dùng Mithril; cấp cuối cần thêm Vảy Cổ Long.
+  """
+  def upgrade_cost(_id, level) when level >= @max_upgrade, do: nil
+
+  def upgrade_cost(id, level) do
+    it = Data.item(id)
+    n = level + 1
+    ore = if (it[:level] || 1) >= 17, do: "ore_rare", else: "ore"
+    items = %{ore => n}
+    items = if n == @max_upgrade, do: Map.put(items, "dragon_scale", 1), else: items
+    %{gold: round(max(it.price, 100) * 0.08 * n), items: items}
+  end
+
+  def upgrade(p, slot) do
+    id = slot in ~w(weapon armor shield) && p.equip[String.to_existing_atom(slot)]
+    level = if id, do: upgrade_level(p, id), else: 0
+    cost = id && upgrade_cost(id, level)
+
+    cond do
+      !id ->
+        {err("Chưa mặc đồ ở chỗ này."), p}
+
+      p.battle ->
+        {err("Đang trong trận."), p}
+
+      cost == nil ->
+        {err("#{Data.item(id).name} đã nâng cấp tối đa."), p}
+
+      p.gold < cost.gold ->
+        {err("Cần #{cost.gold} vàng."), p}
+
+      not Enum.all?(cost.items, fn {m, n} -> Map.get(p.inv, m, 0) >= n end) ->
+        missing =
+          cost.items
+          |> Enum.filter(fn {m, n} -> Map.get(p.inv, m, 0) < n end)
+          |> Enum.map_join(", ", fn {m, n} ->
+            "#{Data.item(m).name} #{Map.get(p.inv, m, 0)}/#{n}"
+          end)
+
+        {err("Thiếu nguyên liệu: #{missing}."), p}
+
+      true ->
+        hp_ratio = p.hp / derived(p).maxHp
+
+        p =
+          Enum.reduce(cost.items, %{p | gold: p.gold - cost.gold}, fn {m, n}, p ->
+            take_item(p, m, n)
+          end)
+
+        p = Map.put(p, :upgrades, Map.put(upgrades(p), id, level + 1))
+        p = %{p | hp: round(hp_ratio * derived(p).maxHp)}
+        {ok("Đã nâng #{Data.item(id).name} lên +#{level + 1}."), p}
+    end
+  end
+
   # ---------- Đồ đạc ----------
   def add_item(p, id, n \\ 1), do: %{p | inv: Map.update(p.inv, id, n, &(&1 + n))}
 
-  defp take_item(p, id) do
+  defp take_item(p, id, n \\ 1) do
     inv =
       case Map.get(p.inv, id, 0) do
-        n when n > 1 -> Map.put(p.inv, id, n - 1)
+        have when have > n -> Map.put(p.inv, id, have - n)
         _ -> Map.delete(p.inv, id)
       end
 
@@ -508,7 +598,12 @@ defmodule HacLong.Game.Engine do
   def sell(p, id) do
     if Map.get(p.inv, id, 0) > 0 and Data.item(id) do
       g = sell_price(id)
-      {ok("Đã bán #{Data.item(id).name} được #{g} vàng."), %{take_item(p, id) | gold: p.gold + g}}
+      p = %{take_item(p, id) | gold: p.gold + g}
+
+      # bán hết món đã nâng cấp (không còn trong túi, không đang mặc) thì mất cấp nâng
+      gone = not Map.has_key?(p.inv, id) and id not in Map.values(p.equip)
+      p = if gone, do: Map.put(p, :upgrades, Map.delete(upgrades(p), id)), else: p
+      {ok("Đã bán #{Data.item(id).name} được #{g} vàng."), p}
     else
       {err("Không có món này."), p}
     end
