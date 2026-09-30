@@ -202,6 +202,20 @@
         "Đá dịch chuyển cạnh nhà Bà Lang. Chạm vào đá ở các vùng để nhớ đường về.",
         "Ở Nhà có giếng nước, uống vào là hết mệt, không tốn đồng nào."
       ]
+    },
+    {
+      "id": "board",
+      "name": "Bảng Tin",
+      "sprite": "board",
+      "at": [
+        14,
+        3
+      ],
+      "role": "daily",
+      "lines": [
+        "Việc vặt mỗi ngày của dân làng. Làm xong quay lại đây nhận thưởng.",
+        "Sáng mai sẽ có việc mới."
+      ]
     }
   ],
   "spawns": []

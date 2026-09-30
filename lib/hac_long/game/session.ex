@@ -17,7 +17,7 @@ defmodule HacLong.Game.Session do
   """
   use GenServer, restart: :transient
 
-  alias HacLong.Game.{Characters, Commands, Names, Quests}
+  alias HacLong.Game.{Characters, Commands, Daily, Names, Quests}
   alias HacLong.World
 
   @idle_timeout :timer.minutes(10)
@@ -77,16 +77,21 @@ defmodule HacLong.Game.Session do
   end
 
   @impl true
-  def handle_call(:get, _from, s), do: reply(s.player, s)
+  def handle_call(msg, from, s), do: handle(msg, from, fresh(s))
 
-  def handle_call({:attach, pid}, _from, s) do
+  # Sang ngày mới thì đổi việc hằng ngày (lưu cùng lần ghi tiếp theo).
+  defp fresh(s), do: %{s | player: Daily.ensure(s.player, Daily.today())}
+
+  defp handle(:get, _from, s), do: reply(s.player, s)
+
+  defp handle({:attach, pid}, _from, s) do
     if map_size(s.tabs) == 0, do: World.enter(s.player, s.user_id)
     s = %{s | tabs: Map.put(s.tabs, Process.monitor(pid), pid)}
     reply(s.player, s)
   end
 
-  def handle_call({:command, %{"act" => act} = cmd, origin}, _from, s)
-      when act in ["move", "teleport"] do
+  defp handle({:command, %{"act" => act} = cmd, origin}, _from, s)
+       when act in ["move", "teleport"] do
     case take(s, :steps, @step_ms, @step_burst) do
       {:ok, s} ->
         {result, player} = run_move(s, cmd)
@@ -113,7 +118,7 @@ defmodule HacLong.Game.Session do
     end
   end
 
-  def handle_call({:command, cmd, origin}, _from, s) do
+  defp handle({:command, cmd, origin}, _from, s) do
     case take(s, :acts, @act_ms, @act_burst) do
       {:ok, s} -> run_command(s, cmd, origin)
       :too_fast -> reply({%{ok: false, msg: "Thao tác quá nhanh."}, s.player}, s)
@@ -139,7 +144,8 @@ defmodule HacLong.Game.Session do
   defp run_command_(s, cmd, origin) do
     old = s.player
     {result, player} = Commands.run(old, cmd)
-    player = after_command(s, old, player, cmd)
+    # nhân vật vừa tạo cũng có ngay việc hằng ngày
+    player = s |> after_command(old, player, cmd) |> Daily.ensure(Daily.today())
 
     s =
       if player != old do
@@ -203,9 +209,13 @@ defmodule HacLong.Game.Session do
             do: Map.put(player, :victory_at, DateTime.truncate(DateTime.utc_now(), :second)),
             else: player
 
-        if player.battle.result == "win",
-          do: Quests.on_kill(player, player.battle.monster.id),
-          else: player
+        if player.battle.result == "win" do
+          player
+          |> Quests.on_kill(player.battle.monster.id)
+          |> Daily.on_kill(player.battle.monster.id, player.battle.zone)
+        else
+          player
+        end
 
       cmd["act"] == "create" and player && old == nil ->
         if map_size(s.tabs) > 0, do: World.enter(player, s.user_id)

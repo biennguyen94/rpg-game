@@ -34,6 +34,8 @@ mix test           # chạy test (cần PostgreSQL)
 - Hái Thảo Dược/Linh Chi, đào Quặng Sắt/Mithril trên bản đồ (dùng chung, mọc lại); mang đi pha
   thuốc, bán hoặc nộp nhiệm vụ
 - 18 nhiệm vụ: mỗi vùng một việc diệt quái, một việc thu thập, một việc hạ trùm
+- Việc hằng ngày ở Bảng Tin: 3 việc mới mỗi ngày cho mỗi người, theo các vùng đã mở
+- Tên nhân vật không trùng nhau (không phân biệt hoa thường)
 - Chat thế giới (bong bóng lời nói trên đầu người cùng bản đồ) và bảng xếp hạng: cấp cao nhất,
   săn nhiều nhất, ai hạ Hắc Long trước
 - Gục ngã mất 10% vàng và tỉnh dậy ở Nhà; giếng nước ở Nhà hồi máu miễn phí
@@ -86,6 +88,8 @@ lib/hac_long/game/commands.ex       Lệnh từ client → hàm engine
 lib/hac_long/game/session.ex        Tiến trình giữ nhân vật đang online
 lib/hac_long/game/characters.ex     Đọc/ghi bảng characters
 lib/hac_long/game/quests.ex         Nhiệm vụ: nhận, tiến độ, trả và nhận thưởng
+lib/hac_long/game/daily.ex          Việc hằng ngày
+lib/hac_long/game/names.ex          Kiểm tra và chuẩn hóa tên nhân vật
 lib/hac_long/game/simulator.ex      Bot chơi thử để kiểm tra cân bằng
 lib/hac_long/world.ex               Đi lại trên bản đồ, qua cổng, chạm quái, kết thúc trận
 lib/hac_long/world/maps.ex          Đọc priv/maps (giải thích định dạng và các ký tự)
@@ -139,10 +143,11 @@ bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: tr
 `attack`, `skill`, `potion`, `flee`, `leave`, `alloc {stat, n}`, `equip {id}`,
 `unequip {slot}`, `use {id}`. Bước vào NPC thì nhận `npc: id`; các lệnh sau phải đứng cạnh
 đúng NPC: `buy {id, n}`, `sell {id}` (Thợ Rèn, Bà Lang), `craft {id}` (Bà Lang), `rest`
-(Chủ Quán Trọ), `quest_accept {id}`, `quest_turnin {id}` (Trưởng Làng).
+(Chủ Quán Trọ), `quest_accept {id}`, `quest_turnin {id}` (Trưởng Làng), `daily_claim {i}`
+(Bảng Tin).
 
 Trạng thái nhân vật có `pos: {map, x, y}`, `waystones` (các đá đã ghi nhớ),
-`quests: {active: {id: số_đã_hạ}, done: [id]}`; khi đang đánh, `battle.encounter` cho biết con quái
+`quests: {active: {id: số_đã_hạ}, done: [id]}`, `daily: {date, tasks}`; khi đang đánh, `battle.encounter` cho biết con quái
 nào trên bản đồ.
 
 ## Production

@@ -75,6 +75,8 @@ defmodule HacLongWeb.GameChannelTest do
     assert r.ok and r.player.cls == "knight"
     assert r.player.pos == %{map: "home", x: 5, y: 6}
     assert_push "map", %{map: "home", monsters: []}
+    assert [_, _, _] = r.player.daily.tasks
+    assert Characters.load(user.id).daily.date == HacLong.Game.Daily.today()
     assert Characters.load(user.id).name == "Hiệp"
 
     # bước xuống cửa nhà thì ra Làng
@@ -121,6 +123,9 @@ defmodule HacLongWeb.GameChannelTest do
       # hạ Dơi Hang thì nhiệm vụ "Lũ dơi hang" được cộng tiến độ
       assert r.player.quests.active["forest_kill"] == 1
       assert Characters.load(user.id).quests.active["forest_kill"] == 1
+      # và việc hằng ngày "hạ quái ở Rừng Mê" (vùng 0)
+      zone_task = Enum.find(r.player.daily.tasks, &(&1.kind == "zone"))
+      assert zone_task.zone != 0 or zone_task.progress == 1
     else
       assert r.player.pos.map == "home"
     end

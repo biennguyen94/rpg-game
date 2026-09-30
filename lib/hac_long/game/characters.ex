@@ -74,7 +74,8 @@ defmodule HacLong.Game.Characters do
       pos: World.valid_pos(%{map: c.map_id, x: c.x, y: c.y}),
       waystones: Enum.filter(c.waystones || [], &(&1 in Maps.waystone_ids())),
       quests: quests(c.quests),
-      victory_at: c.victory_at
+      victory_at: c.victory_at,
+      daily: daily(c.daily)
     }
   end
 
@@ -89,6 +90,27 @@ defmodule HacLong.Game.Characters do
   end
 
   defp quests(_), do: HacLong.Game.Quests.empty()
+
+  defp daily(%{"date" => date, "tasks" => tasks}) do
+    %{
+      date: date,
+      tasks:
+        Enum.map(tasks, fn t ->
+          %{
+            kind: t["kind"],
+            target: t["target"],
+            zone: t["zone"],
+            count: t["count"],
+            progress: t["progress"],
+            claimed: t["claimed"],
+            name: t["name"],
+            reward: %{gold: t["reward"]["gold"], xp: t["reward"]["xp"]}
+          }
+        end)
+    }
+  end
+
+  defp daily(_), do: nil
 
   # Tên các trường có trong trận đấu (trận, quái, nhật ký, phần thưởng).
   @battle_keys Map.new(

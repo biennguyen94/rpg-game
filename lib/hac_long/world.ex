@@ -9,7 +9,7 @@ defmodule HacLong.World do
   Session luôn gọi MapServer, không bao giờ ngược lại, nên không thể bị treo chờ nhau.
   """
 
-  alias HacLong.Game.{Data, Engine}
+  alias HacLong.Game.{Daily, Data, Engine}
   alias HacLong.World.{Maps, MapServer}
 
   @dirs %{"up" => {0, -1}, "down" => {0, 1}, "left" => {-1, 0}, "right" => {1, 0}}
@@ -118,7 +118,8 @@ defmodule HacLong.World do
       {:gather, node} ->
         item = Data.item(node.item)
         verb = if String.starts_with?(node.item, "ore"), do: "Đào", else: "Hái"
-        {%{ok: true, msg: "#{verb} được #{item.name}."}, Engine.add_item(p, node.item)}
+        p = p |> Engine.add_item(node.item) |> Daily.on_gather(node.item)
+        {%{ok: true, msg: "#{verb} được #{item.name}."}, p}
 
       {:confirm_boss, m} ->
         boss = Data.zone(map.zone).boss

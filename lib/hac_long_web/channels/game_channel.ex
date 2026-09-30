@@ -15,7 +15,7 @@ defmodule HacLongWeb.GameChannel do
   use HacLongWeb, :channel
 
   alias HacLong.{Chat, Leaderboard, RateLimit}
-  alias HacLong.Game.{Data, Engine, Quests, Session}
+  alias HacLong.Game.{Daily, Data, Engine, Quests, Session}
   alias HacLong.World.{Maps, MapServer}
 
   @impl true
@@ -129,6 +129,15 @@ defmodule HacLongWeb.GameChannel do
       Quests.available(player) != [] or
         Enum.any?(Map.keys(player.quests.active), &Quests.complete?(player, Data.quest(&1)))
 
-    Map.put(player, :view, Map.put(Engine.view(player), :questReady, ready))
+    view =
+      player
+      |> Engine.view()
+      |> Map.merge(%{
+        questReady: ready,
+        dailyReady: Daily.ready?(player),
+        dailyLeft: Daily.seconds_left()
+      })
+
+    Map.put(player, :view, view)
   end
 end

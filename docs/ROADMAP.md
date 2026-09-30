@@ -30,8 +30,9 @@ Các tính năng dự định cho Hắc Long RPG, xếp theo thứ tự ưu tiê
 
 - [x] **Bảng xếp hạng**: cấp cao nhất, săn nhiều quái nhất, và ai hạ Hắc Long trước (ghi
   thời điểm `victory_at`); hiện hạng của mình. Ở tab Hành trình.
-- [ ] **Nhiệm vụ hằng ngày**, ví dụ "Hạ 20 quái ở Nghĩa Địa Cổ", "Thắng 1 trùm"; thưởng vàng
-  hoặc bình máu, làm mới mỗi ngày. Hiện sau khoảng 430 trận là phá đảo và hết việc để làm.
+- [x] **Nhiệm vụ hằng ngày** ở Bảng Tin trong Làng: mỗi ngày 3 việc riêng cho mỗi người (hạ
+  một loại quái, hạ quái ở một vùng, hái/đào nguyên liệu) ở hai vùng cao nhất đã mở, tự tính
+  tiến độ, làm mới lúc 0 giờ giờ Việt Nam.
 - [ ] **Nội dung sau khi phá đảo**
   - Tháp vô tận: mỗi tầng quái mạnh hơn, có bảng kỷ lục tầng cao nhất.
   - Chuyển sinh: về cấp 1, nhận chỉ số cộng thêm vĩnh viễn.
@@ -106,7 +107,7 @@ Mỗi bản đồ một file `priv/maps/<id>.json`, vẽ bằng ký tự để d
 
 - Ô không đi qua được: cây, đá, nước, tường.
 - Ô tương tác: cổng, cây thuốc, quặng, rương, NPC, bảng tin. (Đã có: cổng, NPC, cây thuốc,
-  quặng, giếng, đá dịch chuyển. Chưa có: rương, bảng tin.)
+  quặng, giếng, đá dịch chuyển, bảng tin. Chưa có: rương.)
 - Hình ảnh: bộ tile Dungeon Crawl Stone Soup (CC0, 32×32) có sẵn cây, đá, nước, cửa, tường,
   cùng phong cách với hình quái đang dùng.
 - Sau này có thể đọc file của Tiled Map Editor để vẽ bản đồ trực quan.

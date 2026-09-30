@@ -6,7 +6,7 @@ defmodule HacLong.Game.Commands do
   Client chỉ gửi *ý định* (tấn công, mua món X...), mọi con số đều do server tính.
   """
 
-  alias HacLong.Game.{Data, Engine, Quests}
+  alias HacLong.Game.{Daily, Data, Engine, Quests}
   alias HacLong.World
   alias HacLong.World.Maps
 
@@ -18,7 +18,8 @@ defmodule HacLong.Game.Commands do
          |> Map.put(:pos, Maps.home_spawn())
          |> Map.put(:waystones, [])
          |> Map.put(:quests, Quests.empty())
-         |> Map.put(:victory_at, nil)}
+         |> Map.put(:victory_at, nil)
+         |> Map.put(:daily, nil)}
 
       {:error, msg} ->
         {%{ok: false, msg: msg}, nil}
@@ -66,6 +67,9 @@ defmodule HacLong.Game.Commands do
 
       "quest_turnin" ->
         at_npc(p, ["quests"], "Trưởng Làng", fn _ -> Quests.turn_in(p, c["id"]) end)
+
+      "daily_claim" ->
+        at_npc(p, ["daily"], "Bảng Tin ở Làng", fn _ -> Daily.claim(p, int(c["i"])) end)
 
       _ ->
         invalid(p)

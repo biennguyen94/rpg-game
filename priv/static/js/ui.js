@@ -512,6 +512,26 @@
   const availableQuests = () => QUESTS.filter((q) => !(q.id in P.quests.active) && !P.quests.done.includes(q.id)
     && P.view.unlocked[q.zone] && q.requires.every((r) => P.quests.done.includes(r)));
 
+  // ---------- Việc hằng ngày ----------
+  function dailyLeft() {
+    const s = P.view.dailyLeft, h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    return h ? `${h} giờ ${m} phút` : `${m} phút`;
+  }
+
+  function dailyList(claim) {
+    const tasks = (P.daily && P.daily.tasks) || [];
+    return `<div class="list">${tasks.map((t, i) => {
+      const done = t.progress >= t.count;
+      const right = t.claimed ? '<span class="tag good">Đã nhận</span>'
+        : claim ? `<button class="btn ${done ? 'primary' : ''}" data-act="daily_claim" data-i="${i}" ${done ? '' : 'disabled'}>Nhận</button>` : '';
+      return `<div class="item quest"><div class="grow">
+        <div class="name">${esc(t.name)} <span class="small muted">· ${ZONES[t.zone].name}</span></div>
+        <div class="small ${done ? '' : 'muted'}" style="${done && !t.claimed ? 'color:var(--good)' : ''}">${t.claimed ? 'Xong' : done ? 'Đã xong, đến Bảng Tin nhận thưởng' : `Tiến độ ${t.progress}/${t.count}`}</div>
+        <div class="small" style="color:var(--gold)">Thưởng: ${fmt(t.reward.gold)} vàng · ${fmt(t.reward.xp)} kinh nghiệm</div>
+      </div>${right}</div>`;
+    }).join('')}</div>`;
+  }
+
   function viewNpc() {
     const n = npcData(), d = P.view.derived;
     const sections = [];
@@ -529,6 +549,9 @@
       const full = P.hp >= d.maxHp, cost = P.view.restCost;
       sections.push(`<div class="card"><button class="btn ${full ? '' : 'primary'} block" data-act="rest" ${full ? 'disabled' : ''}>${full ? 'Máu đang đầy' : cost ? `Nghỉ một đêm · ${fmt(cost)} vàng` : 'Nghỉ một đêm · miễn phí'}</button></div>`);
     }
+    if (n.role === 'daily') {
+      sections.push(`<div class="card"><div class="row"><h3 class="grow">Việc hôm nay</h3><span class="small muted">Việc mới sau ${dailyLeft()}</span></div>${dailyList(true)}</div>`);
+    }
     if (n.role === 'talk') {
       sections.push(`<div class="card">${n.lines.map((l) => `<p>“${esc(l)}”</p>`).join('')}</div>`);
     }
@@ -545,6 +568,11 @@
   function viewQuests() {
     const act = activeQuests();
     return `<h2 class="display">Nhiệm vụ</h2>
+      <div class="card"><div class="row"><h3 class="grow">Việc hằng ngày</h3><span class="small muted">Việc mới sau ${dailyLeft()}</span></div>
+        ${dailyList(false)}
+        <p class="small muted">Tự tính khi bạn làm; xong thì đến Bảng Tin trong Làng nhận thưởng.</p>
+      </div>
+      <h3>Nhiệm vụ của Trưởng Làng</h3>
       <div class="card">${act.length ? `<div class="list">${act.map((q) => questRow(q, 'log')).join('')}</div>` : '<p class="small muted">Chưa nhận nhiệm vụ nào. Gặp Trưởng Làng (ông già ở giữa Làng, phía trên) để nhận việc.</p>'}</div>
       <p class="small muted">Đã hoàn thành ${P.quests.done.length}/${QUESTS.length} nhiệm vụ.${availableQuests().length ? ` Trưởng Làng đang có ${availableQuests().length} việc mới.` : ''}</p>`;
   }
@@ -627,6 +655,7 @@
       case 'reset-yes': return { act: 'reset' };
       case 'teleport': return { act, to: d.to };
       case 'craft': case 'quest_accept': case 'quest_turnin': return { act, id: d.id };
+      case 'daily_claim': return { act, i: +d.i };
       default: return { act };
     }
   }
