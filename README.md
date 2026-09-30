@@ -36,18 +36,22 @@ mix test           # chạy test (cần PostgreSQL)
 - Ngày và đêm theo giờ Việt Nam; ban đêm có quái Bóng Đêm
 - Rương Báu ở Thợ Rèn (ra đồ ngẫu nhiên), Rương Gia Truyền ở Nhà mở mỗi ngày
 - Bang hội: lập/vào bang, chat bang, quỹ bang lên cấp, bảng xếp hạng bang
-- Nhân vật mặc đúng đồ đang trang bị (người khác cũng thấy); thú cưng đi theo sau
-- Trang trí nhà bằng đồ mua ở Thợ Mộc; nhà tiện nghi thì thêm kinh nghiệm
+- Nhân vật mặc đúng đồ đang trang bị (người khác cũng thấy); thú cưng đi theo sau, thỉnh thoảng
+  cắn thêm một đòn trong trận; hạ đủ 100 con một loài quái thường thì thuần phục được loài đó
+- Trang trí nhà bằng đồ mua ở Thợ Mộc; nhà tiện nghi thì thêm kinh nghiệm; thăm và khen nhà
+  người khác
 - Tổ đội tối đa 3 người: đánh chung một con quái, chia thưởng, chat tổ đội
 - Chạm vào người chơi khác để xem đồ, mời tổ đội, thách đấu ở đấu trường (PvP với bản sao chỉ số,
   điểm Elo)
 - Chợ giữa người chơi: rao bán, mua; tiền bán được gửi qua hộp thư
+- Giao dịch trực tiếp: hai bên bỏ đồ/vàng vào, cả hai xác nhận thì mới đổi
 - Lên cấp nhận 3 điểm tiềm năng để cộng vào Sức mạnh, Thể lực, Nhanh nhẹn, Phòng thủ
 - NPC trong Làng: Trưởng Làng giao nhiệm vụ, Thợ Rèn bán vũ khí/giáp/khiên, Bà Lang bán và pha
   thuốc, Chủ Quán Trọ cho nghỉ; mua bán phải đến gặp họ. 2 món đồ hiếm chỉ rơi từ trùm
 - Hái Thảo Dược/Linh Chi, đào Quặng Sắt/Mithril trên bản đồ (dùng chung, mọc lại); mang đi pha
   thuốc, bán, nộp nhiệm vụ hoặc nhờ Thợ Rèn nâng cấp đồ đang mặc (tới +5)
-- Câu cá ở hồ nước: phao chìm thì giật đúng lúc; Cá Chép Vàng rất hiếm
+- Câu cá ở hồ nước: phao chìm thì giật đúng lúc; Cá Chép Vàng rất hiếm; Bà Lang nấu cá thành
+  bình máu; việc hằng ngày có câu cá
 - 18 nhiệm vụ: mỗi vùng một việc diệt quái, một việc thu thập, một việc hạ trùm
 - Việc hằng ngày ở Bảng Tin: 3 việc mới mỗi ngày cho mỗi người, theo các vùng đã mở
 - Tên nhân vật không trùng nhau (không phân biệt hoa thường)
@@ -130,6 +134,9 @@ lib/hac_long/guilds.ex              Bang hội
 lib/hac_long/party.ex               Tổ đội, trận đánh chung
 lib/hac_long/arena.ex               Đấu trường (PvP bất đồng bộ, điểm Elo)
 lib/hac_long/market.ex              Chợ giữa người chơi
+lib/hac_long/trade.ex               Giao dịch trực tiếp (bảng giao dịch trong bộ nhớ)
+lib/hac_long/game/trade_offer.ex    Giao dịch trực tiếp: kiểm tra, lấy và trao đồ (hàm thuần)
+lib/hac_long/homes.ex               Thăm nhà, khen nhà
 lib/hac_long/game/names.ex          Kiểm tra và chuẩn hóa tên nhân vật
 lib/hac_long/game/simulator.ex      Bot chơi thử để kiểm tra cân bằng
 lib/hac_long/world.ex               Đi lại trên bản đồ, qua cổng, chạm quái, kết thúc trận
@@ -191,6 +198,9 @@ lúc hạ từng trùm.
 | push `"guild"` | `{op, ...}`: `list {q}`, `info`, `join {id}`, `cancel {id}`, `accept`/`reject`/`kick`/`promote`/`demote`/`transfer {uid}`, `leave`, `disband`, `settings {open?, notice?}` → `{guild, msg}` (hoặc `{guilds, requested}` với `list`); server đẩy `"guild"` `{guild}` khi bang của mình đổi. Chat bang: push `"chat"` `{text, to: "guild"}` |
 | push `"party"` | `{op, ...}`: `invite {uid}`, `accept`, `decline`, `leave`, `kick {uid}`, `info` → `{party}`; server đẩy `"party"` `{party}`, `"party_invite"` `{from, name}`, `"shared"` `{key, hp, n}` (máu chung khi đánh cùng). Chat tổ đội: `"chat"` `{text, to: "party"}` |
 | push `"inspect"` | `{uid}` → thông tin người chơi khác: tên, lớp, cấp, `look`, danh hiệu, bang, đồ đang mặc, điểm đấu trường |
+| push `"visit"` | `{uid}` → `{id, name, look, decor, comfort, likes, liked}`: nhà của người khác |
+| push `"home_like"` | `{uid}` → `{likes}`: khen nhà (mỗi nhà một lần; chủ nhà nhận `"notice"`) |
+| push `"trade"` | `{op, ...}`: `request {uid}`, `accept`, `decline`, `cancel`, `offer {offer: {items: {id: n}, gear: [uid], gold}}`, `ready`, `info` → `{trade}`; server đẩy `"trade"` `{trade}` (`null` khi xong/hủy) và `"trade_request"` `{from, name}`. Đổi món thì cả hai phải xác nhận lại |
 | push `"arena"` | → `{me: {rating, wins, losses, today, per_day}, suggestions, top}` |
 | push `"market"` | `{q?}` → `{listings: [{id, seller, name, item, count, gear, price, mine}], fee, max}` |
 | push `"mail"` | → `{mails: [{id, subject, body, gold, xp, items, claimed, at}], unread}`; server đẩy `"mail"` `{unread}` khi có thư mới hoặc vừa mở thư |
@@ -208,7 +218,7 @@ bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: tr
 bỏ danh hiệu), `fish_cast` (đứng cạnh nước; trả `wait` mili giây tới lúc cá cắn và `window`),
 `fish_reel`, `chest_open` (Rương Gia Truyền ở Nhà), `chest_buy {tier}` (Thợ Rèn: wood/silver/gold),
 `guild_create {name, tag}`, `guild_donate {amount}`, `pet_buy {id}` (Người Nuôi Thú),
-`pet_choose {id}` (`null` để thú ở nhà), `decor_buy {id}` (Thợ Mộc), `decor_place {id, x, y}`,
+`pet_tame {id}` (Người Nuôi Thú, id quái đã hạ ≥ 100 con), `pet_choose {id}` (`null` để thú ở nhà), `decor_buy {id}` (Thợ Mộc), `decor_place {id, x, y}`,
 `decor_take {x, y}` (ở Nhà), `pvp_challenge {uid}` (thách đấu), `market_sell {id, count, price}`,
 `market_buy {listing}`, `market_cancel {listing}` (đứng cạnh Chủ Chợ). Bước vào NPC thì nhận `npc: id`; các lệnh sau phải đứng cạnh
 đúng NPC: `buy {id, n}`, `sell {id}` (Thợ Rèn, Bà Lang), `upgrade {slot}` (Thợ Rèn), `craft {id}` (Bà Lang), `rest`

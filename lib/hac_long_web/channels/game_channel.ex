@@ -25,6 +25,9 @@ defmodule HacLongWeb.GameChannel do
   - `"market"` `%{"q"}`: hàng đang bán ở chợ và hàng mình đang rao; rao bán, mua, rút về là
     lệnh `"cmd"` `market_sell {id, count, price}`, `market_buy {listing}`,
     `market_cancel {listing}` (đứng cạnh Chủ Chợ).
+  - `"trade"` `%{"op" => ...}`: giao dịch trực tiếp (`request {uid}`, `accept`, `decline`,
+    `cancel`, `offer {offer: {items, gear, gold}}`, `ready`, `info`); server đẩy `"trade"`
+    (`%{trade: bảng | nil}`) và `"trade_request"` (`%{from, name}`). Xem `HacLong.Trade`.
   - `"inspect"` `%{"uid"}`: xem thông tin người chơi khác (chạm vào họ trên bản đồ).
   - `"visit"` `%{"uid"}`: xem nhà đã trang trí của người khác; `"home_like"` `%{"uid"}`: khen nhà
     (mỗi nhà một lần, chủ nhà nhận `"notice"`). Xem `HacLong.Homes`.
@@ -48,10 +51,22 @@ defmodule HacLongWeb.GameChannel do
     Moderation,
     Party,
     RateLimit,
+    Trade,
     WorldBoss
   }
 
-  alias HacLong.Game.{Achievements, Chests, Daily, Data, Engine, Quests, Session, Tutorial}
+  alias HacLong.Game.{
+    Achievements,
+    Chests,
+    Daily,
+    Data,
+    Engine,
+    Quests,
+    Session,
+    TradeOffer,
+    Tutorial
+  }
+
   alias HacLong.World.{Maps, MapServer}
 
   @impl true
@@ -73,6 +88,7 @@ defmodule HacLongWeb.GameChannel do
       blocked: blocked,
       mail: Mailbox.unread(uid),
       party: party_view(uid),
+      trade: Trade.of(uid),
       player: present(player)
     }
 
@@ -154,6 +170,17 @@ defmodule HacLongWeb.GameChannel do
     with :ok <- limit({:party, uid}, 40, :timer.minutes(1)),
          :ok <- result do
       {:reply, {:ok, %{party: party_view(uid)}}, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("trade", %{"op" => op} = p, socket) do
+    uid = socket.assigns.user_id
+
+    with :ok <- limit({:trade, uid}, 60, :timer.minutes(1)),
+         :ok <- trade(op, p, uid) do
+      {:reply, {:ok, %{trade: Trade.of(uid)}}, socket}
     else
       {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
     end
@@ -307,6 +334,38 @@ defmodule HacLongWeb.GameChannel do
       [] -> HacLong.Game.Characters.load(uid)
     end
   end
+
+  # ---------- Giao dịch ----------
+
+  defp trade("request", %{"uid" => target}, uid) when is_integer(target) do
+    with [_] <- Registry.lookup(HacLong.Game.Registry, target) || [],
+         %{name: name} <- Session.get(uid) do
+      Trade.request(uid, name, target)
+    else
+      _ -> {:error, "Người này không online."}
+    end
+  end
+
+  defp trade("accept", _p, uid) do
+    case Session.get(uid) do
+      %{name: name} -> Trade.accept(uid, name)
+      _ -> {:error, "Chưa có nhân vật."}
+    end
+  end
+
+  defp trade("decline", _p, uid), do: Trade.decline(uid)
+  defp trade("cancel", _p, uid), do: Trade.cancel(uid)
+  defp trade("ready", _p, uid), do: Trade.ready(uid)
+  defp trade("info", _p, _uid), do: :ok
+
+  defp trade("offer", p, uid) do
+    with %{} = player <- Session.get(uid) || {:error, "Chưa có nhân vật."},
+         {:ok, offer} <- TradeOffer.parse(player, p["offer"]) do
+      Trade.offer(uid, offer)
+    end
+  end
+
+  defp trade(_op, _p, _uid), do: {:error, "Thao tác không hợp lệ."}
 
   # ---------- Tổ đội ----------
 
@@ -591,6 +650,16 @@ defmodule HacLongWeb.GameChannel do
     {:noreply, socket}
   end
 
+  def handle_info({:trade_request, req}, socket) do
+    push(socket, "trade_request", req)
+    {:noreply, socket}
+  end
+
+  def handle_info({:trade, view}, socket) do
+    push(socket, "trade", %{trade: view})
+    {:noreply, socket}
+  end
+
   def handle_info({:party_chat, msg}, socket) do
     unless msg.uid in socket.assigns.blocked, do: push(socket, "chat", msg)
     {:noreply, socket}
@@ -690,5 +759,12 @@ defmodule HacLongWeb.GameChannel do
       })
 
     Map.put(player, :view, view)
+  end
+
+  # đóng tab thì hủy giao dịch đang dở (người kia khỏi phải chờ)
+  @impl true
+  def terminate(_reason, socket) do
+    if uid = socket.assigns[:user_id], do: Trade.cancel(uid)
+    :ok
   end
 end

@@ -26,6 +26,7 @@ defmodule HacLong.Game.Session do
     Names,
     Quests,
     Tower,
+    TradeOffer,
     Tutorial
   }
 
@@ -62,6 +63,15 @@ defmodule HacLong.Game.Session do
   `%{key, n, xp, gold, killer}`. Trận của người này (nếu còn đánh) kết thúc bằng chiến thắng.
   """
   def shared_end(user_id, info), do: call(user_id, {:shared_end, info})
+
+  @doc """
+  Giao dịch trực tiếp (gọi từ `HacLong.Trade`): lấy những món trong `offer` ra khỏi nhân vật
+  (biết sẽ nhận về `incoming` món đồ hiếm). Trả về `{:ok, gói_hàng}` hoặc `{:error, lý_do}`.
+  """
+  def trade_take(user_id, offer, incoming), do: call(user_id, {:trade_take, offer, incoming})
+
+  @doc "Giao dịch trực tiếp: nhận gói hàng (từ `trade_take/3` của người kia)."
+  def trade_give(user_id, goods), do: call(user_id, {:trade_give, goods})
 
   @doc "Bang của người chơi vừa đổi: Session đang chạy thì nạp lại (không chạy thì thôi)."
   def refresh_guild(user_id) do
@@ -194,6 +204,28 @@ defmodule HacLong.Game.Session do
   end
 
   defp handle({:shared_end, _info}, _from, s), do: reply(:ok, s)
+
+  defp handle({:trade_take, _offer, _incoming}, _from, %{player: nil} = s),
+    do: reply({:error, "Chưa có nhân vật."}, s)
+
+  defp handle({:trade_take, offer, incoming}, _from, s) do
+    case TradeOffer.take(s.player, offer, incoming) do
+      {:ok, p, goods} ->
+        s = save(s, p)
+        broadcast(s, p, nil)
+        reply({:ok, goods}, s)
+
+      err ->
+        reply(err, s)
+    end
+  end
+
+  defp handle({:trade_give, goods}, _from, %{player: p} = s) when p != nil do
+    p = TradeOffer.give(p, goods)
+    s = save(s, p)
+    broadcast(s, p, nil)
+    reply(:ok, s)
+  end
 
   defp handle({:world_boss_end, _info}, _from, %{player: nil} = s), do: reply(:ok, s)
 

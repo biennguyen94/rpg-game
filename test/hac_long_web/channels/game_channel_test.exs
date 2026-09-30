@@ -566,6 +566,116 @@ defmodule HacLongWeb.GameChannelTest do
     end
   end
 
+  describe "giao dịch trực tiếp" do
+    setup do
+      HacLong.RateLimit.reset()
+      HacLong.Trade.reset()
+      :ok
+    end
+
+    defp top(socket, op, payload \\ %{}) do
+      ref = push(socket, "trade", Map.put(payload, "op", op))
+      assert_reply ref, status, r
+      {status, r}
+    end
+
+    test "mời, bỏ đồ, đổi gì cũng phải xác nhận lại, cả hai xác nhận thì đổi" do
+      sword = %{uid: "#TRADE1", base: "club", rarity: 2, bonus: %{str: 3}}
+      ua = create_user()
+
+      pa =
+        player_at(ua, %{map: "village", x: 12, y: 14}, %{
+          gold: 500,
+          inv: %{"potion_s" => 5},
+          gear: [sword],
+          upgrades: %{"#TRADE1" => 2}
+        })
+
+      ub = create_user()
+      pb = player_at(ub, %{map: "village", x: 13, y: 14}, %{gold: 1000})
+      {_, sa} = join_game(ua)
+      {_, sb} = join_game(ub)
+
+      assert {:error, %{msg: "Không tự giao dịch với mình được."}} =
+               top(sa, "request", %{"uid" => ua.id})
+
+      assert {:ok, %{trade: %{status: :pending, incoming: false}}} =
+               top(sa, "request", %{"uid" => ub.id})
+
+      assert_push "trade_request", %{from: from}
+      assert from == ua.id
+      assert {:ok, %{trade: %{status: :open, partner_name: name}}} = top(sb, "accept")
+      assert name == pa.name
+
+      # không đủ đồ thì không cho bỏ vào
+      assert {:error, %{msg: "Không đủ đồ trong túi."}} =
+               top(sa, "offer", %{"offer" => %{"items" => %{"potion_s" => 9}}})
+
+      offer_a = %{"items" => %{"potion_s" => 2}, "gear" => ["#TRADE1"], "gold" => 100}
+
+      assert {:ok, %{trade: %{mine: %{gold: 100, gear: [g]}}}} =
+               top(sa, "offer", %{"offer" => offer_a})
+
+      assert g.up == 2 and g.rarity == 2
+
+      assert {:ok, _} = top(sb, "offer", %{"offer" => %{"gold" => 300}})
+      assert {:ok, %{trade: %{my_ready: true, their_ready: false}}} = top(sa, "ready")
+
+      # B đổi món thì A phải xác nhận lại
+      assert {:ok, %{trade: %{my_ready: false, their_ready: false}}} =
+               top(sb, "offer", %{"offer" => %{"gold" => 250}})
+
+      assert {:ok, _} = top(sa, "ready")
+      assert {:ok, _} = top(sb, "ready")
+
+      wait_for(fn -> HacLong.Trade.of(ua.id) end, &is_nil/1)
+      a = Session.get(ua.id)
+      b = Session.get(ub.id)
+      assert a.gold == pa.gold - 100 + 250 and b.gold == pb.gold - 250 + 100
+      assert a.inv["potion_s"] == 3 and b.inv["potion_s"] == Map.get(pb.inv, "potion_s", 0) + 2
+      assert a.gear == []
+      assert [%{uid: "#TRADE1"}] = b.gear
+      assert b.upgrades["#TRADE1"] == 2 and not Map.has_key?(a.upgrades || %{}, "#TRADE1")
+      assert Characters.load(ub.id).gold == b.gold
+    end
+
+    test "hủy, người kia bận, thiếu đồ lúc đổi thì mở lại" do
+      ua = create_user()
+      player_at(ua, %{map: "village", x: 12, y: 14}, %{gold: 500})
+      ub = create_user()
+      player_at(ub, %{map: "village", x: 13, y: 14}, %{gold: 500})
+      uc = create_user()
+      player_at(uc, %{map: "village", x: 14, y: 14})
+      {_, sa} = join_game(ua)
+      {_, sb} = join_game(ub)
+      {_, sc} = join_game(uc)
+
+      assert {:ok, _} = top(sa, "request", %{"uid" => ub.id})
+
+      assert {:error, %{msg: "Người này đang bận giao dịch."}} =
+               top(sc, "request", %{"uid" => ub.id})
+
+      assert {:ok, %{trade: nil}} = top(sb, "decline")
+      assert {:ok, %{trade: nil}} = top(sa, "info")
+
+      assert {:ok, _} = top(sa, "request", %{"uid" => ub.id})
+      assert {:ok, _} = top(sb, "accept")
+      assert {:ok, _} = top(sa, "offer", %{"offer" => %{"gold" => 400}})
+      # A tiêu mất vàng trước khi đổi
+      :sys.replace_state({:via, Registry, {HacLong.Game.Registry, ua.id}}, fn st ->
+        put_in(st.player.gold, 10)
+      end)
+
+      assert {:ok, _} = top(sa, "ready")
+      assert {:ok, _} = top(sb, "ready")
+
+      t = wait_for(fn -> HacLong.Trade.of(ub.id) end, &(&1 && &1.status == :open))
+      assert not t.my_ready and not t.their_ready
+      assert Session.get(ub.id).gold == 500
+      assert {:ok, %{trade: nil}} = top(sa, "cancel")
+    end
+  end
+
   describe "thăm nhà" do
     setup do
       HacLong.RateLimit.reset()

@@ -15,6 +15,7 @@
   let loading = true;    // đang kết nối server
   let busy = false;      // đang chờ server trả lời
   let walk = null;       // đích đang đi tới trên bản đồ: { x, y, monster, id }
+  let trade = null;      // giao dịch trực tiếp (HacLong.Trade.view): { partner_name, status, incoming, mine, theirs, my_ready, their_ready }
   let visit = null;      // đang thăm nhà: { uid, info: null | { id, name, look, decor, comfort, likes, liked } }
   let dialog = null;    // bảng trên bản đồ: { type: 'boss', dir, boss } | { type: 'waystone' }
   let npc = null;        // NPC đang nói chuyện: { map, id, line }
@@ -96,8 +97,11 @@
       ['bag', 'backpack', 'Túi đồ'],
       ['quests', 'scroll-unfurled', 'Nhiệm vụ'],
     ].concat(Net.isAdmin ? [['admin', 'crowned-skull', 'Quản trị']] : []).map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = visit ? viewVisit() : mail.open ? viewMail() : guildUi.open ? viewGuild() : P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + viewDecorPanel() + Map_.html(P, viewDialog() + viewFishing() + viewDecorButton()) + viewParty() + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests, admin: viewAdmin }[tab])();
-    if (visit) {
+    const trading = trade && trade.status !== 'pending';
+    view.innerHTML = trading ? viewTrade() : visit ? viewVisit() : mail.open ? viewMail() : guildUi.open ? viewGuild() : P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + viewDecorPanel() + Map_.html(P, viewDialog() + viewFishing() + viewDecorButton()) + viewParty() + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests, admin: viewAdmin }[tab])();
+    if (trading) {
+      // bảng giao dịch che bản đồ
+    } else if (visit) {
       const c = $('#visit-canvas');
       if (c && visit.info) Map_.drawHome(c, visit.info);
     } else if (tab === 'map' && !npc && !mail.open && !guildUi.open) {
@@ -198,6 +202,47 @@
     } catch (e) { toast(e.msg, true); }
   }
 
+  // ---------- Giao dịch trực tiếp ----------
+  async function tradeOp(op, payload) {
+    try {
+      const r = await Net.trade(op, payload);
+      trade = r.trade;
+      if (op === 'request') toast('Đã gửi lời mời giao dịch.');
+    } catch (e) { toast(e.msg, true); }
+    if (dialog && dialog.type === 'trade') dialog = null;
+    render();
+  }
+  // gửi lại toàn bộ món mình đưa ra sau khi sửa
+  function tradeOffer(change) {
+    const m = trade.mine;
+    const offer = { items: Object.assign({}, m.items), gear: m.gear.map((g) => g.uid), gold: m.gold };
+    change(offer);
+    tradeOp('offer', { offer });
+  }
+  function tradeLines(o, mine) {
+    const rm = (kind, id) => (mine && trade.status === 'open' ? `<button class="btn small-btn" data-act="trade-rm" data-kind="${kind}" data-id="${id}" aria-label="Bỏ ra">✕</button>` : '');
+    const rows = Object.entries(o.items).map(([id, n]) => { const it = ITEMS[id]; return `<div class="item">${itemIcon(it)}<div class="grow"><div class="name">${esc(it.name)} <span class="muted num">×${n}</span></div></div>${rm('item', id)}</div>`; })
+      .concat(o.gear.map((g) => `<div class="item">${itemIcon(ITEMS[g.base] || { icon: 'sword' }, g.rarity)}<div class="grow"><div class="name"><span class="rar-${g.rarity}">${esc(g.name)}</span>${g.up ? ` <span class="up-lv">+${g.up}</span>` : ''}</div><div class="small muted">${RARITY[g.rarity] || ''}</div></div>${rm('gear', g.uid)}</div>`));
+    if (o.gold) rows.push(`<div class="item">${icon('two-coins', 'lg')}<div class="grow"><div class="name num" style="color:var(--gold)">${fmt(o.gold)} vàng</div></div>${rm('gold', '')}</div>`);
+    return rows.length ? `<div class="list">${rows.join('')}</div>` : '<p class="small muted">Chưa bỏ gì vào.</p>';
+  }
+  function viewTrade() {
+    const t = trade, busy = t.status === 'executing';
+    const ready = (on) => (on ? '<span class="tag good">✔ Đã xác nhận</span>' : '<span class="tag">Chưa xác nhận</span>');
+    const used = new Set(t.mine.gear.map((g) => g.uid));
+    const items = Object.keys(P.inv).filter((id) => P.inv[id] - (t.mine.items[id] || 0) > 0).concat(bagGear().filter((id) => !used.has(id)));
+    const add = t.status === 'open' ? `<form id="trade-add" class="gift-form">
+        ${items.length ? `<select name="item">${items.map((id) => { const it = itemOf(id); return `<option value="${id}">${esc(it.name)}${isGear(id) ? ` (${RARITY[it.rarity]})` : ` · còn ${P.inv[id] - (t.mine.items[id] || 0)}`}</option>`; }).join('')}</select>
+        <div class="btn-row"><label class="small">Số lượng <input type="number" name="count" min="1" value="1"></label><button class="btn" type="submit">Bỏ vào</button></div>` : ''}
+        <div class="btn-row"><label class="small">Vàng <input type="number" name="gold" min="0" max="${P.gold}" value="${t.mine.gold || ''}" placeholder="0"></label><button class="btn" type="submit" name="set" value="gold">Đặt vàng</button></div>
+      </form>` : '';
+    return `<div class="row"><h2 class="display grow">🤝 Giao dịch với ${esc(t.partner_name)}</h2><button class="btn" data-act="trade-op" data-op="cancel" ${busy ? 'disabled' : ''}>Hủy</button></div>
+      <div class="card"><div class="row"><h3 class="grow">Bạn đưa</h3>${ready(t.my_ready)}</div>${tradeLines(t.mine, true)}${add}</div>
+      <div class="card"><div class="row"><h3 class="grow">${esc(t.partner_name)} đưa</h3>${ready(t.their_ready)}</div>${tradeLines(t.theirs, false)}</div>
+      <p class="small muted">Đổi món của bên nào thì cả hai phải xác nhận lại. Cả hai cùng xác nhận thì đổi ngay.</p>
+      <button class="btn primary block" data-act="trade-op" data-op="ready" ${t.my_ready || busy ? 'disabled' : ''}>${busy ? 'Đang đổi…' : t.my_ready ? `Đợi ${esc(t.partner_name)} xác nhận…` : '✔ Xác nhận đổi'}</button>`;
+  }
+
   // ---------- Thăm nhà người khác ----------
   async function openVisit(uid) {
     visit = { uid, info: null };
@@ -230,6 +275,12 @@
         <div class="btn-row"><button class="btn" data-act="party-decline">Từ chối</button><button class="btn primary" data-act="party-accept">Vào tổ đội</button></div>
       </div>`;
     }
+    if (dialog.type === 'trade') {
+      return `<div class="map-dialog card">
+        <h3>Lời mời giao dịch</h3><p class="small">${esc(dialog.name || 'Một người chơi')} muốn đổi đồ với bạn.</p>
+        <div class="btn-row"><button class="btn" data-act="trade-op" data-op="decline">Từ chối</button><button class="btn primary" data-act="trade-op" data-op="accept">🤝 Xem</button></div>
+      </div>`;
+    }
     if (dialog.type === 'player') {
       const o = dialog.info;
       if (!o) return `<div class="map-dialog card"><p class="small muted">Đang xem…</p></div>`;
@@ -243,6 +294,7 @@
         <div class="btn-row">
           ${canInvite ? `<button class="btn" data-act="party-invite" data-uid="${o.id}">Mời tổ đội</button>` : ''}
           <button class="btn" data-act="home-visit" data-uid="${o.id}">🏡 Thăm nhà</button>
+          <button class="btn" data-act="trade-op" data-op="request" data-uid="${o.id}">🤝 Giao dịch</button>
           <button class="btn primary" data-act="pvp_challenge" data-uid="${o.id}">${icon('crossed-swords')} Thách đấu</button>
         </div>
         <div class="btn-row"><button class="btn small-btn" data-act="${o.blocked ? 'unblock' : 'chat-block'}" data-uid="${o.id}">${o.blocked ? 'Bỏ chặn chat' : 'Chặn chat'}</button><button class="btn small-btn" data-act="dialog-close">Đóng</button></div>
@@ -1558,7 +1610,7 @@
 
   function enter(r) {
     P = r ? r.player : null;
-    if (r) { Map_.setUser(r.user_id); Net.userId = r.user_id; Net.isAdmin = r.admin; blocked = r.blocked || []; mail = { unread: r.mail || 0, list: null, open: false }; party = r.party || null; visit = null; }
+    if (r) { Map_.setUser(r.user_id); Net.userId = r.user_id; Net.isAdmin = r.admin; blocked = r.blocked || []; mail = { unread: r.mail || 0, list: null, open: false }; party = r.party || null; trade = r.trade || null; visit = null; }
     tab = 'map';
     loading = false;
     render();
@@ -1604,6 +1656,12 @@
     if (act === 'reset-ask' || act === 'reset-cancel') { confirmReset = act === 'reset-ask'; render(); return; }
     if (act === 'rebirth-ask' || act === 'rebirth-cancel') { confirmRebirth = act === 'rebirth-ask'; render(); return; }
     if (act === 'dialog-close') { dialog = null; render(); return; }
+    if (act === 'trade-op') { const d = t.dataset; tradeOp(d.op, d.uid ? { uid: +d.uid } : {}); return; }
+    if (act === 'trade-rm') {
+      const d = t.dataset;
+      tradeOffer((o) => { if (d.kind === 'item') delete o.items[d.id]; else if (d.kind === 'gear') o.gear = o.gear.filter((u) => u !== d.id); else o.gold = 0; });
+      return;
+    }
     if (act === 'home-visit') { walk = null; openVisit(+t.dataset.uid); $('#view').scrollTop = 0; return; }
     if (act === 'visit-close') { visit = null; Map_.stopVisit(); render(); return; }
     if (act === 'home-like') {
@@ -1691,6 +1749,15 @@
       sendCommand({ act: 'guild_donate', amount: amount || 0 }).then(loadGuild);
       return;
     }
+    if (e.target.id === 'trade-add') {
+      e.preventDefault();
+      const f = new FormData(e.target), id = f.get('item');
+      if (e.submitter && e.submitter.name === 'set') { tradeOffer((o) => { o.gold = Math.max(0, parseInt(f.get('gold'), 10) || 0); }); return; }
+      if (!id) return;
+      if (isGear(id)) tradeOffer((o) => { o.gear.push(id); });
+      else tradeOffer((o) => { o.items[id] = (o.items[id] || 0) + Math.max(1, +f.get('count') || 1); });
+      return;
+    }
     if (e.target.id === 'market-search') { e.preventDefault(); market.q = $('#market-q').value.trim(); market.data = null; render(); return; }
     if (e.target.id === 'market-sell') {
       e.preventDefault();
@@ -1742,6 +1809,18 @@
       Sound.play('mail');
       dialog = { type: 'invite', from: m.from, name: m.name };
       if (P && !P.battle) { if (tab !== 'map') tab = 'map'; render(); }
+    });
+    Net.onTrade((t) => {
+      const was = trade;
+      trade = t;
+      if (was && !t && dialog && dialog.type === 'trade') dialog = null;
+      if (P && !P.battle) render();
+    });
+    Net.onTradeRequest((m) => {
+      toast(`${m.name || 'Một người chơi'} muốn giao dịch với bạn.`);
+      Sound.play('mail');
+      dialog = { type: 'trade', from: m.from, name: m.name };
+      if (P && !P.battle) { if (tab !== 'map') tab = 'map'; npc = null; render(); }
     });
     Net.onShared((m) => {
       if (!P || !P.battle || P.battle.over || !P.battle.encounter || P.battle.encounter.shared !== m.key) return;

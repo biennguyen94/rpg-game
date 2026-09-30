@@ -6,7 +6,7 @@
  * (đăng xuất mọi thiết bị, đổi mật khẩu ở nơi khác) thì báo onExpired để về màn đăng nhập. */
 (function () {
   const TOKEN_KEY = 'hac-long-token';
-  const cb = { player: null, map: null, status: null, rejoin: null, expired: null, chat: null, history: null, boss: null, notice: null, mail: null, guild: null, party: null, invite: null, shared: null };
+  const cb = { player: null, map: null, status: null, rejoin: null, expired: null, chat: null, history: null, boss: null, notice: null, mail: null, guild: null, party: null, invite: null, shared: null, trade: null, tradeRequest: null };
   let socket = null, channel = null, checkTimer = null;
 
   const store = {
@@ -74,6 +74,8 @@
       channel.on('guild', (m) => cb.guild && cb.guild(m.guild));
       channel.on('party', (m) => cb.party && cb.party(m.party));
       channel.on('party_invite', (m) => cb.invite && cb.invite(m));
+      channel.on('trade', (m) => cb.trade && cb.trade(m.trade));
+      channel.on('trade_request', (m) => cb.tradeRequest && cb.tradeRequest(m));
       channel.on('shared', (m) => cb.shared && cb.shared(m));
       channel.join()
         .receive('ok', (r) => {
@@ -150,6 +152,8 @@
 
     // Tổ đội: party('invite', { uid }), party('accept'), party('leave')...
     party(op, payload) { return push('party', Object.assign({ op }, payload || {})); },
+    // Giao dịch: trade('request', { uid }), trade('accept'), trade('offer', { offer }), trade('ready')...
+    trade(op, payload) { return push('trade', Object.assign({ op }, payload || {})); },
     // Đấu trường: điểm của mình, đối thủ gợi ý, bảng xếp hạng. Xem thông tin người chơi khác.
     arena() { return push('arena', {}); },
     // Chợ: { listings, fee, max }. Rao bán/mua/rút về là lệnh market_sell/market_buy/market_cancel.
@@ -199,6 +203,9 @@
     onParty(f) { cb.party = f; },
     onPartyInvite(f) { cb.invite = f; },
     onShared(f) { cb.shared = f; },
+    // Bảng giao dịch đổi (hoặc null khi xong/hủy) / có người mời giao dịch.
+    onTrade(f) { cb.trade = f; },
+    onTradeRequest(f) { cb.tradeRequest = f; },
   };
 
   window.Net = Net;

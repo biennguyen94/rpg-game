@@ -8,8 +8,7 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 Ước lượng công sức: nhỏ (vài giờ), vừa (khoảng một ngày), lớn (nhiều ngày).
 
 1. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
-2. Các việc còn mở trong từng mục dưới đây (thăm nhà người khác, thú hỗ trợ đánh, nhạc nền,
-   nhiệm vụ bang, giao dịch trực tiếp...).
+2. Các việc còn mở trong từng mục dưới đây (nhạc nền, nhiệm vụ bang...).
 
 ---
 
@@ -111,7 +110,10 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   ngày/sổ tay; thưởng mỗi người = gốc × 1,2 / số người.
 - [x] **Chạm vào người chơi khác**: xem cấp, lớp, bang, danh hiệu, đồ đang mặc, điểm đấu trường;
   mời tổ đội, thách đấu, chặn chat.
-  - [ ] Giao dịch trực tiếp giữa hai người (hiện dùng chợ).
+- [x] **Giao dịch trực tiếp** (`HacLong.Trade`, giữ trong bộ nhớ): chạm vào người đang online →
+  Giao dịch; hai bên bỏ đồ thường, đồ chỉ số ngẫu nhiên (giữ cấp nâng), vàng vào bảng; đổi món
+  của bên nào thì cả hai phải xác nhận lại; cả hai xác nhận thì đổi (thiếu đồ hay túi đầy thì
+  không đổi, trả lại, mở lại bảng). Đóng tab thì hủy.
 
 ## E. Bản đồ ô vuông
 
@@ -126,7 +128,9 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   tượng, cây, đài phun nước, tượng vàng...); về Nhà bấm Trang trí, chọn món rồi chạm ô để đặt,
   chạm đồ đã đặt để cất. Đồ chặn đường, không được chắn lối; mỗi 10 điểm tiện nghi +1% kinh
   nghiệm mỗi trận (tối đa +5%).
-  - [ ] Cho người khác vào thăm nhà.
+- [x] **Thăm nhà** (`HacLong.Homes`): nút Thăm nhà ở bảng người chơi và danh sách bang; xem
+  nhà đã trang trí (chủ nhà và thú đứng trước cửa), điểm tiện nghi; Khen nhà mỗi nhà một lần,
+  chủ nhà được báo.
 - [x] **Rương** (`HacLong.Game.Chests`): Rương Gia Truyền ở Nhà mở mỗi ngày một lần (vàng, bình
   máu, nguyên liệu, 20% kèm đồ); Thợ Rèn bán Rương Gỗ/Bạc/Vàng ra đồ chỉ số ngẫu nhiên, giá gấp
   2/4/8 lần giá bán lại vũ khí tốt nhất cùng cấp nên mua về bán lại luôn lỗ. Mô phỏng: bot mua
@@ -135,7 +139,8 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   Hang Rồng) bấm Câu cá; phao chìm sau 3–8 giây, giật trong 1 giây mới được (server tính giờ).
   Cá Diếc, Cá Chép, Lươn Điện ở vùng sâu, Cá Chép Vàng rất hiếm, và ủng cũ. Tiền câu cá ngang
   đánh quái lúc đầu game nhưng không có kinh nghiệm.
-  - [ ] Công thức nấu cá ở Bà Lang; việc hằng ngày câu cá.
+  - [x] Bà Lang nấu 2 con cá thành bình máu (Cá Diếc → nhỏ, Cá Chép → vừa, Lươn Điện → lớn);
+    việc hằng ngày thứ tư "Câu N con cá" (ủng cũ không tính).
 - [x] **Ngày và đêm** (`HacLong.World.Clock`): bình minh, ngày, hoàng hôn, đêm theo giờ Việt
   Nam; bản đồ ngoài trời tối dần, quanh nhân vật vẫn sáng. Ban đêm 12% quái mới sinh là quái
   Bóng Đêm (mạnh gấp rưỡi, thưởng gấp rưỡi, 25% rơi đồ). Ép buổi để thử bằng `TIME_OF_DAY`.
@@ -154,7 +159,9 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [x] **Thú cưng** (`HacLong.Game.Pets`): Người Nuôi Thú trong Làng bán 6 con (Cừu Bông, Chó
   Săn, Heo Hồng, Sóc Túi, Bướm Lửa, Bằng Mã Lửa), mỗi con cộng một ít máu/tấn công/phòng thủ/
   vàng/kinh nghiệm. Thú đang dắt đi sau nhân vật một ô, người khác cũng thấy; đổi ở tab Nhân vật.
-  - [ ] Thuần phục quái đã hạ nhiều lần; thú hỗ trợ đánh trong trận.
+  - [x] Thú đang dắt có 35% cắn thêm (25% sát thương một đòn thường) sau mỗi đòn của nhân vật.
+  - [x] Hạ đủ 100 con một loài quái thường thì thuần phục ở Người Nuôi Thú (1.000 + cấp × 100
+    vàng): thú thuần đi theo như thú cưng, +3% tấn công.
 
 ## G. Khác
 
