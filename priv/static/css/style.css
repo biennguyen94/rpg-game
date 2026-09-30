@@ -370,3 +370,12 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 .ic.rar-ic-2 { filter: drop-shadow(0 0 3px #3f7fe0); }
 .ic.rar-ic-3 { filter: drop-shadow(0 0 4px #a45ee0); }
 .gear-drop { color: var(--gold); font-weight: 600; }
+
+/* Sổ tay quái vật */
+.bestiary { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.beast { display: grid; justify-items: center; gap: 2px; text-align: center; background: var(--ink-3); border: 1px solid var(--line); border-radius: 10px; padding: 8px 4px; min-width: 0; }
+.beast .sprite { width: 40px; height: 40px; }
+.beast > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.beast.unseen .sprite { filter: brightness(0) opacity(0.5); }
+.beast.unseen { color: var(--dim); }
+.beast .stars { color: var(--gold); }

@@ -198,6 +198,24 @@ defmodule HacLong.Game.EngineTest do
     assert {%{ok: false, msg: "Chưa mặc đồ ở chỗ này."}, _} = Engine.upgrade(p, "shield")
   end
 
+  test "chuyển sinh ở cấp tối đa: về cấp 1, giữ đồ và vàng, nhận điểm cộng thêm" do
+    p = %{player() | gold: 5000, bosses: ["wolf"]}
+    assert {%{ok: false, msg: "Cần đạt cấp 50 mới chuyển sinh được."}, _} = Engine.rebirth(p)
+
+    p = %{p | level: 50, stats: %{str: 150, vit: 60, agi: 4, def: 5}, points: 2}
+    {%{ok: true, msg: msg}, q} = Engine.rebirth(p)
+    assert msg =~ "Chuyển sinh lần 1"
+    assert q.level == 1 and q.xp == 0 and q.rebirths == 1
+    assert q.stats == %{str: 8, vit: 7, agi: 4, def: 5}
+    assert q.points == Engine.rebirth_points()
+    assert q.gold == 5000 and q.bosses == ["wolf"] and q.equip == p.equip
+    assert q.hp == Engine.derived(q).maxHp
+
+    {_, q2} = Engine.rebirth(%{q | level: 50})
+    assert q2.rebirths == 2 and q2.points == 2 * Engine.rebirth_points()
+    assert {%{ok: false}, _} = Engine.rebirth(%{q2 | level: 50, rebirths: Engine.max_rebirths()})
+  end
+
   test "bot chơi hết game với mỗi lớp nhân vật" do
     for cls <- ~w(warrior rogue knight) do
       r = Simulator.run(cls)

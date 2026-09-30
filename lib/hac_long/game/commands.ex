@@ -83,6 +83,9 @@ defmodule HacLong.Game.Commands do
       "quest_turnin" ->
         at_npc(p, ["quests"], "Trưởng Làng", fn _ -> Quests.turn_in(p, c["id"]) end)
 
+      "rebirth" ->
+        at_npc(p, ["quests"], "Trưởng Làng", fn _ -> Engine.rebirth(p) end)
+
       "tutorial_skip" ->
         Tutorial.skip(p)
 

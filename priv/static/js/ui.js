@@ -9,6 +9,7 @@
   let tab = 'map';       // tab đang mở
   let pickCls = 'warrior';
   let confirmReset = false;
+  let confirmRebirth = false;
   let fx = null;         // hiệu ứng trận đấu của lượt vừa rồi
   let authMode = 'login'; // 'login' | 'register'
   let loading = true;    // đang kết nối server
@@ -380,7 +381,7 @@
   function viewBoard() {
     const kinds = [['level', 'Cấp cao'], ['kills', 'Săn nhiều'], ['tower', 'Tháp'], ['dragon', 'Diệt rồng']];
     const rows = board.data ? board.data[board.kind] : null;
-    const value = (r) => (board.kind === 'level' ? `Cấp ${r.level}` : board.kind === 'kills' ? `${fmt(r.kills)} quái` : board.kind === 'tower' ? `Tầng ${r.tower_best}` : new Date(r.victory_at).toLocaleDateString('vi-VN'));
+    const value = (r) => (board.kind === 'level' ? `${r.rebirths ? `CS${r.rebirths} · ` : ''}Cấp ${r.level}` : board.kind === 'kills' ? `${fmt(r.kills)} quái` : board.kind === 'tower' ? `Tầng ${r.tower_best}` : new Date(r.victory_at).toLocaleDateString('vi-VN'));
     return `<div class="card" id="board">
       <div class="row"><h3 class="grow">Bảng xếp hạng</h3>${board.data && board.data.me ? `<span class="tag gold num">Bạn hạng ${board.data.me}</span>` : ''}</div>
       <div class="seg">${kinds.map(([k, label]) => `<button class="btn ${board.kind === k ? 'primary' : ''}" data-board="${k}">${label}</button>`).join('')}</div>
@@ -418,7 +419,7 @@
         ${sprite('hero', '', 'Nhân vật')}
         <div class="hud-who">
           <div class="hud-name">${esc(P.name)}</div>
-          <div class="small muted">${CLASSES[P.cls].name} · Cấp ${P.level}</div>
+          <div class="small muted">${CLASSES[P.cls].name} · ${P.rebirths ? `<span class="tag gold num" title="Số lần chuyển sinh">CS ${P.rebirths}</span> ` : ''}Cấp ${P.level}</div>
         </div>
         <div class="gold">${icon('two-coins')}${fmt(P.gold)}</div>
         <button class="hud-btn" data-act="mail-open" aria-label="Hộp thư${mail.unread ? `, ${mail.unread} thư mới` : ''}">${icon('envelope')}${mail.unread ? `<span class="points-dot">${mail.unread}</span>` : ''}</button>
@@ -541,6 +542,8 @@
         <button class="btn block" data-tab="map">${icon('walk')} Ra bản đồ</button>
       </div>
 
+      ${viewBestiary()}
+
       ${pots === 0 ? `<div class="card"><div class="row">${icon('health-potion', 'lg')}<div class="grow"><h3>Hết bình máu</h3><p class="small muted">Mua ở Bà Lang trong Làng, hoặc hái Thảo Dược nhờ bà pha.</p></div></div></div>` : ''}
 
       ${wb.alive ? '' : wb.nextAt ? `<div class="card"><div class="row">${sprite('ancient_dragon', '', '')}<div class="grow"><h3>Trùm thế giới</h3><p class="small muted">${esc(wb.name)} sẽ xuất hiện ở Tế Đàn sau khoảng ${Math.max(1, Math.round((wb.nextAt - wb.skew - Date.now()) / 60000))} phút. Cả server cùng đánh, chia thưởng theo sát thương.</p></div></div></div>` : ''}
@@ -580,6 +583,29 @@
              <div class="btn-row"><button class="btn" data-act="reset-cancel">Giữ lại</button><button class="btn danger" data-act="reset-yes">Xóa và chơi lại</button></div>`
           : `<button class="btn" data-act="reset-ask">Chơi lại từ đầu</button>`}
       </div>`;
+  }
+
+  // ---------- Sổ tay quái vật ----------
+  let bestiaryOpen = false;
+  function viewBestiary() {
+    const all = ZONES.flatMap((z) => z.monsters.concat([z.boss]));
+    const count = (id) => (P.bestiary && P.bestiary[id]) || 0;
+    const seen = all.filter((m) => count(m.id) > 0).length;
+    const cells = all.map((m) => {
+      const n = count(m.id), stars = n >= 100 ? '★★' : n >= 25 ? '★' : '';
+      return `<div class="beast ${n ? '' : 'unseen'}" title="${n ? esc(m.name) : '???'}">
+        ${sprite(m.id, '', n ? m.name : '')}
+        <span class="small">${n ? esc(m.name) : '???'}</span>
+        <span class="small num">${n ? `${fmt(n)} con` : ''}${stars ? ` <b class="stars">${stars}</b>` : ''}</span>
+      </div>`;
+    }).join('');
+    return `<div class="card">
+      <div class="row">${icon('open-book', 'lg')}<div class="grow"><h3>Sổ tay quái vật</h3>
+        <p class="small muted">Hạ 25 con một loài: +5% sát thương lên loài đó (★), 100 con: +10% (★★), mỗi mốc kèm thưởng vàng.</p></div>
+        <span class="tag gold num">${seen}/${all.length}</span></div>
+      ${bestiaryOpen ? `<div class="bestiary">${cells}</div>` : ''}
+      <button class="btn block" data-act="bestiary-toggle">${bestiaryOpen ? 'Thu gọn' : 'Xem sổ tay'}</button>
+    </div>`;
   }
 
   function viewVictory() {
@@ -871,6 +897,17 @@
     if (n.role === 'quests') {
       const act = activeQuests(), avail = availableQuests();
       sections.push(`<div class="card"><h3>Nhiệm vụ đang làm</h3>${act.length ? `<div class="list">${act.map((q) => questRow(q, 'turnin')).join('')}</div>` : '<p class="small muted">Chưa nhận nhiệm vụ nào.</p>'}</div>`);
+      if (P.level >= RULES.maxLevel || P.rebirths) {
+        const pts = ((P.rebirths || 0) + 1) * RULES.rebirthPoints, max = P.rebirths >= RULES.maxRebirths;
+        sections.push(`<div class="card"><div class="row">${icon('star-cycle', 'lg')}<div class="grow"><h3>Chuyển sinh</h3>
+          <p class="small muted">Đạt cấp ${RULES.maxLevel} thì có thể trở về cấp 1 để luyện lại từ đầu, giữ nguyên vàng, đồ đạc, vùng đã mở, nhiệm vụ và thành tựu. Mỗi lần chuyển sinh cho thêm ${RULES.rebirthPoints} điểm tiềm năng vĩnh viễn.</p>
+          ${P.rebirths ? `<p class="small">Đã chuyển sinh ${P.rebirths}/${RULES.maxRebirths} lần.</p>` : ''}</div></div>
+          ${max ? '' : P.level < RULES.maxLevel ? `<p class="small muted">Cần cấp ${RULES.maxLevel} để chuyển sinh lần tiếp theo.</p>`
+            : confirmRebirth ? `<p class="small" style="color:var(--bad)">Về cấp 1 với ${pts} điểm tiềm năng? Không thể hoàn tác.</p>
+              <div class="btn-row"><button class="btn" data-act="rebirth-cancel">Thôi</button><button class="btn primary" data-act="rebirth">Chuyển sinh</button></div>`
+            : `<button class="btn primary block" data-act="rebirth-ask">${icon('star-cycle')} Chuyển sinh</button>`}
+        </div>`);
+      }
       sections.push(`<div class="card"><h3>Việc cần người giúp</h3>${avail.length ? `<div class="list">${avail.map((q) => questRow(q, 'accept')).join('')}</div>` : '<p class="small muted">Hiện chưa có việc mới. Mở thêm vùng đất để nhận thêm nhiệm vụ.</p>'}</div>`);
     }
     if (n.role === 'shop' || n.role === 'herbalist') {
@@ -1032,7 +1069,7 @@
   }
 
   // Âm thanh cho kết quả một lệnh.
-  const CMD_SOUND = { buy: 'coin', sell: 'coin', mail_claim: 'coin', craft: 'brew', upgrade: 'forge', quest_turnin: 'quest', daily_claim: 'quest', quest_accept: 'notice', rest: 'potion', use: 'potion', tower_enter: 'portal', potion: 'potion' };
+  const CMD_SOUND = { rebirth: 'levelup', buy: 'coin', sell: 'coin', mail_claim: 'coin', craft: 'brew', upgrade: 'forge', quest_turnin: 'quest', daily_claim: 'quest', quest_accept: 'notice', rest: 'potion', use: 'potion', tower_enter: 'portal', potion: 'potion' };
 
   function commandSound(cmd, r, old) {
     if (!r.ok) { Sound.play('error'); return; }
@@ -1066,8 +1103,10 @@
         if (cmd.act === 'leave' || cmd.act === 'create') tab = 'map';
         if (cmd.act === 'reset') tab = 'map';
         if (cmd.act === 'tower_enter') { tab = 'map'; npc = null; }
+        if (cmd.act === 'rebirth') board.at = 0;
         if (cmd.act === 'mail_claim' && mail.list) { const m = mail.list.find((x) => x.id === cmd.id); if (m) m.claimed = true; }
         confirmReset = false;
+        confirmRebirth = false;
         dialog = null;
       }
     } catch (e) {
@@ -1194,12 +1233,14 @@
     }
     if (!act || !P) return;
     if (act === 'reset-ask' || act === 'reset-cancel') { confirmReset = act === 'reset-ask'; render(); return; }
+    if (act === 'rebirth-ask' || act === 'rebirth-cancel') { confirmRebirth = act === 'rebirth-ask'; render(); return; }
     if (act === 'dialog-close') { dialog = null; render(); return; }
     if (act === 'npc-close') { npc = null; render(); return; }
     if (act === 'mail-open') { mail.open = !mail.open; walk = null; render(); $('#view').scrollTop = 0; if (mail.open) loadMail(); return; }
     if (act === 'mail-close') { mail.open = false; render(); return; }
     if (act === 'fish-cast') { walk = null; castLine(); return; }
     if (act === 'sound-toggle') { Sound.toggle(); render(); return; }
+    if (act === 'bestiary-toggle') { bestiaryOpen = !bestiaryOpen; render(); return; }
     if (act === 'fish-reel') { reelIn(); return; }
     if (act === 'boss-yes') { const d = dialog; if (d) step(d.dir, true); return; }
     sendCommand(command(act, t));

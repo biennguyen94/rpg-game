@@ -86,7 +86,9 @@ defmodule HacLong.Game.Characters do
       fish_caught: c.fish_caught || 0,
       achievements: c.achievements || [],
       title: c.title,
-      gear: HacLong.Game.Gear.load(c.gear)
+      gear: HacLong.Game.Gear.load(c.gear),
+      bestiary: c.bestiary || %{},
+      rebirths: c.rebirths || 0
     }
   end
 

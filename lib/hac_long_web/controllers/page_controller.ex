@@ -33,7 +33,9 @@ defmodule HacLongWeb.PageController do
       RULES: %{
         maxLevel: Engine.max_level(),
         pointsPerLevel: Engine.points_per_level(),
-        gearBag: HacLong.Game.Gear.max_bag()
+        gearBag: HacLong.Game.Gear.max_bag(),
+        rebirthPoints: Engine.rebirth_points(),
+        maxRebirths: Engine.max_rebirths()
       },
       WORLD: Maps.client_data()
     }

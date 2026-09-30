@@ -8,7 +8,7 @@ defmodule HacLong.Game.Engine do
   để test cố định được kết quả.
   """
 
-  alias HacLong.Game.{Data, Gear, Rng}
+  alias HacLong.Game.{Bestiary, Data, Gear, Rng}
 
   @save_version 1
   @points_per_level 3
@@ -18,6 +18,8 @@ defmodule HacLong.Game.Engine do
   @stats ~w(str vit agi def)a
   @max_batch 99
   @max_upgrade 5
+  @max_rebirths 10
+  @rebirth_points 15
 
   def points_per_level, do: @points_per_level
   def max_level, do: @max_level
@@ -57,6 +59,8 @@ defmodule HacLong.Game.Engine do
           inv: %{"potion_s" => 3},
           upgrades: %{},
           gear: [],
+          bestiary: %{},
+          rebirths: 0,
           fish_caught: 0,
           achievements: [],
           title: nil,
@@ -417,6 +421,8 @@ defmodule HacLong.Game.Engine do
           if skill == nil and chance(m.dodge) do
             log(p, "#{m.name} né được đòn #{name}.", "info")
           else
+            # hiểu rõ loài này (sổ tay quái vật) thì đánh mạnh hơn
+            mult = mult * (1 + Bestiary.mastery(p, m.id))
             dmg = round(damage(atk, dfn) * mult * if(crit, do: d.critMult, else: 1))
             p = update_in(p.battle.monster.hp, &max(0, &1 - dmg))
             prefix = if skill, do: "✨ #{name}: ", else: ""
@@ -670,6 +676,19 @@ defmodule HacLong.Game.Engine do
       if m.boss and m.id not in p.bosses, do: first_boss_kill(p, m, reward), else: {p, reward}
 
     {p, reward} = gear_drop(p, m, reward)
+
+    {p, reward} =
+      case Bestiary.record(p, m) do
+        {p, nil} ->
+          {p, reward}
+
+        {p, mark} ->
+          text =
+            "📖 Sổ tay: đã hạ #{mark.kills} #{m.name}! Đánh loài này +#{round(mark.bonus * 100)}% sát thương, thưởng #{mark.gold} vàng."
+
+          {%{p | gold: p.gold + mark.gold} |> log(text, "win"),
+           %{reward | gold: reward.gold + mark.gold}}
+      end
 
     {levels, p} = gain_xp(p, m.xp)
 
@@ -999,6 +1018,39 @@ defmodule HacLong.Game.Engine do
 
       true ->
         {ok("Nghỉ ngơi miễn phí. Máu đã đầy."), %{p | hp: derived(p).maxHp}}
+    end
+  end
+
+  # ---------- Chuyển sinh ----------
+
+  def max_rebirths, do: @max_rebirths
+  def rebirth_points, do: @rebirth_points
+
+  @doc """
+  Chuyển sinh (ở cấp tối đa): về cấp 1 với chỉ số gốc của lớp, nhận #{@rebirth_points} điểm
+  tiềm năng cộng thêm cho mỗi lần đã chuyển sinh. Giữ vàng, đồ, trùm đã hạ, nhiệm vụ,
+  thành tựu.
+  """
+  def rebirth(p) do
+    n = Map.get(p, :rebirths, 0)
+
+    cond do
+      p.battle ->
+        {err("Đang trong trận."), p}
+
+      p.level < @max_level ->
+        {err("Cần đạt cấp #{@max_level} mới chuyển sinh được."), p}
+
+      n >= @max_rebirths ->
+        {err("Đã chuyển sinh tối đa #{@max_rebirths} lần."), p}
+
+      true ->
+        n = n + 1
+        p = %{p | level: 1, xp: 0, stats: Data.class(p.cls).base, points: n * @rebirth_points}
+        p = Map.put(p, :rebirths, n)
+
+        {ok("🔄 Chuyển sinh lần #{n}! Trở về cấp 1 với #{p.points} điểm tiềm năng cộng thêm."),
+         %{p | hp: derived(p).maxHp}}
     end
   end
 

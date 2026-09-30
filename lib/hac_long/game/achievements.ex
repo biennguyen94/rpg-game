@@ -10,7 +10,7 @@ defmodule HacLong.Game.Achievements do
   Trạng thái trong nhân vật: `achievements: [id]` (theo thứ tự đạt được), `title: id | nil`.
   """
 
-  alias HacLong.Game.{Data, Engine}
+  alias HacLong.Game.{Bestiary, Data, Engine}
   alias HacLong.World.Maps
 
   @list [
@@ -142,6 +142,22 @@ defmodule HacLong.Game.Achievements do
       title: "Thần Binh"
     },
     %{
+      id: "reborn",
+      name: "Tái Sinh",
+      desc: "Chuyển sinh lần đầu.",
+      stat: :rebirths,
+      goal: 1,
+      title: "Người Tái Sinh"
+    },
+    %{
+      id: "naturalist",
+      name: "Nhà Sinh Vật Học",
+      desc: "Hạ ít nhất một con mỗi loài trong sổ tay quái vật.",
+      stat: :species,
+      goal: :all_species,
+      title: "Nhà Sinh Vật Học"
+    },
+    %{
       id: "epic",
       name: "Của Hiếm",
       desc: "Nhặt được một món đồ Sử Thi.",
@@ -180,6 +196,7 @@ defmodule HacLong.Game.Achievements do
 
   defp goal(%{goal: :max_level}), do: Engine.max_level()
   defp goal(%{goal: :all_quests}), do: length(Data.quests())
+  defp goal(%{goal: :all_species}), do: length(Bestiary.species())
   defp goal(%{goal: :all_waystones}), do: length(Maps.waystone_ids())
   defp goal(%{goal: g}), do: g
 
@@ -195,6 +212,11 @@ defmodule HacLong.Game.Achievements do
   def value(p, :gold_fish), do: min(1, Map.get(p.inv, "fish_gold", 0))
   def value(p, :scale), do: min(1, Map.get(p.inv, "dragon_scale", 0))
   def value(p, :gold), do: p.gold
+  def value(p, :rebirths), do: Map.get(p, :rebirths) || 0
+
+  def value(p, :species),
+    do: Enum.count(Bestiary.species(), &(Bestiary.count(p, &1) > 0))
+
   def value(p, :epic), do: min(1, Enum.count(Map.get(p, :gear) || [], &(&1.rarity == 3)))
   def value(p, :deaths), do: p.deaths
 
