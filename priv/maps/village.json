@@ -111,5 +111,98 @@
       14
     ]
   },
+  "npcs": [
+    {
+      "id": "elder",
+      "name": "Trưởng Làng",
+      "sprite": "elder",
+      "at": [
+        12,
+        3
+      ],
+      "role": "quests",
+      "lines": [
+        "Hắc Long đã khủng bố vùng này quá lâu rồi. Làng cần người như cậu.",
+        "Việc gì làm xong thì quay lại đây báo ta, có thưởng hẳn hoi."
+      ]
+    },
+    {
+      "id": "blacksmith",
+      "name": "Thợ Rèn",
+      "sprite": "blacksmith",
+      "at": [
+        8,
+        12
+      ],
+      "role": "shop",
+      "stock": [
+        "dagger",
+        "broadsword",
+        "mace",
+        "battleaxe",
+        "greatsword",
+        "waraxe",
+        "leather",
+        "chain",
+        "scale",
+        "lamellar",
+        "breastplate",
+        "round",
+        "checked",
+        "spiked"
+      ],
+      "lines": [
+        "Vũ khí, giáp, khiên, cái gì cũng có. Đồ cũ ta cũng mua lại.",
+        "Mang quặng về đây, ta trả giá tốt."
+      ]
+    },
+    {
+      "id": "herbalist",
+      "name": "Bà Lang",
+      "sprite": "herbalist",
+      "at": [
+        16,
+        12
+      ],
+      "role": "herbalist",
+      "stock": [
+        "potion_s",
+        "potion_m",
+        "potion_l"
+      ],
+      "lines": [
+        "Có thảo dược thì ta pha thuốc cho, khỏi tốn tiền mua.",
+        "Thảo dược mọc ở các vùng quanh làng, cứ bước vào bụi cây mà hái."
+      ]
+    },
+    {
+      "id": "innkeeper",
+      "name": "Chủ Quán Trọ",
+      "sprite": "innkeeper",
+      "at": [
+        16,
+        2
+      ],
+      "role": "inn",
+      "lines": [
+        "Ngủ một đêm là khỏe lại ngay. Người mới thì ta không lấy tiền."
+      ]
+    },
+    {
+      "id": "girl",
+      "name": "Cô Bé Hái Hoa",
+      "sprite": "girl",
+      "at": [
+        4,
+        7
+      ],
+      "role": "talk",
+      "lines": [
+        "Cổng phía trên bên trái dẫn tới Rừng Mê, dễ nhất đó.",
+        "Đá dịch chuyển cạnh nhà Bà Lang. Chạm vào đá ở các vùng để nhớ đường về.",
+        "Ở Nhà có giếng nước, uống vào là hết mệt, không tốn đồng nào."
+      ]
+    }
+  ],
   "spawns": []
 }

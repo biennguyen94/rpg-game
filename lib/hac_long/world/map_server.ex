@@ -8,6 +8,8 @@ defmodule HacLong.World.MapServer do
   - Quái sinh ra theo `spawns` của bản đồ, đi lang thang mỗi `:wander_ms` (cấu hình),
     bị hạ thì hồi lại sau `respawn` giây. Quái không bước vào ô có người, cổng hay quái khác.
   - Người chơi bước vào ô có quái thì con quái bị khóa cho người đó (`busy`) tới khi trận xong.
+  - Điểm thu thập (thảo dược, quặng) mọc theo `gather`; ai bước vào trước thì hái được,
+    điểm đó biến mất và mọc lại ở chỗ ngẫu nhiên sau `respawn` giây.
   - Người chơi được gắn với tiến trình `Session` của họ; Session tắt thì tự rời bản đồ và
     nhả quái đang khóa.
   - Có thay đổi thì gom lại và phát toàn bộ trạng thái bản đồ qua PubSub `"map:<id>"`
@@ -45,7 +47,8 @@ defmodule HacLong.World.MapServer do
   Người chơi bước sang ô `{x, y}` (đã kiểm tra địa hình). Trả về:
   `:ok` (đã đi), `{:engage, quái}` (ô có quái, quái đã bị khóa cho người này, người
   đứng yên), `{:busy, quái}` (quái đang đánh với người khác) hoặc `{:confirm_boss, trùm}`
-  (ô có trùm mà chưa xác nhận muốn đấu: chưa khóa gì).
+  (ô có trùm mà chưa xác nhận muốn đấu: chưa khóa gì), hoặc `{:gather, điểm}` (ô có
+  điểm thu thập: đã hái, điểm biến mất; người đứng yên).
   """
   def step(map_id, uid, {x, y}, confirm_boss? \\ false),
     do: GenServer.call(via(map_id), {:step, uid, {x, y}, confirm_boss?})
@@ -62,7 +65,10 @@ defmodule HacLong.World.MapServer do
   def put_monster(map_id, kind, {x, y}, boss? \\ false),
     do: GenServer.call(via(map_id), {:put_monster, kind, {x, y}, boss?})
 
-  @doc "Xóa hết quái và tắt hồi quái (dùng trong test)."
+  @doc "Đặt một điểm thu thập vào ô cho trước (dùng trong test)."
+  def put_node(map_id, item, {x, y}), do: GenServer.call(via(map_id), {:put_node, item, {x, y}})
+
+  @doc "Xóa hết quái, điểm thu thập và tắt hồi (dùng trong test)."
   def clear_monsters(map_id), do: GenServer.call(via(map_id), :clear_monsters)
 
   # ---------- Tiến trình ----------
@@ -76,6 +82,7 @@ defmodule HacLong.World.MapServer do
       map: map,
       zone: zone,
       monsters: %{},
+      nodes: %{},
       players: %{},
       next_id: 1,
       flush_scheduled: false,
@@ -83,6 +90,7 @@ defmodule HacLong.World.MapServer do
     }
 
     s = Enum.reduce(Enum.with_index(map.spawns), s, fn {sp, i}, s -> fill_spawn(s, sp, i) end)
+    s = Enum.reduce(Enum.with_index(map.gather), s, fn {g, i}, s -> fill_nodes(s, g, i) end)
     s = if map.boss && zone, do: spawn_boss(s), else: s
     schedule_wander()
     {:ok, s}
@@ -101,22 +109,9 @@ defmodule HacLong.World.MapServer do
   def handle_call({:leave, uid}, _from, s), do: {:reply, :ok, remove_player(s, uid)}
 
   def handle_call({:step, uid, pos, confirm?}, _from, s) do
-    case monster_at(s, pos) do
-      %{boss: true, busy: nil} = m when not confirm? ->
-        {:reply, {:confirm_boss, public(m)}, s}
-
-      %{busy: nil} = m ->
-        {:reply, {:engage, public(m)}, changed(put_in(s.monsters[m.id].busy, uid))}
-
-      %{busy: ^uid} = m ->
-        {:reply, {:engage, public(m)}, s}
-
-      %{} = m ->
-        {:reply, {:busy, public(m)}, s}
-
-      nil ->
-        s = if s.players[uid], do: put_in(s.players[uid].pos, pos), else: s
-        {:reply, :ok, changed(s)}
+    case node_at(s, pos) do
+      nil -> step_monster(s, uid, pos, confirm?)
+      node -> {:reply, {:gather, public_node(node)}, gathered(s, node)}
     end
   end
 
@@ -150,8 +145,13 @@ defmodule HacLong.World.MapServer do
     {:reply, public(m), changed(s)}
   end
 
+  def handle_call({:put_node, item, pos}, _from, s) do
+    s = new_node(s, item, pos, :manual)
+    {:reply, public_node(s.nodes[s.next_id - 1]), changed(s)}
+  end
+
   def handle_call(:clear_monsters, _from, s),
-    do: {:reply, :ok, changed(%{s | monsters: %{}, respawn: false})}
+    do: {:reply, :ok, changed(%{s | monsters: %{}, nodes: %{}, respawn: false})}
 
   @impl true
   def handle_info(:wander, s) do
@@ -163,6 +163,12 @@ defmodule HacLong.World.MapServer do
 
   def handle_info({:respawn, {:spawn, i}}, s) do
     if s.respawn, do: {:noreply, fill_spawn(s, Enum.at(s.map.spawns, i), i)}, else: {:noreply, s}
+  end
+
+  def handle_info({:respawn, {:gather, i}}, s) do
+    if s.respawn,
+      do: {:noreply, fill_nodes(s, Enum.at(s.map.gather, i), i)},
+      else: {:noreply, s}
   end
 
   def handle_info({:respawn, _}, s), do: {:noreply, s}
@@ -185,6 +191,67 @@ defmodule HacLong.World.MapServer do
   end
 
   # ---------- Nội bộ ----------
+
+  defp step_monster(s, uid, pos, confirm?) do
+    case monster_at(s, pos) do
+      %{boss: true, busy: nil} = m when not confirm? ->
+        {:reply, {:confirm_boss, public(m)}, s}
+
+      %{busy: nil} = m ->
+        {:reply, {:engage, public(m)}, changed(put_in(s.monsters[m.id].busy, uid))}
+
+      %{busy: ^uid} = m ->
+        {:reply, {:engage, public(m)}, s}
+
+      %{} = m ->
+        {:reply, {:busy, public(m)}, s}
+
+      nil ->
+        s = if s.players[uid], do: put_in(s.players[uid].pos, pos), else: s
+        {:reply, :ok, changed(s)}
+    end
+  end
+
+  defp node_at(s, pos), do: Enum.find_value(s.nodes, fn {_, n} -> n.pos == pos && n end)
+
+  defp gathered(s, node) do
+    s = %{s | nodes: Map.delete(s.nodes, node.id)}
+
+    case node.origin do
+      {:gather, i} when s.respawn ->
+        Process.send_after(
+          self(),
+          {:respawn, node.origin},
+          Enum.at(s.map.gather, i).respawn * 1000
+        )
+
+      _ ->
+        :ok
+    end
+
+    changed(s)
+  end
+
+  defp fill_nodes(s, g, i) do
+    have = Enum.count(s.nodes, fn {_, n} -> n.origin == {:gather, i} end)
+
+    Enum.reduce(1..(g.max - have)//1, s, fn _, s ->
+      case free_tile(s) do
+        nil -> s
+        pos -> s |> new_node(g.item, pos, {:gather, i}) |> changed()
+      end
+    end)
+  end
+
+  defp new_node(s, item, pos, origin) do
+    n = %{id: s.next_id, item: item, pos: pos, origin: origin}
+    %{s | nodes: Map.put(s.nodes, n.id, n), next_id: s.next_id + 1}
+  end
+
+  defp public_node(n) do
+    {x, y} = n.pos
+    %{id: n.id, item: n.item, x: x, y: y}
+  end
 
   defp remove_player(s, uid) do
     case Map.pop(s.players, uid) do
@@ -251,6 +318,7 @@ defmodule HacLong.World.MapServer do
 
   defp occupied?(s, pos) do
     Enum.any?(s.monsters, fn {_, m} -> m.pos == pos end) or
+      Enum.any?(s.nodes, fn {_, n} -> n.pos == pos end) or
       Enum.any?(s.players, fn {_, p} -> p.pos == pos end)
   end
 
@@ -298,6 +366,7 @@ defmodule HacLong.World.MapServer do
     %{
       map: s.map.id,
       monsters: s.monsters |> Map.values() |> Enum.map(&public/1),
+      nodes: s.nodes |> Map.values() |> Enum.map(&public_node/1),
       players:
         Enum.map(s.players, fn {uid, p} ->
           {x, y} = p.pos

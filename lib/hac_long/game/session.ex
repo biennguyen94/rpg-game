@@ -16,7 +16,7 @@ defmodule HacLong.Game.Session do
   """
   use GenServer, restart: :transient
 
-  alias HacLong.Game.{Characters, Commands}
+  alias HacLong.Game.{Characters, Commands, Quests}
   alias HacLong.World
 
   @idle_timeout :timer.minutes(10)
@@ -168,7 +168,11 @@ defmodule HacLong.Game.Session do
     cond do
       # trận vừa kết thúc: cập nhật quái trên bản đồ, gục ngã thì về Nhà
       player && old && old.battle && not old.battle.over && player.battle && player.battle.over ->
-        World.finish_encounter(player, s.user_id)
+        player = World.finish_encounter(player, s.user_id)
+
+        if player.battle.result == "win",
+          do: Quests.on_kill(player, player.battle.monster.id),
+          else: player
 
       cmd["act"] == "create" and player && old == nil ->
         if map_size(s.tabs) > 0, do: World.enter(player, s.user_id)

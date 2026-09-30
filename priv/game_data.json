@@ -478,6 +478,34 @@
       "icon": "magic-potion",
       "heal": 650,
       "price": 150
+    },
+    "herb": {
+      "name": "Thảo Dược",
+      "slot": "material",
+      "sprite": "nodes/herb",
+      "price": 15,
+      "desc": "Mọc ở Rừng Mê, Trại Goblin, Nghĩa Địa Cổ."
+    },
+    "herb_rare": {
+      "name": "Linh Chi",
+      "slot": "material",
+      "sprite": "nodes/herb_rare",
+      "price": 75,
+      "desc": "Mọc ở Núi Khổng Lồ, Đầm Lầy Rồng, Hang Hắc Long."
+    },
+    "ore": {
+      "name": "Quặng Sắt",
+      "slot": "material",
+      "sprite": "nodes/ore",
+      "price": 25,
+      "desc": "Đào ở Rừng Mê, Trại Goblin, Nghĩa Địa Cổ."
+    },
+    "ore_rare": {
+      "name": "Quặng Mithril",
+      "slot": "material",
+      "sprite": "nodes/ore_rare",
+      "price": 125,
+      "desc": "Đào ở Núi Khổng Lồ, Đầm Lầy Rồng, Hang Hắc Long."
     }
   },
   "BOSS_DROPS": {
@@ -502,5 +530,339 @@
     "round",
     "checked",
     "spiked"
+  ],
+  "RECIPES": [
+    {
+      "id": "brew_s",
+      "out": "potion_s",
+      "needs": {
+        "herb": 2
+      },
+      "npc": "herbalist"
+    },
+    {
+      "id": "brew_m",
+      "out": "potion_m",
+      "needs": {
+        "herb": 5
+      },
+      "npc": "herbalist"
+    },
+    {
+      "id": "brew_l",
+      "out": "potion_l",
+      "needs": {
+        "herb_rare": 2
+      },
+      "npc": "herbalist"
+    }
+  ],
+  "QUESTS": [
+    {
+      "id": "forest_kill",
+      "name": "Lũ dơi hang",
+      "desc": "Dơi từ hang bay ra phá mùa màng. Hạ 5 con Dơi Hang ở Rừng Mê.",
+      "zone": 0,
+      "type": "kill",
+      "target": "bat",
+      "count": 5,
+      "requires": [],
+      "reward": {
+        "gold": 30,
+        "xp": 60,
+        "items": {
+          "potion_s": 2
+        }
+      }
+    },
+    {
+      "id": "forest_collect",
+      "name": "Thảo dược cho làng",
+      "desc": "Bà lang cần thảo dược để pha thuốc. Mang về 5 Thảo Dược.",
+      "zone": 0,
+      "type": "collect",
+      "target": "herb",
+      "count": 5,
+      "requires": [],
+      "reward": {
+        "gold": 60,
+        "xp": 35,
+        "items": {}
+      }
+    },
+    {
+      "id": "forest_boss",
+      "name": "Hạ Sói Xám Đầu Đàn",
+      "desc": "Trưởng làng nhờ bạn hạ Sói Xám Đầu Đàn trong phòng trùm ở Rừng Mê.",
+      "zone": 0,
+      "type": "boss",
+      "target": "wolf",
+      "count": 1,
+      "requires": [
+        "forest_kill"
+      ],
+      "reward": {
+        "gold": 96,
+        "xp": 124,
+        "items": {
+          "potion_s": 3
+        }
+      }
+    },
+    {
+      "id": "camp_kill",
+      "name": "Dẹp trại goblin",
+      "desc": "Goblin cướp hàng của thương nhân. Hạ 8 Goblin ở Trại Goblin.",
+      "zone": 1,
+      "type": "kill",
+      "target": "goblin",
+      "count": 8,
+      "requires": [],
+      "reward": {
+        "gold": 216,
+        "xp": 592,
+        "items": {
+          "potion_m": 2
+        }
+      }
+    },
+    {
+      "id": "camp_collect",
+      "name": "Sắt cho lò rèn",
+      "desc": "Thợ rèn thiếu sắt. Mang về 5 Quặng Sắt.",
+      "zone": 1,
+      "type": "collect",
+      "target": "ore",
+      "count": 5,
+      "requires": [],
+      "reward": {
+        "gold": 123,
+        "xp": 185,
+        "items": {}
+      }
+    },
+    {
+      "id": "camp_boss",
+      "name": "Hạ Tướng Orc",
+      "desc": "Trưởng làng nhờ bạn hạ Tướng Orc trong phòng trùm ở Trại Goblin.",
+      "zone": 1,
+      "type": "boss",
+      "target": "orc_warrior",
+      "count": 1,
+      "requires": [
+        "camp_kill"
+      ],
+      "reward": {
+        "gold": 174,
+        "xp": 304,
+        "items": {
+          "potion_m": 3
+        }
+      }
+    },
+    {
+      "id": "graveyard_kill",
+      "name": "Xương cốt không yên",
+      "desc": "Chiến binh xương lang thang khỏi mộ. Hạ 8 Chiến Binh Xương.",
+      "zone": 2,
+      "type": "kill",
+      "target": "skeletal_warrior",
+      "count": 8,
+      "requires": [],
+      "reward": {
+        "gold": 348,
+        "xp": 1216,
+        "items": {
+          "potion_m": 2
+        }
+      }
+    },
+    {
+      "id": "graveyard_collect",
+      "name": "Hương thảo trừ tà",
+      "desc": "Dân làng cần thảo dược để đốt trừ tà. Mang về 10 Thảo Dược.",
+      "zone": 2,
+      "type": "collect",
+      "target": "herb",
+      "count": 10,
+      "requires": [],
+      "reward": {
+        "gold": 177,
+        "xp": 760,
+        "items": {}
+      }
+    },
+    {
+      "id": "graveyard_boss",
+      "name": "Hạ Pháp Sư Bất Tử",
+      "desc": "Trưởng làng nhờ bạn hạ Pháp Sư Bất Tử trong phòng trùm ở Nghĩa Địa Cổ.",
+      "zone": 2,
+      "type": "boss",
+      "target": "lich",
+      "count": 1,
+      "requires": [
+        "graveyard_kill"
+      ],
+      "reward": {
+        "gold": 258,
+        "xp": 556,
+        "items": {
+          "potion_m": 3
+        }
+      }
+    },
+    {
+      "id": "mountain_kill",
+      "name": "Ogre trên núi",
+      "desc": "Ogre chặn đường lên núi. Hạ 8 Ogre ở Núi Khổng Lồ.",
+      "zone": 3,
+      "type": "kill",
+      "target": "ogre",
+      "count": 8,
+      "requires": [],
+      "reward": {
+        "gold": 516,
+        "xp": 2224,
+        "items": {
+          "potion_l": 2
+        }
+      }
+    },
+    {
+      "id": "mountain_collect",
+      "name": "Mithril quý hiếm",
+      "desc": "Thợ rèn muốn thử rèn mithril. Mang về 5 Quặng Mithril.",
+      "zone": 3,
+      "type": "collect",
+      "target": "ore_rare",
+      "count": 5,
+      "requires": [],
+      "reward": {
+        "gold": 504,
+        "xp": 695,
+        "items": {}
+      }
+    },
+    {
+      "id": "mountain_boss",
+      "name": "Hạ Vua Khổng Lồ",
+      "desc": "Trưởng làng nhờ bạn hạ Vua Khổng Lồ trong phòng trùm ở Núi Khổng Lồ.",
+      "zone": 3,
+      "type": "boss",
+      "target": "hill_giant",
+      "count": 1,
+      "requires": [
+        "mountain_kill"
+      ],
+      "reward": {
+        "gold": 336,
+        "xp": 880,
+        "items": {
+          "potion_l": 3
+        }
+      }
+    },
+    {
+      "id": "swamp_kill",
+      "name": "Tử xà đầm lầy",
+      "desc": "Tử Xà hóa đá người qua đường. Hạ 8 Tử Xà ở Đầm Lầy Rồng.",
+      "zone": 4,
+      "type": "kill",
+      "target": "basilisk",
+      "count": 8,
+      "requires": [],
+      "reward": {
+        "gold": 672,
+        "xp": 3520,
+        "items": {
+          "potion_l": 2
+        }
+      }
+    },
+    {
+      "id": "swamp_collect",
+      "name": "Linh chi giải độc",
+      "desc": "Bà lang cần Linh Chi làm thuốc giải độc. Mang về 5 Linh Chi.",
+      "zone": 4,
+      "type": "collect",
+      "target": "herb_rare",
+      "count": 5,
+      "requires": [],
+      "reward": {
+        "gold": 393,
+        "xp": 1100,
+        "items": {}
+      }
+    },
+    {
+      "id": "swamp_boss",
+      "name": "Hạ Kim Long",
+      "desc": "Trưởng làng nhờ bạn hạ Kim Long trong phòng trùm ở Đầm Lầy Rồng.",
+      "zone": 4,
+      "type": "boss",
+      "target": "golden_dragon",
+      "count": 1,
+      "requires": [
+        "swamp_kill"
+      ],
+      "reward": {
+        "gold": 414,
+        "xp": 1276,
+        "items": {
+          "potion_l": 3
+        }
+      }
+    },
+    {
+      "id": "lair_kill",
+      "name": "Băng Long canh cửa",
+      "desc": "Băng Long canh giữ lối vào hang. Hạ 8 Băng Long.",
+      "zone": 5,
+      "type": "kill",
+      "target": "ice_dragon",
+      "count": 8,
+      "requires": [],
+      "reward": {
+        "gold": 828,
+        "xp": 5104,
+        "items": {
+          "potion_l": 2
+        }
+      }
+    },
+    {
+      "id": "lair_collect",
+      "name": "Giáp cho trận cuối",
+      "desc": "Thợ rèn cần mithril rèn giáp cho trận cuối. Mang về 8 Quặng Mithril.",
+      "zone": 5,
+      "type": "collect",
+      "target": "ore_rare",
+      "count": 8,
+      "requires": [],
+      "reward": {
+        "gold": 807,
+        "xp": 2552,
+        "items": {}
+      }
+    },
+    {
+      "id": "lair_boss",
+      "name": "Hạ HẮC LONG",
+      "desc": "Trưởng làng nhờ bạn hạ HẮC LONG trong phòng trùm ở Hang Hắc Long.",
+      "zone": 5,
+      "type": "boss",
+      "target": "shadow_dragon",
+      "count": 1,
+      "requires": [
+        "lair_kill"
+      ],
+      "reward": {
+        "gold": 492,
+        "xp": 1744,
+        "items": {
+          "potion_l": 3
+        }
+      }
+    }
   ]
 }

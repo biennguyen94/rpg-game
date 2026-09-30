@@ -11,7 +11,7 @@ defmodule HacLongWeb.GameChannel do
   """
   use HacLongWeb, :channel
 
-  alias HacLong.Game.{Engine, Session}
+  alias HacLong.Game.{Data, Engine, Quests, Session}
   alias HacLong.World.{Maps, MapServer}
 
   @impl true
@@ -60,7 +60,7 @@ defmodule HacLongWeb.GameChannel do
 
       if map_id do
         if Maps.get(map_id).private do
-          push(socket, "map", %{map: map_id, monsters: [], players: []})
+          push(socket, "map", %{map: map_id, monsters: [], nodes: [], players: []})
         else
           Phoenix.PubSub.subscribe(HacLong.PubSub, MapServer.topic(map_id))
           push(socket, "map", MapServer.snapshot(map_id))
@@ -78,5 +78,13 @@ defmodule HacLongWeb.GameChannel do
 
   # Kèm các chỉ số tính sẵn (máu tối đa, tấn công, giá nghỉ trọ...) cho client hiển thị.
   defp present(nil), do: nil
-  defp present(player), do: Map.put(player, :view, Engine.view(player))
+
+  defp present(player) do
+    # có việc mới hoặc việc đã xong chờ trả: hiện dấu "!" trên đầu Trưởng Làng
+    ready =
+      Quests.available(player) != [] or
+        Enum.any?(Map.keys(player.quests.active), &Quests.complete?(player, Data.quest(&1)))
+
+    Map.put(player, :view, Map.put(Engine.view(player), :questReady, ready))
+  end
 end

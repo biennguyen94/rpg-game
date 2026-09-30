@@ -63,5 +63,17 @@
       "max": 3,
       "respawn": 25
     }
+  ],
+  "gather": [
+    {
+      "item": "herb",
+      "max": 3,
+      "respawn": 60
+    },
+    {
+      "item": "ore",
+      "max": 1,
+      "respawn": 90
+    }
   ]
 }

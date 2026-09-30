@@ -97,7 +97,8 @@ Mỗi bản đồ một file `priv/maps/<id>.json`, vẽ bằng ký tự để d
 ```
 
 - Ô không đi qua được: cây, đá, nước, tường.
-- Ô tương tác: cổng, cây thuốc, quặng, rương, NPC, bảng tin.
+- Ô tương tác: cổng, cây thuốc, quặng, rương, NPC, bảng tin. (Đã có: cổng, NPC, cây thuốc,
+  quặng, giếng, đá dịch chuyển. Chưa có: rương, bảng tin.)
 - Hình ảnh: bộ tile Dungeon Crawl Stone Soup (CC0, 32×32) có sẵn cây, đá, nước, cửa, tường,
   cùng phong cách với hình quái đang dùng.
 - Sau này có thể đọc file của Tiled Map Editor để vẽ bản đồ trực quan.
@@ -152,7 +153,11 @@ Mỗi bản đồ một file `priv/maps/<id>.json`, vẽ bằng ký tự để d
   phòng trùm riêng; di chuyển mượt (nội suy vị trí cho mình, người khác và quái); đá dịch
   chuyển ở Làng và ở bản đồ 2 mỗi vùng (chạm lần đầu để ghi nhớ, đứng cạnh đá nào cũng
   dịch chuyển được tới các đá đã ghi nhớ); hỏi xác nhận trước khi đấu trùm.
-- [ ] **Giai đoạn 3**: NPC, cây thuốc và quặng, nhiệm vụ.
+- [x] **Giai đoạn 3**: NPC ở Làng (Trưởng Làng giao nhiệm vụ, Thợ Rèn bán vũ khí/giáp/khiên,
+  Bà Lang bán thuốc và pha thuốc từ thảo dược, Chủ Quán Trọ cho nghỉ, người dân chỉ đường) thay
+  cho tab Cửa hàng; mua/bán/nghỉ phải đứng cạnh NPC. Điểm thu thập dùng chung (Thảo Dược, Linh
+  Chi, Quặng Sắt, Quặng Mithril) mọc ngẫu nhiên và mọc lại. 18 nhiệm vụ (mỗi vùng: diệt quái,
+  thu thập, hạ trùm), tab Nhiệm vụ theo dõi tiến độ.
 - [ ] **Giai đoạn 4**: trang trí nhà, trùm thế giới trên bản đồ.
 
 ### Đã quyết định

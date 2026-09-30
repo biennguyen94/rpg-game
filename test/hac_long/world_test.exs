@@ -7,7 +7,7 @@ defmodule HacLong.WorldTest do
   alias HacLong.World.{Maps, MapServer}
 
   setup do
-    for id <- ~w(forest_1 forest_2 forest_boss camp_1), do: MapServer.clear_monsters(id)
+    for id <- ~w(village forest_1 forest_2 forest_boss camp_1), do: MapServer.clear_monsters(id)
     uid = System.unique_integer([:positive])
     {_, p} = Commands.run(nil, %{"act" => "create", "name" => "Đi Bộ", "cls" => "warrior"})
 
@@ -164,6 +164,45 @@ defmodule HacLong.WorldTest do
     assert [%{busy: false}] = MapServer.snapshot("forest_boss").monsters
     {%{ok: true}, fighting} = World.move(p, uid, "up", true)
     assert fighting.battle.monster.boss
+  end
+
+  test "NPC chặn đường, bước vào thì mở hội thoại", %{uid: uid, p: p} do
+    p = at(p, "village", 12, 4)
+    World.enter(p, uid)
+    assert {%{ok: true, npc: "elder"}, ^p} = World.move(p, uid, "up")
+    assert World.near_npc(p, ["quests"]).id == "elder"
+    refute World.near_npc(p, ["shop"])
+    refute Maps.walkable?(Maps.get("village"), 12, 3)
+  end
+
+  test "hái thảo dược, đào quặng: ai đến trước người đó được", %{uid: uid, p: p} do
+    {x, y} = open_spot("forest_1")
+    p = at(p, "forest_1", x, y)
+    World.enter(p, uid)
+    MapServer.put_node("forest_1", "herb", {x + 1, y})
+    MapServer.put_node("forest_1", "ore", {x, y - 1})
+
+    {%{ok: true, msg: "Hái được Thảo Dược."}, p2} = World.move(p, uid, "right")
+    assert p2.inv["herb"] == 1 and p2.pos == p.pos
+    {%{ok: true, msg: "Đào được Quặng Sắt."}, p3} = World.move(p2, uid, "up")
+    assert p3.inv["ore"] == 1
+    assert MapServer.snapshot("forest_1").nodes == []
+    # điểm đã hái thì ô đó trống, bước vào là đi bình thường
+    {%{ok: true}, p4} = World.move(p3, uid, "right")
+    assert p4.pos.x == x + 1
+  end
+
+  test "điểm thu thập mọc theo cấu hình" do
+    map = Maps.get("forest_2")
+    {:ok, s} = MapServer.init("forest_2")
+    assert map_size(s.nodes) == Enum.sum(Enum.map(map.gather, & &1.max))
+
+    assert s.nodes |> Map.values() |> Enum.map(& &1.item) |> Enum.uniq() |> Enum.sort() == [
+             "herb",
+             "ore"
+           ]
+
+    assert Enum.all?(Maps.get("lair_1").gather, &(&1.item in ~w(herb_rare ore_rare)))
   end
 
   test "đá dịch chuyển: ghi nhớ khi chạm, chỉ dùng được khi đứng cạnh", %{uid: uid, p: p} do

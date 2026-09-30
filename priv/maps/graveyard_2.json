@@ -64,6 +64,18 @@
       "respawn": 25
     }
   ],
+  "gather": [
+    {
+      "item": "herb",
+      "max": 2,
+      "respawn": 60
+    },
+    {
+      "item": "ore",
+      "max": 3,
+      "respawn": 90
+    }
+  ],
   "waystone": {
     "at": [
       16,

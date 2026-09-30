@@ -261,3 +261,7 @@ input[type="text"], input[type="password"] {
 .map-dialog .sprite { width: 48px; height: 48px; }
 .map-dialog .list { display: grid; gap: 6px; }
 .map-dialog .list .btn { justify-content: flex-start; }
+.ic.px { image-rendering: pixelated; }
+.npc-head .sprite { width: 56px; height: 56px; image-rendering: pixelated; }
+.item.quest { align-items: flex-start; }
+.item.quest .grow { display: grid; gap: 3px; }

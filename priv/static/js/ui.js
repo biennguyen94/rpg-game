@@ -2,7 +2,7 @@
  * Mọi thao tác gửi lên server qua Net (net.js); server tính toán rồi trả trạng thái mới.
  * P.view chứa các chỉ số server tính sẵn (máu tối đa, tấn công, giá nghỉ trọ...). */
 (function () {
-  const { CLASSES, ZONES, ITEMS, SHOP, RULES } = window.GAME_DATA;
+  const { CLASSES, ZONES, ITEMS, RULES, RECIPES, QUESTS, WORLD } = window.GAME_DATA;
   const Net = window.Net;
 
   let P = null;          // trạng thái người chơi
@@ -15,6 +15,7 @@
   let busy = false;      // đang chờ server trả lời
   let walk = null;       // đích đang đi tới trên bản đồ: { x, y, monster, id }
   let dialog = null;     // bảng trên bản đồ: { type: 'boss', dir, boss } | { type: 'waystone' }
+  let npc = null;        // NPC đang nói chuyện: { map, id, line }
   const Map_ = window.MapView;
 
   const $ = (s) => document.querySelector(s);
@@ -23,6 +24,8 @@
 
   const asset = (path) => 'assets/' + path;
   const icon = (name, cls) => `<img class="ic ${cls || ''}" src="${asset('icons/' + name + '.svg')}" alt="">`;
+  // Hình vật phẩm: nguyên liệu dùng ảnh PNG (`sprite`), còn lại dùng icon SVG.
+  const itemIcon = (it) => (it.sprite ? `<img class="ic lg px" src="${asset(it.sprite + '.png')}" alt="">` : icon(it.icon, 'lg'));
   const sprite = (id, cls, alt) => `<img class="sprite ${cls || ''}" src="${asset('monsters/' + id + '.png')}" alt="${esc(alt || '')}">`;
 
   let toastTimer;
@@ -66,13 +69,13 @@
     tabs.hidden = false;
     tabs.innerHTML = [
       ['map', 'walk', 'Bản đồ'],
-      ['town', 'scroll-unfurled', 'Hành trình'],
+      ['town', 'trophy', 'Hành trình'],
       ['hero', 'person', 'Nhân vật'],
       ['bag', 'backpack', 'Túi đồ'],
-      ['shop', 'shop', 'Cửa hàng'],
+      ['quests', 'scroll-unfurled', 'Nhiệm vụ'],
     ].map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => Map_.html(P, viewDialog()), town: viewTown, hero: viewHero, bag: viewBag, shop: viewShop }[tab])();
-    if (tab === 'map') Map_.mount(() => P);
+    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : Map_.html(P, viewDialog())), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests }[tab])();
+    if (tab === 'map' && !npc) Map_.mount(() => P);
   }
 
   // Bảng nổi trên bản đồ: hỏi đấu trùm, chọn nơi dịch chuyển.
@@ -97,7 +100,7 @@
 
   // Cập nhật nhẹ khi đang xem bản đồ (không dựng lại cả trang, tránh nháy).
   function refresh() {
-    if (P && !P.battle && tab === 'map' && Map_.mountedMap() === P.pos.map && $('#map-canvas')) {
+    if (P && !P.battle && tab === 'map' && !npc && Map_.mountedMap() === P.pos.map && $('#map-canvas')) {
       $('#hud').innerHTML = viewHud();
       Map_.draw();
     } else {
@@ -191,13 +194,11 @@
 
   function viewTown() {
     const d = P.view.derived, cost = P.view.restCost, full = P.hp >= d.maxHp;
-    const canRest = P.pos.map === 'village' || P.pos.map === 'home';
     const ni = nextBossIndex();
     const pots = ['potion_s', 'potion_m', 'potion_l'].reduce((s, id) => s + (P.inv[id] || 0), 0);
     return `
       <div class="card">
-        <div class="row">${icon('campfire', 'lg')}<div class="grow"><h3>Nhà trọ</h3><p class="small muted">${canRest ? 'Ngủ một đêm để hồi đầy máu.' : 'Chỉ nghỉ được khi ở Làng hoặc ở Nhà. Giếng nước ở Nhà hồi máu miễn phí.'}</p></div></div>
-        <button class="btn ${full || !canRest ? '' : 'primary'} block" data-act="rest" ${full || !canRest ? 'disabled' : ''}>${full ? 'Máu đang đầy' : cost ? `Nghỉ trọ · ${fmt(cost)} vàng` : 'Nghỉ trọ · miễn phí'}</button>
+        <div class="row">${icon('campfire', 'lg')}<div class="grow"><h3>Hồi máu</h3><p class="small muted">${full ? 'Máu đang đầy.' : `Gặp Chủ Quán Trọ ở Làng để nghỉ${cost ? ` (${fmt(cost)} vàng)` : ' (miễn phí)'}, hoặc về Nhà uống nước giếng.`}</p></div></div>
       </div>
 
       <div class="card">
@@ -209,7 +210,7 @@
         <button class="btn block" data-tab="map">${icon('walk')} Ra bản đồ</button>
       </div>
 
-      ${pots === 0 ? `<div class="card"><div class="row">${icon('health-potion', 'lg')}<div class="grow"><h3>Hết bình máu</h3><p class="small muted">Mua vài bình ở cửa hàng trước khi đi săn xa.</p></div><button class="btn" data-tab="shop">Mua</button></div></div>` : ''}
+      ${pots === 0 ? `<div class="card"><div class="row">${icon('health-potion', 'lg')}<div class="grow"><h3>Hết bình máu</h3><p class="small muted">Mua ở Bà Lang trong Làng, hoặc hái Thảo Dược nhờ bà pha.</p></div></div></div>` : ''}
 
       <div class="card">
         <h3>Thành tích</h3>
@@ -312,61 +313,150 @@
 
   function viewBag() {
     const ids = Object.keys(P.inv).filter((id) => P.inv[id] > 0);
-    const gear = ids.filter((id) => ITEMS[id].slot !== 'potion');
+    const gear = ids.filter((id) => !['potion', 'material'].includes(ITEMS[id].slot));
     const pots = ids.filter((id) => ITEMS[id].slot === 'potion');
+    const mats = ids.filter((id) => ITEMS[id].slot === 'material');
     const d = P.view.derived;
     const rowFor = (id) => {
       const it = ITEMS[id], n = P.inv[id];
       const low = it.level && P.level < it.level;
       const main = it.slot === 'potion'
         ? `<button class="btn" data-act="use" data-id="${id}" ${P.hp >= d.maxHp ? 'disabled' : ''}>Dùng</button>`
+        : it.slot === 'material' ? ''
         : `<button class="btn primary" data-act="equip" data-id="${id}" ${low ? 'disabled' : ''}>Trang bị</button>`;
       return `<div class="item">
-        ${icon(it.icon, 'lg')}
+        ${itemIcon(it)}
         <div class="grow">
           <div class="name">${it.name}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div>
-          <div class="small muted">${itemStat(it)} ${it.slot !== 'potion' ? compare(it) : ''}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}</div>
+          <div class="small muted">${it.slot === 'material' ? it.desc : itemStat(it)} ${['potion', 'material'].includes(it.slot) ? '' : compare(it)}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}</div>
         </div>
         ${main}
-        <button class="btn" data-act="sell" data-id="${id}" aria-label="Bán ${it.name}">Bán ${fmt(it.sell)}</button>
       </div>`;
     };
     return `
       <div class="card">
         <h3>Bình máu</h3>
-        ${pots.length ? `<div class="list">${pots.map(rowFor).join('')}</div>` : `<p class="small muted">Chưa có bình máu. Mua ở cửa hàng.</p>`}
+        ${pots.length ? `<div class="list">${pots.map(rowFor).join('')}</div>` : `<p class="small muted">Chưa có bình máu. Mua ở Bà Lang trong Làng.</p>`}
+      </div>
+      <div class="card">
+        <h3>Nguyên liệu</h3>
+        ${mats.length ? `<div class="list">${mats.map(rowFor).join('')}</div>` : `<p class="small muted">Bước vào bụi cây để hái Thảo Dược, vào mỏ đá để đào quặng. Mang cho Bà Lang pha thuốc hoặc bán cho Thợ Rèn.</p>`}
       </div>
       <div class="card">
         <h3>Trang bị trong túi</h3>
         ${gear.length ? `<div class="list">${gear.map(rowFor).join('')}</div>` : `<p class="small muted">Đồ bạn mua hoặc nhặt được sẽ nằm ở đây. Đồ đang mặc xem ở tab Nhân vật.</p>`}
-      </div>`;
+      </div>
+      <p class="small muted">Muốn bán đồ thì gặp Thợ Rèn hoặc Bà Lang trong Làng.</p>`;
   }
 
-  // ---------- Cửa hàng ----------
-  function viewShop() {
-    const groups = [['potion', 'Bình máu'], ['weapon', 'Vũ khí'], ['armor', 'Giáp'], ['shield', 'Khiên']];
-    return `<h2 class="display">Lò rèn & Tiệm thuốc</h2>` + groups.map(([slot, title]) => `
-      <div class="card">
-        <h3>${title}</h3>
-        <div class="list">
-          ${SHOP.filter((id) => ITEMS[id].slot === slot).map((id) => {
-            const it = ITEMS[id];
-            const low = it.level && P.level < it.level;
-            const worn = P.equip[slot] === id;
-            const owned = P.inv[id] || 0;
-            const poor = P.gold < it.price;
-            return `<div class="item">
-              ${icon(it.icon, 'lg')}
-              <div class="grow">
-                <div class="name">${it.name}</div>
-                <div class="small muted">${itemStat(it)} ${slot !== 'potion' ? compare(it) : ''}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}${worn ? ' · <span style="color:var(--good)">Đang dùng</span>' : ''}${owned ? ` · có ${owned}` : ''}</div>
-              </div>
-              ${slot === 'potion' ? `<button class="btn" data-act="buy5" data-id="${id}" ${P.gold < it.price * 5 ? 'disabled' : ''}>×5</button>` : ''}
-              <button class="btn ${!low && !poor ? 'primary' : ''}" data-act="buy" data-id="${id}" ${low || poor ? 'disabled' : ''}>${icon('two-coins')}${fmt(it.price)}</button>
-            </div>`;
-          }).join('')}
-        </div>
-      </div>`).join('') + `<p class="small muted">Trùm Vua Khổng Lồ và Kim Long giữ những món đồ không bán ở đây.</p>`;
+  // ---------- NPC ----------
+  const npcData = () => WORLD.maps[npc.map].npcs.find((n) => n.id === npc.id);
+
+  function shopRow(id) {
+    const it = ITEMS[id], slot = it.slot;
+    const low = it.level && P.level < it.level;
+    const worn = P.equip[slot] === id;
+    const owned = P.inv[id] || 0;
+    const poor = P.gold < it.price;
+    return `<div class="item">
+      ${itemIcon(it)}
+      <div class="grow">
+        <div class="name">${it.name}</div>
+        <div class="small muted">${itemStat(it)} ${slot !== 'potion' ? compare(it) : ''}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}${worn ? ' · <span style="color:var(--good)">Đang dùng</span>' : ''}${owned ? ` · có ${owned}` : ''}</div>
+      </div>
+      ${slot === 'potion' ? `<button class="btn" data-act="buy5" data-id="${id}" ${P.gold < it.price * 5 ? 'disabled' : ''}>×5</button>` : ''}
+      <button class="btn ${!low && !poor ? 'primary' : ''}" data-act="buy" data-id="${id}" ${low || poor ? 'disabled' : ''}>${icon('two-coins')}${fmt(it.price)}</button>
+    </div>`;
+  }
+
+  function sellCard() {
+    const ids = Object.keys(P.inv).filter((id) => P.inv[id] > 0);
+    return `<div class="card"><h3>Bán đồ</h3>
+      ${ids.length ? `<div class="list">${ids.map((id) => {
+        const it = ITEMS[id], n = P.inv[id];
+        return `<div class="item">${itemIcon(it)}<div class="grow"><div class="name">${it.name}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div></div>
+          <button class="btn" data-act="sell" data-id="${id}" aria-label="Bán ${it.name}">Bán ${fmt(it.sell)}</button></div>`;
+      }).join('')}</div>` : '<p class="small muted">Túi trống. Đồ đang mặc không bán được.</p>'}
+    </div>`;
+  }
+
+  function craftCard() {
+    return `<div class="card"><h3>Pha thuốc</h3><div class="list">${RECIPES.filter((r) => r.npc === 'herbalist').map((r) => {
+      const out = ITEMS[r.out];
+      const needs = Object.entries(r.needs);
+      const ok = needs.every(([id, n]) => (P.inv[id] || 0) >= n);
+      return `<div class="item">${itemIcon(out)}<div class="grow"><div class="name">${out.name}</div>
+        <div class="small muted">${needs.map(([id, n]) => `${ITEMS[id].name} ${Math.min(P.inv[id] || 0, n)}/${n}`).join(' · ')}</div></div>
+        <button class="btn ${ok ? 'primary' : ''}" data-act="craft" data-id="${r.id}" ${ok ? '' : 'disabled'}>Pha</button></div>`;
+    }).join('')}</div></div>`;
+  }
+
+  // Tiến độ nhiệm vụ đang làm (server vẫn là nơi kiểm tra cuối cùng).
+  function questProgress(q) {
+    const have = q.type === 'kill' ? (P.quests.active[q.id] || 0)
+      : q.type === 'collect' ? (P.inv[q.target] || 0)
+      : P.bosses.includes(q.target) ? 1 : 0;
+    return [Math.min(have, q.count), q.count];
+  }
+
+  function questRow(q, action) {
+    const reward = [`${fmt(q.reward.gold)} vàng`, `${fmt(q.reward.xp)} kinh nghiệm`]
+      .concat(Object.entries(q.reward.items).map(([id, n]) => `${ITEMS[id].name} ×${n}`)).join(' · ');
+    let right = '', progress = '';
+    if (action !== 'accept') {
+      const [have, need] = questProgress(q);
+      progress = `<div class="small ${have >= need ? '' : 'muted'}" style="${have >= need ? 'color:var(--good)' : ''}">${have >= need ? 'Đã xong, về báo Trưởng Làng' : `Tiến độ ${have}/${need}`}</div>`;
+      if (action === 'turnin') right = `<button class="btn ${have >= need ? 'primary' : ''}" data-act="quest_turnin" data-id="${q.id}" ${have >= need ? '' : 'disabled'}>Trả</button>`;
+    } else {
+      right = `<button class="btn primary" data-act="quest_accept" data-id="${q.id}">Nhận</button>`;
+    }
+    return `<div class="item quest"><div class="grow">
+      <div class="name">${q.name} <span class="small muted">· ${ZONES[q.zone].name}</span></div>
+      <div class="small muted">${q.desc}</div>
+      ${progress}
+      <div class="small" style="color:var(--gold)">Thưởng: ${reward}</div>
+    </div>${right}</div>`;
+  }
+
+  const activeQuests = () => QUESTS.filter((q) => q.id in P.quests.active);
+  const availableQuests = () => QUESTS.filter((q) => !(q.id in P.quests.active) && !P.quests.done.includes(q.id)
+    && P.view.unlocked[q.zone] && q.requires.every((r) => P.quests.done.includes(r)));
+
+  function viewNpc() {
+    const n = npcData(), d = P.view.derived;
+    const sections = [];
+    if (n.role === 'quests') {
+      const act = activeQuests(), avail = availableQuests();
+      sections.push(`<div class="card"><h3>Nhiệm vụ đang làm</h3>${act.length ? `<div class="list">${act.map((q) => questRow(q, 'turnin')).join('')}</div>` : '<p class="small muted">Chưa nhận nhiệm vụ nào.</p>'}</div>`);
+      sections.push(`<div class="card"><h3>Việc cần người giúp</h3>${avail.length ? `<div class="list">${avail.map((q) => questRow(q, 'accept')).join('')}</div>` : '<p class="small muted">Hiện chưa có việc mới. Mở thêm vùng đất để nhận thêm nhiệm vụ.</p>'}</div>`);
+    }
+    if (n.role === 'shop' || n.role === 'herbalist') {
+      if (n.role === 'herbalist') sections.push(craftCard());
+      sections.push(`<div class="card"><h3>Mua</h3><div class="list">${n.stock.map(shopRow).join('')}</div></div>`);
+      sections.push(sellCard());
+    }
+    if (n.role === 'inn') {
+      const full = P.hp >= d.maxHp, cost = P.view.restCost;
+      sections.push(`<div class="card"><button class="btn ${full ? '' : 'primary'} block" data-act="rest" ${full ? 'disabled' : ''}>${full ? 'Máu đang đầy' : cost ? `Nghỉ một đêm · ${fmt(cost)} vàng` : 'Nghỉ một đêm · miễn phí'}</button></div>`);
+    }
+    if (n.role === 'talk') {
+      sections.push(`<div class="card">${n.lines.map((l) => `<p>“${esc(l)}”</p>`).join('')}</div>`);
+    }
+    return `
+      <div class="card npc-head">
+        <div class="row"><img class="sprite" src="${asset('npcs/' + n.sprite + '.png')}" alt="${esc(n.name)}"><div class="grow"><h2 class="display">${esc(n.name)}</h2>
+        ${n.role !== 'talk' ? `<p class="small muted">“${esc(npc.line)}”</p>` : ''}</div></div>
+      </div>
+      ${sections.join('')}
+      <button class="btn block" data-act="npc-close">${icon('walk')} Rời đi</button>`;
+  }
+
+  // ---------- Nhiệm vụ ----------
+  function viewQuests() {
+    const act = activeQuests();
+    return `<h2 class="display">Nhiệm vụ</h2>
+      <div class="card">${act.length ? `<div class="list">${act.map((q) => questRow(q, 'log')).join('')}</div>` : '<p class="small muted">Chưa nhận nhiệm vụ nào. Gặp Trưởng Làng (ông già ở giữa Làng, phía trên) để nhận việc.</p>'}</div>
+      <p class="small muted">Đã hoàn thành ${P.quests.done.length}/${QUESTS.length} nhiệm vụ.${availableQuests().length ? ` Trưởng Làng đang có ${availableQuests().length} việc mới.` : ''}</p>`;
   }
 
   // ---------- Trận đấu ----------
@@ -446,6 +536,7 @@
       case 'unequip': return { act, slot: d.slot };
       case 'reset-yes': return { act: 'reset' };
       case 'teleport': return { act, to: d.to };
+      case 'craft': case 'quest_accept': case 'quest_turnin': return { act, id: d.id };
       default: return { act };
     }
   }
@@ -490,12 +581,16 @@
       if (r.msg) result(r);
       if (r.confirm === 'boss') dialog = { type: 'boss', dir, boss: r.boss };
       if (r.waystone) dialog = { type: 'waystone' };
-      ok = r.ok && !P.battle && P.pos.map === mapBefore && !dialog;
+      if (r.npc) {
+        const n = WORLD.maps[P.pos.map].npcs.find((x) => x.id === r.npc);
+        npc = { map: P.pos.map, id: r.npc, line: n.lines[Math.floor(Math.random() * n.lines.length)] || '' };
+      }
+      ok = r.ok && !P.battle && P.pos.map === mapBefore && !dialog && !npc;
     } catch (e) {
       toast(e.msg, true);
     }
     busy = false;
-    if (!P || P.battle || P.pos.map !== mapBefore || dialog || hadDialog) { walk = null; render(); } else refresh();
+    if (!P || P.battle || P.pos.map !== mapBefore || dialog || hadDialog || npc) { walk = null; render(); if (npc) $('#view').scrollTop = 0; } else refresh();
     return ok;
   }
 
@@ -522,6 +617,7 @@
 
   function onKey(e) {
     if (!P || P.battle || tab !== 'map' || e.target.closest('input, textarea')) return;
+    if (npc) { if (e.key === 'Escape') { npc = null; render(); } return; }
     const dir = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right' }[e.key];
     if (!dir) return;
     e.preventDefault();
@@ -562,6 +658,7 @@
     if (!act || !P) return;
     if (act === 'reset-ask' || act === 'reset-cancel') { confirmReset = act === 'reset-ask'; render(); return; }
     if (act === 'dialog-close') { dialog = null; render(); return; }
+    if (act === 'npc-close') { npc = null; render(); return; }
     if (act === 'boss-yes') { const d = dialog; if (d) step(d.dir, true); return; }
     sendCommand(command(act, t));
   }

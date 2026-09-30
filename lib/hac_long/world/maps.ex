@@ -14,6 +14,11 @@ defmodule HacLong.World.Maps do
     Chạm vào đá lần đầu thì ghi nhớ nó; đứng cạnh bất kỳ đá nào đều dịch chuyển được tới
     các đá đã ghi nhớ (Làng luôn có sẵn).
   - `private: true`: bản đồ riêng của mỗi người (Nhà), không có ai khác.
+  - `npcs`: `{id, name, sprite, at, role, lines, stock?}`. NPC đứng yên, chặn đường; bước vào
+    thì mở hội thoại. `role`: `quests` (Trưởng Làng), `shop` (bán `stock`, mua lại đồ),
+    `herbalist` (bán `stock`, mua lại đồ, pha thuốc), `inn` (nghỉ trọ), `talk` (chỉ nói chuyện).
+  - `gather`: `{item, max, respawn}`: điểm thu thập (bụi thảo dược, mỏ quặng) mọc ngẫu nhiên;
+    bước vào thì nhận một `item`, điểm đó biến mất và mọc lại sau `respawn` giây.
   """
 
   @dir Path.expand("../../../priv/maps", __DIR__)
@@ -65,6 +70,23 @@ defmodule HacLong.World.Maps do
                  m["spawns"],
                  &%{monster: &1["monster"], max: &1["max"], respawn: &1["respawn"]}
                ),
+             npcs:
+               Enum.map(m["npcs"] || [], fn n ->
+                 %{
+                   id: n["id"],
+                   name: n["name"],
+                   sprite: n["sprite"],
+                   at: List.to_tuple(n["at"]),
+                   role: n["role"],
+                   lines: n["lines"] || [],
+                   stock: n["stock"] || []
+                 }
+               end),
+             gather:
+               Enum.map(
+                 m["gather"] || [],
+                 &%{item: &1["item"], max: &1["max"], respawn: &1["respawn"]}
+               ),
              boss:
                m["boss"] && %{at: List.to_tuple(m["boss"]["at"]), respawn: m["boss"]["respawn"]},
              waystone:
@@ -100,7 +122,12 @@ defmodule HacLong.World.Maps do
 
   def tile(_, _, _), do: nil
 
-  def walkable?(map, x, y), do: tile(map, x, y) in @walkable
+  def walkable?(map, x, y), do: tile(map, x, y) in @walkable and npc_at(map, x, y) == nil
+
+  def npc_at(map, x, y), do: Enum.find(map.npcs, &(&1.at == {x, y}))
+
+  @doc "NPC `id` trên bản đồ `map_id` (hoặc nil)."
+  def npc(map_id, id), do: Enum.find(get(map_id).npcs, &(&1.id == id))
 
   def portal_at(map, x, y), do: Enum.find(map.portals, &(&1.at == {x, y}))
 
@@ -115,7 +142,8 @@ defmodule HacLong.World.Maps do
            floor: m.floor,
            tiles: m.tiles,
            portals: Enum.map(m.portals, &%{at: Tuple.to_list(&1.at), to: &1.to}),
-           waystone: m.waystone != nil
+           waystone: m.waystone != nil,
+           npcs: Enum.map(m.npcs, &Map.update!(&1, :at, fn at -> Tuple.to_list(at) end))
          }}
       end)
 

@@ -27,6 +27,8 @@ defmodule HacLongWeb.PageController do
       ITEMS:
         Map.new(Data.items(), fn {id, it} -> {id, Map.put(it, :sell, Engine.sell_price(id))} end),
       SHOP: Data.shop(),
+      RECIPES: Data.recipes(),
+      QUESTS: Data.quests(),
       RULES: %{maxLevel: Engine.max_level(), pointsPerLevel: Engine.points_per_level()},
       WORLD: Maps.client_data()
     }

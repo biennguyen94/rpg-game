@@ -46,15 +46,22 @@ defmodule HacLong.World do
 
   def leave(_p, _uid), do: :ok
 
-  @doc "Chỉ nghỉ trọ được ở Làng hoặc ở Nhà."
-  def can_rest?(%{pos: %{map: m}}), do: m in [Maps.home(), "village"]
+  @doc "NPC đứng ngay cạnh nhân vật có một trong các `roles` (hoặc nil)."
+  def near_npc(%{pos: %{map: id, x: x, y: y}}, roles) do
+    Enum.find(Maps.get(id).npcs, fn %{at: {nx, ny}} = n ->
+      n.role in roles and abs(nx - x) + abs(ny - y) == 1
+    end)
+  end
+
+  def near_npc(_p, _roles), do: nil
 
   @doc """
   Đi một bước theo hướng `dir`. Trả về `{kết_quả, nhân_vật}` như các lệnh khác.
 
   Bước vào trùm thì lần đầu chỉ nhận `%{confirm: "boss", boss: ...}`; gửi lại với
   `confirm: true` mới vào trận. Bước vào đá dịch chuyển thì ghi nhớ đá đó và nhận
-  `%{waystone: true}` để client mở bảng chọn nơi đến.
+  `%{waystone: true}` để client mở bảng chọn nơi đến. Bước vào NPC thì nhận `%{npc: id}`
+  để mở hội thoại. Bước vào điểm thu thập thì nhận nguyên liệu.
   """
   def move(p, uid, dir, confirm? \\ false) do
     with {:ok, {dx, dy}} <- Map.fetch(@dirs, dir),
@@ -65,6 +72,7 @@ defmodule HacLong.World do
 
       cond do
         portal = Maps.portal_at(map, tx, ty) -> use_portal(p, uid, portal)
+        npc = Maps.npc_at(map, tx, ty) -> {%{ok: true, npc: npc.id}, p}
         Maps.tile(map, tx, ty) == "F" -> drink_fountain(p)
         Maps.tile(map, tx, ty) == "W" -> touch_waystone(p, map)
         not Maps.walkable?(map, tx, ty) -> {%{ok: false}, p}
@@ -106,6 +114,11 @@ defmodule HacLong.World do
     case MapServer.step(map.id, uid, to, confirm? == true) do
       :ok ->
         {%{ok: true}, put_pos(p, map.id, tx, ty)}
+
+      {:gather, node} ->
+        item = Data.item(node.item)
+        verb = if String.starts_with?(node.item, "ore"), do: "Đào", else: "Hái"
+        {%{ok: true, msg: "#{verb} được #{item.name}."}, Engine.add_item(p, node.item)}
 
       {:confirm_boss, m} ->
         boss = Data.zone(map.zone).boss

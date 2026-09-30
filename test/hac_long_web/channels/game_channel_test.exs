@@ -54,7 +54,11 @@ defmodule HacLongWeb.GameChannelTest do
   test "chạm quái trên bản đồ, chiến đấu và lưu vào database" do
     MapServer.clear_monsters("forest_1")
     user = create_user()
-    player_at(user, %{map: "forest_1", x: 13, y: 16})
+
+    player_at(user, %{map: "forest_1", x: 13, y: 16}, %{
+      quests: %{active: %{"forest_kill" => 0}, done: []}
+    })
+
     {_, socket} = join_game(user)
     assert_push "map", %{map: "forest_1"}
     bat = MapServer.put_monster("forest_1", "bat", {13, 15})
@@ -78,9 +82,14 @@ defmodule HacLongWeb.GameChannelTest do
     assert Characters.load(user.id) == Map.delete(r.player, :view)
     assert r.player.view.derived.maxHp > 0
 
-    if r.player.battle.result == "win",
-      do: assert(MapServer.snapshot("forest_1").monsters == []),
-      else: assert(r.player.pos.map == "home")
+    if r.player.battle.result == "win" do
+      assert MapServer.snapshot("forest_1").monsters == []
+      # hạ Dơi Hang thì nhiệm vụ "Lũ dơi hang" được cộng tiến độ
+      assert r.player.quests.active["forest_kill"] == 1
+      assert Characters.load(user.id).quests.active["forest_kill"] == 1
+    else
+      assert r.player.pos.map == "home"
+    end
 
     r = cmd(socket, %{"act" => "leave"})
     assert r.player.battle == nil

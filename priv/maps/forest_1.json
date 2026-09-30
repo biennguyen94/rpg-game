@@ -58,5 +58,34 @@
       "max": 5,
       "respawn": 25
     }
+  ],
+  "gather": [
+    {
+      "item": "herb",
+      "max": 3,
+      "respawn": 60
+    },
+    {
+      "item": "ore",
+      "max": 1,
+      "respawn": 90
+    }
+  ],
+  "npcs": [
+    {
+      "id": "hunter",
+      "name": "Thợ Săn",
+      "sprite": "hunter",
+      "at": [
+        11,
+        16
+      ],
+      "role": "talk",
+      "lines": [
+        "Số nhỏ cạnh con quái là cấp của nó. Xanh là dễ, vàng là vừa sức, đỏ là tránh xa.",
+        "Đi sâu vào Rừng Mê 2 là có đá dịch chuyển, chạm vào để lần sau khỏi đi bộ.",
+        "Sói Xám ở trong hang cuối rừng. Cấp 5 hãy vào."
+      ]
+    }
   ]
 }

@@ -62,9 +62,22 @@ defmodule HacLong.Game.Characters do
       victory: c.victory,
       battle: c.battle && atomize(c.battle),
       pos: World.valid_pos(%{map: c.map_id, x: c.x, y: c.y}),
-      waystones: Enum.filter(c.waystones || [], &(&1 in Maps.waystone_ids()))
+      waystones: Enum.filter(c.waystones || [], &(&1 in Maps.waystone_ids())),
+      quests: quests(c.quests)
     }
   end
+
+  # Bỏ nhiệm vụ không còn trong dữ liệu game (đổi tên, xóa bớt).
+  defp quests(%{"active" => active, "done" => done}) do
+    known = MapSet.new(Enum.map(HacLong.Game.Data.quests(), & &1.id))
+
+    %{
+      active: Map.filter(active, fn {id, _} -> id in known end),
+      done: Enum.filter(done, &(&1 in known))
+    }
+  end
+
+  defp quests(_), do: HacLong.Game.Quests.empty()
 
   # Tên các trường có trong trận đấu (trận, quái, nhật ký, phần thưởng).
   @battle_keys Map.new(

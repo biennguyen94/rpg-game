@@ -60,6 +60,8 @@
   const portalAt = (m, x, y) => m.portals.find((p) => p.at[0] === x && p.at[1] === y);
   const monsterAt = (x, y) => world.monsters.find((q) => q.x === x && q.y === y);
   const monsterById = (id) => world.monsters.find((q) => q.id === id);
+  const nodeAt = (x, y) => (world.nodes || []).find((n) => n.x === x && n.y === y);
+  const npcAt = (m, x, y) => (m.npcs || []).find((n) => n.at[0] === x && n.at[1] === y);
 
   // Cổng vào vùng chưa mở (P.view.unlocked do server tính).
   function locked(P, portal) {
@@ -73,7 +75,7 @@
     return `
       <div class="map-top">
         <b>${m.name}</b>
-        <span class="small muted">${z ? (P.pos.map.endsWith('_boss') ? `Phòng trùm · cấp ${z.boss.level}` : `Quái cấp ${z.levels}`) : P.pos.map === 'home' ? 'Giếng nước hồi đầy máu' : 'Nghỉ trọ ở tab Hành trình'}</span>
+        <span class="small muted">${z ? (P.pos.map.endsWith('_boss') ? `Phòng trùm · cấp ${z.boss.level}` : `Quái cấp ${z.levels}`) : P.pos.map === 'home' ? 'Giếng nước hồi đầy máu' : 'Bước vào người dân để nói chuyện'}</span>
       </div>
       <div class="map-wrap"><canvas id="map-canvas" aria-label="Bản đồ ${m.name}"></canvas>${overlay || ''}</div>
       <div class="dpad" aria-label="Di chuyển">
@@ -196,6 +198,20 @@
       if (q.busy) label('⚔', px + TILE / 2, py - 12, '#ef6a5a');
     }
 
+    for (const n of here ? world.nodes || [] : []) {
+      const px = Math.round(n.x * TILE - cx), py = Math.round(n.y * TILE - cy);
+      const im = image('nodes/' + n.item);
+      if (im.complete) ctx.drawImage(im, px, py, TILE, TILE);
+    }
+
+    for (const n of m.npcs || []) {
+      const px = Math.round(n.at[0] * TILE - cx), py = Math.round(n.at[1] * TILE - cy);
+      const im = image('npcs/' + n.sprite);
+      if (im.complete) ctx.drawImage(im, px, py, TILE, TILE);
+      labels.push([n.name, px + TILE / 2, py - 14, n.role === 'quests' ? '#f0cf7a' : '#c8f0b0']);
+      if (n.role === 'quests' && P.view.questReady) label('!', px + TILE - 4, py - 2, '#f0cf7a');
+    }
+
     const hero = image('monsters/hero');
     for (const o of here ? world.players : []) {
       if (o.id === userId) continue;
@@ -240,7 +256,7 @@
         const goal = nx === tx && ny === ty;
         const c = tileAt(m, nx, ny);
         if (c == null) continue;
-        if (!goal && (!WALK.has(c) || PORTAL.has(c) || monsterAt(nx, ny))) continue;
+        if (!goal && (!WALK.has(c) || PORTAL.has(c) || monsterAt(nx, ny) || nodeAt(nx, ny) || npcAt(m, nx, ny))) continue;
         prev.set(k, [x, y, dir]);
         if (goal) {
           // lần ngược về ô xuất phát để lấy bước đầu

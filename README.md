@@ -29,7 +29,11 @@ mix test           # chạy test (cần PostgreSQL)
   cổng sang vùng tiếp theo)
 - Chiến đấu theo lượt: tấn công, kỹ năng (có hồi chiêu), uống máu, bỏ chạy
 - Lên cấp nhận 3 điểm tiềm năng để cộng vào Sức mạnh, Thể lực, Nhanh nhẹn, Phòng thủ
-- Cửa hàng vũ khí, giáp, khiên, bình máu; 2 món đồ hiếm chỉ rơi từ trùm
+- NPC trong Làng: Trưởng Làng giao nhiệm vụ, Thợ Rèn bán vũ khí/giáp/khiên, Bà Lang bán và pha
+  thuốc, Chủ Quán Trọ cho nghỉ; mua bán phải đến gặp họ. 2 món đồ hiếm chỉ rơi từ trùm
+- Hái Thảo Dược/Linh Chi, đào Quặng Sắt/Mithril trên bản đồ (dùng chung, mọc lại); mang đi pha
+  thuốc, bán hoặc nộp nhiệm vụ
+- 18 nhiệm vụ: mỗi vùng một việc diệt quái, một việc thu thập, một việc hạ trùm
 - Gục ngã mất 10% vàng và tỉnh dậy ở Nhà; giếng nước ở Nhà hồi máu miễn phí
 - Mỗi tài khoản một nhân vật, lưu sau mỗi thao tác, chơi tiếp được trên thiết bị khác
 
@@ -68,14 +72,15 @@ HacLongWeb.GameChannel ── lệnh {"act": "attack"} ──▶ HacLong.Game.Se
 ## Cấu trúc
 
 ```
-priv/game_data.json                 Dữ liệu game: lớp nhân vật, vùng đất, quái, vật phẩm, cửa hàng
-priv/maps/*.json                    Bản đồ (vẽ bằng ký tự), cổng, chỗ sinh quái, chỗ trùm đứng
+priv/game_data.json                 Dữ liệu game: lớp nhân vật, vùng đất, quái, vật phẩm, công thức, nhiệm vụ
+priv/maps/*.json                    Bản đồ (vẽ bằng ký tự), cổng, NPC, chỗ sinh quái và điểm thu thập
 priv/static/                        Giao diện: index.html, css/, js/ (ui, map, net), assets/
 lib/hac_long/game/data.ex           Đọc game_data.json (giải thích các trường)
 lib/hac_long/game/engine.ex         Luật chơi (hàm thuần)
 lib/hac_long/game/commands.ex       Lệnh từ client → hàm engine
 lib/hac_long/game/session.ex        Tiến trình giữ nhân vật đang online
 lib/hac_long/game/characters.ex     Đọc/ghi bảng characters
+lib/hac_long/game/quests.ex         Nhiệm vụ: nhận, tiến độ, trả và nhận thưởng
 lib/hac_long/game/simulator.ex      Bot chơi thử để kiểm tra cân bằng
 lib/hac_long/world.ex               Đi lại trên bản đồ, qua cổng, chạm quái, kết thúc trận
 lib/hac_long/world/maps.ex          Đọc priv/maps (giải thích định dạng và các ký tự)
@@ -90,6 +95,9 @@ lib/hac_long_web/controllers/       API đăng nhập; trang chủ (chèn dữ l
 - **Thêm quái / vùng / đồ**: sửa `priv/game_data.json`, khởi động lại server. Chỉ số quái được
   tính tự động từ cấp độ (`make_monster` trong `engine.ex`), dùng `mult` để làm một con mạnh
   hoặc yếu hơn. Client nhận dữ liệu này từ server nên không phải sửa gì thêm.
+- **Thêm nhiệm vụ / công thức**: thêm vào `QUESTS` / `RECIPES` trong `priv/game_data.json`
+  (giải thích các trường ở `lib/hac_long/game/data.ex`). Hàng NPC bán nằm ở `stock` của NPC
+  trong `priv/maps/village.json`.
 - **Sửa bản đồ**: sửa `priv/maps/<id>.json` (ý nghĩa các ký tự xem `lib/hac_long/world/maps.ex`),
   rồi chạy `mix test`: test kiểm tra cổng nối hai chiều và chỗ đứng hợp lệ.
 - **Đổi công thức chiến đấu**: `derived`, `make_monster`, `damage` trong `lib/hac_long/game/engine.ex`.
@@ -114,11 +122,14 @@ Kết quả in ra số trận trung bình để thắng, số lần chết và c
 
 Các `act`: `create {name, cls}`, `reset`, `move {dir, confirm?}` (`up`/`down`/`left`/`right`;
 bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: true` để đấu),
-`teleport {to}` (đứng cạnh đá dịch chuyển; bước vào đá thì nhận `waystone: true`), `rest`
-(chỉ ở Làng hoặc Nhà), `attack`, `skill`, `potion`, `flee`, `leave`, `alloc {stat, n}`,
-`equip {id}`, `unequip {slot}`, `use {id}`, `sell {id}`, `buy {id, n}`.
+`teleport {to}` (đứng cạnh đá dịch chuyển; bước vào đá thì nhận `waystone: true`),
+`attack`, `skill`, `potion`, `flee`, `leave`, `alloc {stat, n}`, `equip {id}`,
+`unequip {slot}`, `use {id}`. Bước vào NPC thì nhận `npc: id`; các lệnh sau phải đứng cạnh
+đúng NPC: `buy {id, n}`, `sell {id}` (Thợ Rèn, Bà Lang), `craft {id}` (Bà Lang), `rest`
+(Chủ Quán Trọ), `quest_accept {id}`, `quest_turnin {id}` (Trưởng Làng).
 
-Trạng thái nhân vật có `pos: {map, x, y}` và `waystones` (các đá đã ghi nhớ); khi đang đánh, `battle.encounter` cho biết con quái
+Trạng thái nhân vật có `pos: {map, x, y}`, `waystones` (các đá đã ghi nhớ),
+`quests: {active: {id: số_đã_hạ}, done: [id]}`; khi đang đánh, `battle.encounter` cho biết con quái
 nào trên bản đồ.
 
 ## Production
