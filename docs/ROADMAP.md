@@ -8,19 +8,27 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 Ước lượng công sức: nhỏ (vài giờ), vừa (khoảng một ngày), lớn (nhiều ngày).
 
 1. **CI chạy `mix test` trên GitHub Actions** (nhỏ). Repo chưa có kiểm tra tự động nào.
-2. **Mô phỏng cân bằng có nhiệm vụ** (vừa): cho bot làm nhiệm vụ, việc hằng ngày, tháp, trùm
+2. **Hướng dẫn người mới** (nhỏ): không có nó, người mới vào không biết làm gì và bỏ đi.
+3. **Công cụ quản trị** (vừa) và **chặn/báo cáo người chat xấu** (nhỏ–vừa): cần có trước khi
+   mở game cho người lạ.
+4. **Mô phỏng cân bằng có nhiệm vụ** (vừa): cho bot làm nhiệm vụ, việc hằng ngày, tháp, trùm
    thế giới để đo các nguồn thưởng mới trước khi thêm tính năng cho thêm thưởng.
-3. **Đọc `X-Forwarded-For` khi chạy sau proxy** (nhỏ). Không có thì giới hạn đăng nhập theo IP
+5. **Đọc `X-Forwarded-For` khi chạy sau proxy** (nhỏ). Không có thì giới hạn đăng nhập theo IP
    tính chung mọi người thành IP của proxy.
-4. **Đồ có chỉ số ngẫu nhiên** (vừa), **công dụng cho quặng** (nhỏ–vừa, Thợ Rèn nâng cấp đồ
+6. **Hộp thư** (vừa): báo thưởng nhận lúc vắng mặt; nền cho chợ và quà quản trị.
+7. **Âm thanh** (nhỏ), **câu cá** (nhỏ–vừa), **danh hiệu và thành tựu** (nhỏ–vừa): rẻ mà làm
+   game vui hơn hẳn.
+8. **Đồ có chỉ số ngẫu nhiên** (vừa), **công dụng cho quặng** (nhỏ–vừa, Thợ Rèn nâng cấp đồ
    bằng quặng) và **thêm kỹ năng theo cấp** (vừa): trận đánh hiện gần như chỉ là bấm kỹ năng
    rồi tấn công, và đồ đạc chỉ là mua món tốt hơn.
-5. **Hiệu ứng trạng thái** (vừa), **chuyển sinh** (nhỏ–vừa).
-6. **Chặn/báo cáo người chat xấu** (nhỏ–vừa).
-7. **Rương** (nhỏ), **trang trí nhà** (vừa–lớn).
-8. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
-   **chợ giữa người chơi** (lớn).
-9. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
+9. **Hiệu ứng trạng thái** (vừa), **chuyển sinh** (nhỏ–vừa), **sổ tay quái vật** (nhỏ),
+   **ngày và đêm** (nhỏ).
+10. **Bang hội** (lớn), **tổ đội** (vừa–lớn): giữ người chơi lâu dài.
+11. **Rương** (nhỏ), **trang trí nhà** (vừa–lớn), **nhân vật mặc đúng đồ** (vừa),
+    **thú cưng** (vừa).
+12. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
+    **chợ giữa người chơi** (lớn).
+13. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
 
 ---
 
@@ -39,6 +47,12 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [ ] **Chạy sau proxy** (nginx, load balancer): thêm plug đọc `X-Forwarded-For` để giới hạn
   theo IP thật.
 - [ ] **CI**: chạy `mix test` trên GitHub Actions.
+- [ ] **Hướng dẫn người mới**: chuỗi việc tân thủ ngắn ("Ra khỏi nhà" → "Gặp Trưởng Làng" →
+  "Hạ 3 Dơi Hang"), mũi tên chỉ đường trên bản đồ. Hiện nhân vật mới đứng ở Nhà mà không biết
+  chạm vào quái để đánh hay gặp NPC để nhận việc.
+- [ ] **Công cụ quản trị**: trang chỉ tài khoản admin vào được: khóa tài khoản, cấm chat có
+  thời hạn, xem và xử lý báo cáo, gọi trùm thế giới, gửi thông báo cho cả server, gửi quà
+  (qua hộp thư). Hiện muốn làm những việc này phải sửa thẳng database.
 
 ## B. Giữ người chơi quay lại
 
@@ -54,6 +68,11 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   trùm tầng; hạ hết quái thì lên tầng và nhận thưởng; máu không tự hồi, gục ngã là hết lượt;
   vượt mỗi 10 tầng thì lần sau vào thẳng được.
 - [ ] **Chuyển sinh**: về cấp 1, nhận chỉ số cộng thêm vĩnh viễn.
+- [ ] **Danh hiệu và thành tựu**: vd. "Diệt 1.000 quái", "Leo tháp tầng 30", "Top 3 trùm thế
+  giới", "Hạ Hắc Long". Mỗi thành tựu cho một danh hiệu hiện cạnh tên trong chat và bảng xếp
+  hạng. Dữ liệu để đếm phần lớn đã có (kills, bosses, tower_best...).
+- [ ] **Sổ tay quái vật**: ghi số con đã hạ của từng loài; hạ đủ mốc (vd. 100 con) thì được
+  thưởng nhỏ, vd. +1% sát thương lên loài đó. Cho lý do quay lại các vùng thấp.
 
 ## C. Làm game sâu hơn
 
@@ -77,6 +96,14 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [ ] **PvP bất đồng bộ**: đánh với bản sao chỉ số của người chơi khác (đấu trường).
 - [ ] **Chợ giữa người chơi**: rao bán đồ; phải dùng transaction trong database để không bị
   nhân đôi đồ.
+- [ ] **Hộp thư**: thư hệ thống kèm quà (vàng, đồ). Dùng để báo thưởng trùm thế giới nhận lúc
+  vắng mặt (hiện vẫn nhận nhưng không có gì báo), nhận tiền khi bán được đồ ở chợ, quà quản trị.
+- [ ] **Bang hội**: lập/vào bang, kênh chat riêng của bang, quỹ bang, bảng xếp hạng bang (vd.
+  tổng sát thương lên trùm thế giới). Có trong kế hoạch ban đầu ("chat, clan, PvP") nhưng bị
+  sót khi viết lộ trình này.
+- [ ] **Tổ đội**: mời người khác vào nhóm, đánh chung một trận với một con quái, chia kinh
+  nghiệm; việc hằng ngày và nhiệm vụ tính cho cả nhóm. Hiện ngoài trùm thế giới thì ai cũng
+  đánh một mình.
 - [ ] **Chạm vào người chơi khác** để xem thông tin, mời PvP hoặc giao dịch (hiện người chơi
   đi xuyên qua nhau, chạm vào không có gì).
 
@@ -90,8 +117,23 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [x] **Giai đoạn 3**: NPC ở Làng thay tab Cửa hàng; điểm thu thập; nhiệm vụ.
 - [ ] **Giai đoạn 4**: trang trí nhà, rương mở mỗi ngày một lần. (Trùm thế giới trên bản đồ,
   dự tính cho giai đoạn này, đã làm ở mục D.)
+- [ ] **Câu cá** ở hồ giữa Làng (hiện chỉ để trang trí): trò chơi nhỏ bấm đúng lúc phao chìm,
+  câu được cá để bán, thỉnh thoảng vớt được đồ hiếm. Việc nhẹ nhàng để làm lúc chờ trùm thế giới
+  hay ngồi chat.
+- [ ] **Ngày và đêm**: bản đồ tối dần theo giờ thật (giờ Việt Nam); ban đêm có quái hiếm xuất
+  hiện, rơi nhiều đồ hơn.
 
-## F. Khác
+## F. Hình ảnh và âm thanh
+
+- [ ] **Âm thanh**: tiếng đánh, chí mạng, lên cấp, nhận thưởng, bước chân, nhạc nền nhẹ; có nút
+  tắt. Dùng các bộ âm thanh CC0. Hiện game hoàn toàn im lặng.
+- [ ] **Nhân vật mặc đúng đồ đang trang bị**: ghép hình áo giáp, vũ khí, khiên lên hình nhân
+  vật (bộ tile Dungeon Crawl có sẵn các phần này ở `player/`, phải đối chiếu danh sách chưa rõ
+  giấy phép như các hình khác). Hiện ai cũng cùng một hình.
+- [ ] **Thú cưng**: thuần phục quái đã hạ nhiều lần, cho đi theo sau nhân vật trên bản đồ, có
+  thể hỗ trợ đánh.
+
+## G. Khác
 
 - [ ] **Đóng gói app Android** (PWA hoặc Capacitor).
 - [ ] **Mô phỏng cân bằng có nhiệm vụ**: bot `mix hac_long.simulate` chưa làm nhiệm vụ, việc
