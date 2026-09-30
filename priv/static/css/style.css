@@ -305,3 +305,7 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 .card.tut { border-color: #8a6d2a; background: linear-gradient(#2b2415, var(--ink-2)); margin-bottom: 10px; gap: 6px; }
 .card.tut .row { align-items: center; gap: 8px; }
 .small-btn { padding: 4px 10px; font-size: 0.8rem; }
+
+/* Chặn/báo cáo trong chat */
+.chat-name { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: #b9d7ff; cursor: pointer; text-decoration: underline dotted; }
+.chat-menu { display: flex; gap: 6px; margin: 4px 0 2px; flex-wrap: wrap; }

@@ -144,6 +144,14 @@
 
     // Bảng xếp hạng: { level, kills, dragon, me }.
     leaderboard() { return push('leaderboard', {}); },
+
+    // Chặn / bỏ chặn chat của một người (trả { blocked }); báo cáo một tin nhắn.
+    block(uid) { return push('block', { uid }); },
+    unblock(uid) { return push('unblock', { uid }); },
+    report(id) { return push('report', { id }); },
+
+    // Lệnh quản trị (chỉ tài khoản quản trị).
+    admin(op, payload) { return push('admin', Object.assign({ op }, payload || {})); },
     // Nhân vật thay đổi từ tab/thiết bị khác.
     onPlayer(f) { cb.player = f; },
     // Quái và người chơi trên bản đồ đang đứng thay đổi.

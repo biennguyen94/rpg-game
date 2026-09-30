@@ -13,10 +13,15 @@ defmodule HacLongWeb.GameChannel do
   - `"leaderboard"`: trả về các bảng xếp hạng và hạng của mình.
   - Server đẩy `"world_boss"` (trạng thái trùm thế giới: còn sống, máu, top sát thương) mỗi
     khi thay đổi, và `"notice"` (`%{msg}`) khi có thông báo riêng (vd. nhận thưởng trùm).
+  - `"block"` / `"unblock"` `%{"uid"}`: ẩn/hiện chat của một người; `"report"` `%{"id"}`: báo
+    cáo một tin nhắn chat.
+  - `"admin"` `%{"op" => ...}` (chỉ tài khoản quản trị): xem/xử lý báo cáo, tra cứu, cấm chat,
+    khóa tài khoản, thông báo, gọi trùm thế giới. Xem `admin/3`.
   """
+  require Logger
   use HacLongWeb, :channel
 
-  alias HacLong.{Chat, Leaderboard, RateLimit, WorldBoss}
+  alias HacLong.{Accounts, Chat, Leaderboard, Moderation, RateLimit, WorldBoss}
   alias HacLong.Game.{Daily, Data, Engine, Quests, Session, Tutorial}
   alias HacLong.World.{Maps, MapServer}
 
@@ -28,9 +33,17 @@ defmodule HacLongWeb.GameChannel do
     Phoenix.PubSub.subscribe(HacLong.PubSub, WorldBoss.topic())
     player = Session.attach(uid, self())
     send(self(), :push_map)
+    blocked = Moderation.blocked(uid)
 
-    {:ok, %{username: socket.assigns.username, user_id: uid, player: present(player)},
-     assign(socket, :map, nil)}
+    reply = %{
+      username: socket.assigns.username,
+      user_id: uid,
+      admin: socket.assigns[:admin] == true,
+      blocked: blocked,
+      player: present(player)
+    }
+
+    {:ok, reply, socket |> assign(:map, nil) |> assign(:blocked, MapSet.new(blocked, & &1.id))}
   end
 
   @impl true
@@ -44,6 +57,7 @@ defmodule HacLongWeb.GameChannel do
     uid = socket.assigns.user_id
 
     with :ok <- chat_limit(uid),
+         :ok <- not_muted(uid),
          %{} = p <- Session.get(uid) || {:error, "Hãy tạo nhân vật trước."},
          {:ok, _msg} <- Chat.post(%{uid: uid, name: p.name, map: p.pos.map}, text) do
       {:reply, :ok, socket}
@@ -65,7 +79,134 @@ defmodule HacLongWeb.GameChannel do
     end
   end
 
+  def handle_in("block", %{"uid" => id}, socket) when is_integer(id) do
+    uid = socket.assigns.user_id
+
+    case Moderation.block(uid, id) do
+      :ok ->
+        {:reply, {:ok, %{blocked: Moderation.blocked(uid)}},
+         assign(socket, :blocked, MapSet.put(socket.assigns.blocked, id))}
+
+      {:error, msg} ->
+        {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("unblock", %{"uid" => id}, socket) when is_integer(id) do
+    uid = socket.assigns.user_id
+    Moderation.unblock(uid, id)
+
+    {:reply, {:ok, %{blocked: Moderation.blocked(uid)}},
+     assign(socket, :blocked, MapSet.delete(socket.assigns.blocked, id))}
+  end
+
+  def handle_in("report", %{"id" => id}, socket) when is_integer(id) do
+    uid = socket.assigns.user_id
+
+    with :ok <- limit({:report, uid}, 10, :timer.minutes(10)),
+         :ok <- Moderation.report(uid, id) do
+      {:reply, :ok, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("admin", %{"op" => op} = p, %{assigns: %{admin: true}} = socket) do
+    Logger.info("quản trị #{socket.assigns.username}: #{op} #{inspect(Map.delete(p, "op"))}")
+
+    case admin(op, p, socket) do
+      {:ok, data} -> {:reply, {:ok, data}, socket}
+      :ok -> {:reply, {:ok, %{}}, socket}
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("admin", _p, socket), do: {:reply, {:error, %{msg: "Không có quyền."}}, socket}
+
   def handle_in(_event, _payload, socket), do: {:reply, {:error, %{msg: "Sai cú pháp."}}, socket}
+
+  # ---------- Quản trị ----------
+
+  defp admin("reports", _p, _s), do: {:ok, %{reports: Moderation.open_reports()}}
+
+  defp admin("lookup", %{"name" => name}, _s) do
+    case Moderation.find_user(name) do
+      nil -> {:error, "Không tìm thấy \"#{name}\"."}
+      u -> {:ok, %{user: Moderation.info(u)}}
+    end
+  end
+
+  defp admin("resolve", %{"id" => id, "action" => action} = p, s)
+       when action in ~w(dismiss mute ban) do
+    report = Enum.find(Moderation.open_reports(), &(&1.id == id))
+
+    cond do
+      report == nil ->
+        {:error, "Báo cáo không còn."}
+
+      action == "dismiss" ->
+        Moderation.resolve(id, s.assigns.user_id, action)
+
+      true ->
+        with :ok <- punish(action, report.target_id, p),
+             do: Moderation.resolve(id, s.assigns.user_id, action)
+    end
+  end
+
+  defp admin(op, %{"uid" => id} = p, _s)
+       when op in ~w(mute unmute ban unban) and is_integer(id) do
+    case op do
+      "unmute" -> Moderation.unmute(id)
+      "unban" -> Moderation.unban(id)
+      _ -> punish(op, id, p)
+    end
+  end
+
+  defp admin("announce", %{"text" => text}, _s) when is_binary(text) and text != "" do
+    Chat.system("📢 " <> String.slice(String.trim(text), 0, 200))
+    :ok
+  end
+
+  defp admin("world_boss", _p, _s), do: {:ok, %{status: WorldBoss.spawn_now()}}
+
+  defp admin(_op, _p, _s), do: {:error, "Lệnh quản trị không hợp lệ."}
+
+  # `minutes`: số phút, hoặc nil/0 là vĩnh viễn
+  defp punish("mute", id, p), do: Moderation.mute(id, minutes(p))
+
+  defp punish("ban", id, p) do
+    with :ok <- Moderation.ban(id, minutes(p), p["reason"]) do
+      # đăng xuất ngay mọi thiết bị đang mở game
+      HacLongWeb.Endpoint.broadcast("user_socket:#{id}", "disconnect", %{})
+      :ok
+    end
+  end
+
+  defp minutes(%{"minutes" => m}) when is_integer(m) and m > 0, do: m
+  defp minutes(_), do: nil
+
+  defp not_muted(uid) do
+    user = Accounts.get_user(uid)
+
+    if Accounts.muted?(user) do
+      until =
+        if user.muted_until.year >= 9999,
+          do: "vĩnh viễn",
+          else:
+            "đến " <> Calendar.strftime(DateTime.add(user.muted_until, 7 * 3600), "%H:%M %d/%m")
+
+      {:error, "Bạn đang bị cấm chat #{until}."}
+    else
+      :ok
+    end
+  end
+
+  defp limit(key, n, window) do
+    case RateLimit.hit(key, n, window) do
+      :ok -> :ok
+      {:error, _} -> {:error, "Thao tác quá nhanh."}
+    end
+  end
 
   # 5 tin mỗi 10 giây, chống spam.
   defp chat_limit(uid) do
@@ -77,7 +218,10 @@ defmodule HacLongWeb.GameChannel do
 
   @impl true
   def handle_info(:push_map, socket) do
-    push(socket, "chat_history", %{messages: Chat.history()})
+    push(socket, "chat_history", %{
+      messages: Enum.reject(Chat.history(), &(&1.uid in socket.assigns.blocked))
+    })
+
     push(socket, "world_boss", WorldBoss.status())
     {:noreply, follow_map(socket, Session.get(socket.assigns.user_id))}
   end
@@ -93,7 +237,7 @@ defmodule HacLongWeb.GameChannel do
   end
 
   def handle_info({:chat, msg}, socket) do
-    push(socket, "chat", msg)
+    unless msg.uid in socket.assigns.blocked, do: push(socket, "chat", msg)
     {:noreply, socket}
   end
 

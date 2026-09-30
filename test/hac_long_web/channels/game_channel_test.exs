@@ -355,6 +355,110 @@ defmodule HacLongWeb.GameChannelTest do
     assert Enum.any?(MapServer.snapshot("village").players, &(&1.id == user.id))
   end
 
+  describe "chặn, báo cáo, quản trị" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    defp chatter do
+      u = create_user()
+      p = player_at(u, %{map: "village", x: 12, y: 14})
+      {reply, socket} = join_game(u)
+      {u, p, reply, socket}
+    end
+
+    defp say(socket, text) do
+      ref = push(socket, "chat", %{"text" => text})
+      assert_reply ref, status, payload
+      {status, payload}
+    end
+
+    test "chặn thì không thấy chat của người đó; báo cáo lấy đúng nội dung từ server" do
+      {_ua, _pa, reply, sa} = chatter()
+      assert reply.admin == false and reply.blocked == []
+      {ub, pb, _, sb} = chatter()
+
+      {:ok, _} = say(sb, "câu nói xấu")
+      assert_push "chat", %{text: "câu nói xấu", id: msg_id, uid: uid}
+      assert uid == ub.id
+
+      # báo cáo: chỉ gửi id, nội dung lấy từ lịch sử chat trên server
+      ref = push(sa, "report", %{"id" => msg_id})
+      assert_reply ref, :ok
+      assert [%{text: "câu nói xấu", target: target}] = HacLong.Moderation.open_reports()
+      assert target == pb.name
+      ref = push(sa, "report", %{"id" => 999_999})
+      assert_reply ref, :error, %{msg: "Tin nhắn đã quá cũ để báo cáo."}
+
+      ref = push(sa, "block", %{"uid" => ub.id})
+      assert_reply ref, :ok, %{blocked: [%{id: id}]}
+      assert id == ub.id
+      # tin của B vẫn đến kênh B, nhưng kênh A không nhận
+      {:ok, _} = say(sb, "sau khi bị chặn")
+      assert_push "chat", %{text: "sau khi bị chặn"}
+      refute_push "chat", %{text: "sau khi bị chặn"}
+
+      ref = push(sa, "unblock", %{"uid" => ub.id})
+      assert_reply ref, :ok, %{blocked: []}
+    end
+
+    test "người thường không gọi được lệnh quản trị" do
+      {_u, _p, _r, socket} = chatter()
+      ref = push(socket, "admin", %{"op" => "reports"})
+      assert_reply ref, :error, %{msg: "Không có quyền."}
+    end
+
+    test "quản trị: xử lý báo cáo bằng cấm chat, khóa và mở khóa tài khoản" do
+      {ua, _pa, _, sa} = chatter()
+      {ub, pb, _, sb} = chatter()
+      admin = create_user()
+      {:ok, _} = HacLong.Moderation.set_admin(admin.username, true)
+      admin = HacLong.Accounts.get_user(admin.id)
+      player_at(admin, %{map: "village", x: 11, y: 14})
+      {reply, sadm} = join_game(admin)
+      assert reply.admin
+
+      {:ok, _} = say(sb, "spam quảng cáo")
+      assert_push "chat", %{text: "spam quảng cáo", id: msg_id}
+      ref = push(sa, "report", %{"id" => msg_id})
+      assert_reply ref, :ok
+
+      ref = push(sadm, "admin", %{"op" => "reports"})
+      assert_reply ref, :ok, %{reports: [%{id: rid, target_id: tid}]}
+      assert tid == ub.id
+
+      ref =
+        push(sadm, "admin", %{"op" => "resolve", "id" => rid, "action" => "mute", "minutes" => 30})
+
+      assert_reply ref, :ok
+      assert HacLong.Moderation.open_reports() == []
+      {:error, %{msg: msg}} = say(sb, "còn nói được không")
+      assert msg =~ "cấm chat"
+
+      ref = push(sadm, "admin", %{"op" => "lookup", "name" => pb.name})
+      assert_reply ref, :ok, %{user: %{id: ^tid, muted_until: %DateTime{}}}
+
+      # khóa tài khoản: đăng nhập bị từ chối, token cũ hết hiệu lực, kết nối bị ngắt
+      token = HacLong.Accounts.sign_token(ub)
+      @endpoint.subscribe("user_socket:#{ub.id}")
+      ref = push(sadm, "admin", %{"op" => "ban", "uid" => ub.id, "reason" => "spam"})
+      assert_reply ref, :ok
+      assert_receive %Phoenix.Socket.Broadcast{event: "disconnect", topic: "user_socket:" <> _}
+      assert {:error, :invalid} = HacLong.Accounts.verify_token(token)
+      assert {:error, {:banned, _}} = HacLong.Accounts.authenticate(ub.username, "matkhau1")
+
+      ref = push(sadm, "admin", %{"op" => "unban", "uid" => ub.id})
+      assert_reply ref, :ok
+      assert {:ok, _} = HacLong.Accounts.authenticate(ub.username, "matkhau1")
+
+      ref = push(sadm, "admin", %{"op" => "announce", "text" => "Bảo trì lúc 22 giờ"})
+      assert_reply ref, :ok
+      assert_push "chat", %{uid: 0, text: "📢 Bảo trì lúc 22 giờ"}
+      _ = ua
+    end
+  end
+
   test "người chơi khác thấy nhau trên bản đồ, tab đóng thì rời bản đồ" do
     a = create_user()
     b = create_user()

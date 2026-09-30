@@ -20,7 +20,7 @@ defmodule HacLong.Accounts do
 
     cond do
       user && Pbkdf2.verify_pass(password, user.password_hash) ->
-        {:ok, user}
+        if banned?(user), do: {:error, {:banned, user}}, else: {:ok, user}
 
       user ->
         {:error, :invalid}
@@ -33,6 +33,14 @@ defmodule HacLong.Accounts do
   end
 
   def authenticate(_, _), do: {:error, :invalid}
+
+  @doc "Tài khoản đang bị khóa?"
+  def banned?(%User{banned_until: nil}), do: false
+  def banned?(%User{banned_until: t}), do: DateTime.compare(t, DateTime.utc_now()) == :gt
+
+  @doc "Đang bị cấm chat?"
+  def muted?(%User{muted_until: nil}), do: false
+  def muted?(%User{muted_until: t}), do: DateTime.compare(t, DateTime.utc_now()) == :gt
 
   # ---------- Token đăng nhập ----------
   # Token là chuỗi ngẫu nhiên 32 byte; database chỉ giữ mã băm của nó. Mỗi lần đăng nhập
@@ -55,7 +63,8 @@ defmodule HacLong.Accounts do
                join: u in assoc(t, :user),
                where: t.token_hash == ^hash(raw) and t.inserted_at > ^cutoff,
                select: u
-           ) do
+           ),
+         false <- banned?(user) do
       {:ok, user}
     else
       _ -> {:error, :invalid}

@@ -20,6 +20,9 @@
   let chats = [];        // tin chat gần nhất
   let chatDraft = '';    // chữ đang gõ dở (giữ lại khi vẽ lại trang)
   let board = { kind: 'level', data: null, at: 0 }; // bảng xếp hạng
+  let chatMenu = null;   // id tin nhắn đang mở menu Báo cáo/Chặn
+  let blocked = [];      // người mình đã chặn: [{ id, name }]
+  let adm = { reports: null, user: null, loading: false }; // tab Quản trị
   let wb = { alive: false }; // trùm thế giới; `skew`: lệch đồng hồ máy chủ - máy này
   const Map_ = window.MapView;
 
@@ -78,14 +81,81 @@
       ['hero', 'person', 'Nhân vật'],
       ['bag', 'backpack', 'Túi đồ'],
       ['quests', 'scroll-unfurled', 'Nhiệm vụ'],
-    ].map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + Map_.html(P, viewDialog()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests }[tab])();
+    ].concat(Net.isAdmin ? [['admin', 'crowned-skull', 'Quản trị']] : []).map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
+    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + Map_.html(P, viewDialog()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests, admin: viewAdmin }[tab])();
     if (tab === 'map' && !npc) {
       Map_.mount(() => P);
       const log = $('#chat-log');
       if (log) log.scrollTop = log.scrollHeight;
     }
     if (tab === 'town') loadBoard();
+    if (tab === 'admin' && adm.reports == null && !adm.loading) loadReports();
+  }
+
+  // ---------- Quản trị ----------
+  const vnTime = (t) => (!t ? '' : new Date(t).getFullYear() >= 9999 ? 'vĩnh viễn' : 'đến ' + new Date(t).toLocaleString('vi-VN'));
+
+  async function loadReports() {
+    adm.loading = true;
+    try { adm.reports = (await Net.admin('reports')).reports; } catch (e) { toast(e.msg, true); }
+    adm.loading = false;
+    if (tab === 'admin') render();
+  }
+
+  function viewAdmin() {
+    const reports = adm.reports == null ? '<p class="small muted">Đang tải…</p>'
+      : adm.reports.length === 0 ? '<p class="small muted">Không có báo cáo nào chưa xử lý.</p>'
+      : `<div class="list">${adm.reports.map((r) => `<div class="item quest"><div class="grow">
+          <div class="name">${esc(r.target)}</div>
+          <div>“${esc(r.text)}”</div>
+          <div class="small muted">Báo cáo bởi ${esc(r.reporter)} · ${new Date(r.at).toLocaleString('vi-VN')}</div>
+          <div class="btn-row"><button class="btn small-btn" data-adm="resolve" data-id="${r.id}" data-action="dismiss">Bỏ qua</button>
+            <button class="btn small-btn" data-adm="resolve" data-id="${r.id}" data-action="mute" data-minutes="60">Cấm chat 1 giờ</button>
+            <button class="btn small-btn danger" data-adm="resolve" data-id="${r.id}" data-action="ban" data-minutes="1440">Khóa 1 ngày</button></div>
+        </div></div>`).join('')}</div>`;
+    const u = adm.user;
+    const user = !u ? '' : `<div class="card">
+        <div class="row"><h3 class="grow">${esc(u.character ? u.character.name : u.username)}</h3><span class="small muted">@${esc(u.username)}</span></div>
+        <p class="small">${u.character ? `Cấp ${u.character.level} · ${fmt(u.character.gold)} vàng · ${fmt(u.character.kills)} quái` : 'Chưa có nhân vật'} · bị báo cáo ${u.reports} lần</p>
+        <p class="small">${u.banned_until ? `<span style="color:var(--bad)">Bị khóa ${vnTime(u.banned_until)}${u.ban_reason ? ': ' + esc(u.ban_reason) : ''}</span>` : 'Không bị khóa'} · ${u.muted_until ? `<span style="color:var(--bad)">Bị cấm chat ${vnTime(u.muted_until)}</span>` : 'Được chat'}</p>
+        <div class="btn-row">
+          <button class="btn small-btn" data-adm="mute" data-uid="${u.id}" data-minutes="60">Cấm chat 1 giờ</button>
+          <button class="btn small-btn" data-adm="mute" data-uid="${u.id}" data-minutes="1440">Cấm chat 1 ngày</button>
+          <button class="btn small-btn" data-adm="unmute" data-uid="${u.id}">Bỏ cấm chat</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn small-btn danger" data-adm="ban" data-uid="${u.id}" data-minutes="1440">Khóa 1 ngày</button>
+          <button class="btn small-btn danger" data-adm="ban" data-uid="${u.id}">Khóa vĩnh viễn</button>
+          <button class="btn small-btn" data-adm="unban" data-uid="${u.id}">Mở khóa</button>
+        </div>
+      </div>`;
+    return `<h2 class="display">Quản trị</h2>
+      <div class="card"><div class="row"><h3 class="grow">Báo cáo chưa xử lý</h3><button class="btn small-btn" data-adm="reload">Tải lại</button></div>${reports}</div>
+      <div class="card"><h3>Tra cứu người chơi</h3>
+        <form id="adm-lookup" class="chat-form"><input type="text" id="adm-name" placeholder="Tên nhân vật hoặc tên đăng nhập" autocomplete="off"><button class="btn" type="submit">Tìm</button></form>
+      </div>
+      ${user}
+      <div class="card"><h3>Thông báo cho cả server</h3>
+        <form id="adm-announce" class="chat-form"><input type="text" id="adm-text" maxlength="200" placeholder="Nội dung thông báo" autocomplete="off"><button class="btn" type="submit">Gửi</button></form>
+      </div>
+      <div class="card"><h3>Trùm thế giới</h3><button class="btn" data-adm="world_boss">Gọi Cổ Long xuất hiện ngay</button></div>`;
+  }
+
+  async function onAdmin(t) {
+    const d = t.dataset, op = d.adm;
+    if (op === 'reload') { adm.reports = null; render(); return loadReports(); }
+    const payload = {};
+    if (d.id) payload.id = +d.id;
+    if (d.uid) payload.uid = +d.uid;
+    if (d.action) payload.action = d.action;
+    if (d.minutes) payload.minutes = +d.minutes;
+    try {
+      await Net.admin(op, payload);
+      toast('Đã xong.');
+      if (op === 'resolve') adm.reports = adm.reports.filter((r) => r.id !== payload.id);
+      if (adm.user && payload.uid === adm.user.id) adm.user = (await Net.admin('lookup', { name: adm.user.username })).user;
+      render();
+    } catch (e) { toast(e.msg, true); }
   }
 
   // Bảng nổi trên bản đồ: hỏi đấu trùm, chọn nơi dịch chuyển.
@@ -159,7 +229,10 @@
   function chatLine(m) {
     if (!m.uid) return `<div class="chat-line system">${esc(m.text)}</div>`;
     const mine = m.uid === Net.userId;
-    return `<div class="chat-line ${mine ? 'mine' : ''}"><b>${esc(m.name)}</b> <span class="muted small">${esc(mapName(m.map))}</span> ${esc(m.text)}</div>`;
+    const name = mine ? `<b>${esc(m.name)}</b>` : `<button class="chat-name" data-chat="${m.id}">${esc(m.name)}</button>`;
+    const menu = chatMenu === m.id
+      ? `<div class="chat-menu"><button class="btn small-btn" data-act="chat-report" data-id="${m.id}">Báo cáo tin này</button><button class="btn small-btn" data-act="chat-block" data-uid="${m.uid}">Chặn ${esc(m.name)}</button></div>` : '';
+    return `<div class="chat-line ${mine ? 'mine' : ''}">${name} <span class="muted small">${esc(mapName(m.map))}</span> ${esc(m.text)}${menu}</div>`;
   }
 
   function viewChat() {
@@ -366,6 +439,7 @@
           <button class="btn primary" type="submit">Lưu mật khẩu mới</button>
         </form>` : ''}
         <button class="btn" data-act="logout-all" style="margin-bottom:8px">Đăng xuất mọi thiết bị</button>
+        ${blocked.length ? `<p class="small muted">Đã chặn chat:</p><div class="list">${blocked.map((b) => `<div class="item"><span class="grow">${esc(b.name)}</span><button class="btn small-btn" data-act="unblock" data-uid="${b.id}">Bỏ chặn</button></div>`).join('')}</div>` : ''}
         ${confirmReset
           ? `<p class="small" style="color:var(--bad)">Xóa nhân vật ${esc(P.name)} và chơi lại từ đầu? Không thể hoàn tác.</p>
              <div class="btn-row"><button class="btn" data-act="reset-cancel">Giữ lại</button><button class="btn danger" data-act="reset-yes">Xóa và chơi lại</button></div>`
@@ -818,7 +892,7 @@
 
   function enter(r) {
     P = r ? r.player : null;
-    if (r) { Map_.setUser(r.user_id); Net.userId = r.user_id; }
+    if (r) { Map_.setUser(r.user_id); Net.userId = r.user_id; Net.isAdmin = r.admin; blocked = r.blocked || []; }
     tab = 'map';
     loading = false;
     render();
@@ -843,6 +917,19 @@
     const act = t.dataset.act;
     if (act === 'logout') return logout();
     if (act === 'pw-toggle') { pwForm = !pwForm; render(); return; }
+    if (t.dataset.adm) { onAdmin(t); return; }
+    if (t.dataset.chat) { chatMenu = chatMenu === +t.dataset.chat ? null : +t.dataset.chat; const log = $('#chat-log'); if (log) log.innerHTML = chats.map(chatLine).join(''); return; }
+    if (act === 'chat-report') { Net.report(+t.dataset.id).then(() => toast('Đã gửi báo cáo. Cảm ơn bạn.')).catch((e) => toast(e.msg, true)); chatMenu = null; return; }
+    if (act === 'chat-block' || act === 'unblock') {
+      const uid = +t.dataset.uid;
+      (act === 'unblock' ? Net.unblock(uid) : Net.block(uid)).then((r) => {
+        blocked = r.blocked;
+        if (act === 'chat-block') { chats = chats.filter((m) => m.uid !== uid); toast('Đã chặn. Bạn sẽ không thấy chat của người này.'); }
+        chatMenu = null;
+        render();
+      }).catch((e) => toast(e.msg, true));
+      return;
+    }
     if (act === 'logout-all') {
       Net.logoutAll().then(() => { P = null; render(); toast('Đã đăng xuất mọi thiết bị.'); }).catch((err) => toast(err.msg, true));
       return;
@@ -888,6 +975,16 @@
     if (e.target.id === 'auth') { e.preventDefault(); onAuth(); return; }
     if (e.target.id === 'pw-form') { e.preventDefault(); onPassword(); return; }
     if (e.target.id === 'chat-form') { e.preventDefault(); onChatSubmit(); return; }
+    if (e.target.id === 'adm-lookup') {
+      e.preventDefault();
+      Net.admin('lookup', { name: $('#adm-name').value }).then((r) => { adm.user = r.user; render(); }).catch((err) => toast(err.msg, true));
+      return;
+    }
+    if (e.target.id === 'adm-announce') {
+      e.preventDefault();
+      Net.admin('announce', { text: $('#adm-text').value }).then(() => { toast('Đã gửi thông báo.'); $('#adm-text').value = ''; }).catch((err) => toast(err.msg, true));
+      return;
+    }
     if (e.target.id !== 'create') return;
     e.preventDefault();
     const name = $('#hero-name').value.trim();
