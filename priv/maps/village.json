@@ -271,6 +271,20 @@
         "Mấy đứa nhỏ này ngoan lắm, dắt theo đi săn là có ích ngay.",
         "Mỗi con một tài, cậu cứ chọn con hợp ý."
       ]
+    },
+    {
+      "id": "merchant",
+      "name": "Chủ Chợ",
+      "sprite": "merchant",
+      "at": [
+        7,
+        15
+      ],
+      "role": "market",
+      "lines": [
+        "Ai có đồ tốt thì mang ra đây rao, ai cần thì vào mua. Chợ lấy 5% phí thôi.",
+        "Bán được thì tiền gửi về hộp thư, khỏi phải ngồi chờ."
+      ]
     }
   ],
   "spawns": []

@@ -28,7 +28,8 @@
   let guildUi = { open: false, list: null, requested: [], info: null, q: '', confirm: null }; // bang hội
   let chatTo = 'world';  // 'world' | 'guild' | 'party'
   let party = null;      // tổ đội: { id, leader, members: [{ id, name, level, hp, maxHp, map }], max }
-  let arena = null;      // đấu trường: { me, suggestions, top }
+  let arena = null;
+  let market = { tab: 'buy', data: null, q: '', loading: false }; // chợ ở Chủ Chợ      // đấu trường: { me, suggestions, top }
   let fishing = null;
   let sharedN = 1;       // số người trong trận đánh chung đang đánh
   let decor = { on: false, pick: null }; // trang trí nhà: đang bật, món đang chọn để đặt    // lượt câu: { phase: 'wait' | 'bite', timers: [] }
@@ -395,6 +396,49 @@
     render();
     try { dialog = { type: 'player', info: await Net.inspect(o.id) }; } catch (e) { toast(e.msg, true); dialog = null; }
     render();
+  }
+
+  // ---------- Chợ ----------
+  async function loadMarket() {
+    if (market.loading) return;
+    market.loading = true;
+    try { market.data = await Net.market(market.q); } catch (e) { toast(e.msg, true); }
+    market.loading = false;
+    if (npc) render();
+  }
+
+  // món hàng: đồ thường (item, count) hoặc đồ chỉ số ngẫu nhiên (gear)
+  function listingRow(l, right, showSeller) {
+    const it = l.gear || ITEMS[l.item];
+    const name = l.gear ? `<span class="rar-${l.gear.rarity}">${esc(l.name)}</span>${l.gear.up ? ` <span class="up-lv">+${l.gear.up}</span>` : ''}` : esc(l.name);
+    const detail = l.gear ? itemStat(l.gear) : it.slot === 'material' ? it.desc : itemStat(it);
+    return `<div class="item">${itemIcon(it, l.gear && l.gear.rarity)}<div class="grow">
+      <div class="name">${name}${l.count > 1 ? ` <span class="muted num">×${l.count}</span>` : ''}</div>
+      <div class="small muted">${detail}${showSeller ? ` · người bán ${esc(l.seller)}` : ''}</div></div>${right}</div>`;
+  }
+
+  function viewMarket() {
+    if (!market.data) { loadMarket(); return '<div class="card"><p class="small muted">Đang tải chợ…</p></div>'; }
+    const d = market.data, mine = d.listings.filter((l) => l.mine), others = d.listings.filter((l) => !l.mine);
+    const tabs = `<div class="seg">${[['buy', 'Mua'], ['sell', 'Bán'], ['mine', `Hàng của tôi (${mine.length})`]].map(([k, l]) => `<button class="btn ${market.tab === k ? 'primary' : ''}" data-act="market-tab" data-tab2="${k}">${l}</button>`).join('')}</div>`;
+    let body = '';
+    if (market.tab === 'buy') {
+      body = `<form id="market-search" class="chat-form"><input type="text" id="market-q" placeholder="Tìm theo tên" value="${esc(market.q)}"><button class="btn" type="submit">Tìm</button></form>
+        ${others.length ? `<div class="list">${others.map((l) => listingRow(l, `<button class="btn ${P.gold >= l.price ? 'primary' : ''}" data-act="market_buy" data-listing="${l.id}" ${P.gold >= l.price ? '' : 'disabled'}>${icon('two-coins')}${fmt(l.price)}</button>`, true)).join('')}</div>` : '<p class="small muted">Chợ chưa có hàng nào.</p>'}`;
+    } else if (market.tab === 'mine') {
+      body = mine.length ? `<div class="list">${mine.map((l) => listingRow(l, `<div class="market-mine"><span class="num" style="color:var(--gold)">${fmt(l.price)} vàng</span><button class="btn small-btn" data-act="market_cancel" data-listing="${l.id}">Rút về</button></div>`)).join('')}</div>`
+        : '<p class="small muted">Bạn chưa rao bán gì.</p>';
+    } else {
+      const items = Object.keys(P.inv).filter((id) => P.inv[id] > 0).concat(bagGear());
+      body = items.length ? `<form id="market-sell" class="gift-form">
+          <select name="item">${items.map((id) => { const it = itemOf(id); return `<option value="${id}">${esc(it.name)}${isGear(id) ? ` (${RARITY[it.rarity]})` : ` · có ${P.inv[id]}`}</option>`; }).join('')}</select>
+          <div class="btn-row"><label class="small">Số lượng <input type="number" name="count" min="1" value="1"></label>
+            <label class="small">Giá <input type="number" name="price" min="1" placeholder="vàng" required></label></div>
+          <button class="btn primary" type="submit">Rao bán</button>
+          <p class="small muted">Bán được thì tiền gửi vào hộp thư, trừ ${d.fee}% phí chợ. Tối đa ${d.max} món cùng lúc. Đồ đang mặc thì tháo ra trước.</p>
+        </form>` : '<p class="small muted">Túi trống.</p>';
+    }
+    return `<div class="card"><div class="row"><h3 class="grow">Chợ</h3><button class="btn small-btn" data-act="market-reload">Tải lại</button></div>${tabs}${body}</div>`;
   }
 
   // ---------- Đấu trường ----------
@@ -1194,6 +1238,7 @@
             <button class="btn ${poor ? '' : 'primary'}" data-act="decor_buy" data-id="${fu.id}" ${poor ? 'disabled' : ''}>${icon('two-coins')}${fmt(fu.price)}</button></div>`;
         }).join('')}</div></div>`);
     }
+    if (n.role === 'market') sections.push(viewMarket());
     if (n.role === 'chest') {
       sections.push(`<div class="card"><p>“${esc(n.lines[0])}”</p>
         <button class="btn ${P.view.chestReady ? 'primary' : ''} block" data-act="chest_open" ${P.view.chestReady ? '' : 'disabled'}>${P.view.chestReady ? 'Mở rương' : 'Hôm nay đã mở, mai quay lại'}</button></div>`);
@@ -1328,6 +1373,7 @@
       case 'mail_claim': return { act, id: +d.id };
       case 'chest_buy': return { act, tier: d.tier };
       case 'pvp_challenge': return { act, uid: +d.uid };
+      case 'market_buy': case 'market_cancel': return { act, listing: +d.listing };
       case 'pet_buy': case 'decor_buy': return { act, id: d.id };
       case 'pet_choose': return { act, id: d.id || null };
       case 'title_set': return { act, id: d.id || null };
@@ -1336,7 +1382,7 @@
   }
 
   // Âm thanh cho kết quả một lệnh.
-  const CMD_SOUND = { pet_buy: 'rare', decor_buy: 'coin', decor_place: 'forge', decor_take: 'gather', chest_buy: 'rare', chest_open: 'rare', rebirth: 'levelup', buy: 'coin', sell: 'coin', mail_claim: 'coin', craft: 'brew', upgrade: 'forge', quest_turnin: 'quest', daily_claim: 'quest', quest_accept: 'notice', rest: 'potion', use: 'potion', tower_enter: 'portal', potion: 'potion' };
+  const CMD_SOUND = { market_buy: 'coin', market_sell: 'coin', market_cancel: 'gather', pet_buy: 'rare', decor_buy: 'coin', decor_place: 'forge', decor_take: 'gather', chest_buy: 'rare', chest_open: 'rare', rebirth: 'levelup', buy: 'coin', sell: 'coin', mail_claim: 'coin', craft: 'brew', upgrade: 'forge', quest_turnin: 'quest', daily_claim: 'quest', quest_accept: 'notice', rest: 'potion', use: 'potion', tower_enter: 'portal', potion: 'potion' };
 
   function commandSound(cmd, r, old) {
     if (!r.ok) { Sound.play('error'); return; }
@@ -1370,6 +1416,7 @@
         if (cmd.act === 'leave' || cmd.act === 'create') tab = 'map';
         if (cmd.act === 'reset') tab = 'map';
         if (cmd.act === 'tower_enter') { tab = 'map'; npc = null; }
+        if (cmd.act.startsWith('market_')) market.data = null;
         if (cmd.act === 'rebirth' || cmd.act === 'guild_create' || cmd.act === 'guild_donate') board.at = 0;
         if (cmd.act === 'mail_claim' && mail.list) { const m = mail.list.find((x) => x.id === cmd.id); if (m) m.claimed = true; }
         confirmReset = false;
@@ -1505,12 +1552,14 @@
     if (act === 'reset-ask' || act === 'reset-cancel') { confirmReset = act === 'reset-ask'; render(); return; }
     if (act === 'rebirth-ask' || act === 'rebirth-cancel') { confirmRebirth = act === 'rebirth-ask'; render(); return; }
     if (act === 'dialog-close') { dialog = null; render(); return; }
+    if (act === 'market-tab') { market.tab = t.dataset.tab2; render(); return; }
+    if (act === 'market-reload') { market.data = null; render(); return; }
     if (act === 'party-invite') { partyOp('invite', { uid: +t.dataset.uid }); return; }
     if (act === 'party-accept') { partyOp('accept'); return; }
     if (act === 'party-decline') { partyOp('decline'); return; }
     if (act === 'party-leave') { partyOp('leave'); return; }
     if (act === 'party-kick') { partyOp('kick', { uid: +t.dataset.uid }); return; }
-    if (act === 'npc-close') { npc = null; render(); return; }
+    if (act === 'npc-close') { npc = null; market.data = null; render(); return; }
     if (act === 'mail-open') { mail.open = !mail.open; walk = null; render(); $('#view').scrollTop = 0; if (mail.open) loadMail(); return; }
     if (act === 'mail-close') { mail.open = false; render(); return; }
     if (act === 'fish-cast') { walk = null; castLine(); return; }
@@ -1578,6 +1627,14 @@
       e.preventDefault();
       const amount = parseInt($('#donate-amount').value, 10);
       sendCommand({ act: 'guild_donate', amount: amount || 0 }).then(loadGuild);
+      return;
+    }
+    if (e.target.id === 'market-search') { e.preventDefault(); market.q = $('#market-q').value.trim(); market.data = null; render(); return; }
+    if (e.target.id === 'market-sell') {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      sendCommand({ act: 'market_sell', id: f.get('item'), count: +f.get('count') || 1, price: +f.get('price') || 0 })
+        .then(() => { market.data = null; market.tab = 'mine'; render(); });
       return;
     }
     if (e.target.id === 'guild-search') { e.preventDefault(); guildUi.q = $('#guild-q').value.trim(); loadGuild(); return; }

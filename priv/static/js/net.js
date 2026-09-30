@@ -152,6 +152,8 @@
     party(op, payload) { return push('party', Object.assign({ op }, payload || {})); },
     // Đấu trường: điểm của mình, đối thủ gợi ý, bảng xếp hạng. Xem thông tin người chơi khác.
     arena() { return push('arena', {}); },
+    // Chợ: { listings, fee, max }. Rao bán/mua/rút về là lệnh market_sell/market_buy/market_cancel.
+    market(q) { return push('market', { q: q || '' }); },
     inspect(uid) { return push('inspect', { uid }); },
 
     // Bang hội: guild('list', { q }), guild('info'), guild('join', { id })... (xem GameChannel).

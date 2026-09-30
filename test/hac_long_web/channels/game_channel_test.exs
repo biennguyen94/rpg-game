@@ -637,6 +637,76 @@ defmodule HacLongWeb.GameChannelTest do
     end
   end
 
+  describe "chợ" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    test "rao bán, mua, rút về; người bán nhận tiền qua hộp thư trừ phí" do
+      sword = %{uid: "#CHO1", base: "mace", rarity: 2, bonus: %{str: 3, agi: 1}}
+      ua = create_user()
+
+      player_at(ua, %{map: "village", x: 7, y: 14}, %{
+        level: 15,
+        inv: %{"potion_m" => 5},
+        gear: [sword],
+        upgrades: %{"#CHO1" => 2}
+      })
+
+      {_, sa} = join_game(ua)
+      ub = create_user()
+      pb = player_at(ub, %{map: "village", x: 8, y: 15}, %{level: 15, gold: 2000})
+      {_, sb} = join_game(ub)
+
+      r = cmd(sa, %{"act" => "market_sell", "id" => "potion_m", "count" => 3, "price" => 300})
+      assert r.ok and r.player.inv["potion_m"] == 2
+      r = cmd(sa, %{"act" => "market_sell", "id" => "#CHO1", "price" => 1000})
+      assert r.ok and r.player.gear == [] and r.player.upgrades == %{}
+
+      assert %{ok: false, msg: "Không đủ số lượng trong túi."} =
+               cmd(sa, %{"act" => "market_sell", "id" => "potion_m", "count" => 9, "price" => 10})
+
+      ref = push(sb, "market", %{})
+      assert_reply ref, :ok, %{listings: listings}
+      pot = Enum.find(listings, &(&1.item == "potion_m"))
+      gear = Enum.find(listings, &(&1.gear != nil))
+      assert pot.count == 3 and pot.seller_id == ua.id and not pot.mine
+      assert gear.gear.up == 2 and gear.name == "Chùy Gai Sức Mạnh"
+
+      assert %{ok: false, msg: "Đây là hàng của bạn."} =
+               cmd(sa, %{"act" => "market_buy", "listing" => pot.id})
+
+      r = cmd(sb, %{"act" => "market_buy", "listing" => pot.id})
+      assert r.ok and r.player.gold == pb.gold - 300 and r.player.inv["potion_m"] == 3
+      assert_push "mail", %{unread: 1}
+      assert [%{gold: 285, subject: "Chợ: bán được Bình Máu Vừa"}] = HacLong.Mailbox.list(ua.id)
+
+      assert %{ok: false, msg: "Món này đã có người mua hoặc đã rút về."} =
+               cmd(sb, %{"act" => "market_buy", "listing" => pot.id})
+
+      r = cmd(sb, %{"act" => "market_buy", "listing" => gear.id})
+      assert [%{uid: "#CHO1"}] = r.player.gear
+      assert r.player.upgrades["#CHO1"] == 2
+
+      # rút về
+      r = cmd(sa, %{"act" => "market_sell", "id" => "potion_m", "count" => 2, "price" => 50})
+      refute Map.has_key?(r.player.inv, "potion_m")
+      ref = push(sa, "market", %{})
+      assert_reply ref, :ok, %{listings: [%{id: lid, mine: true}]}
+      r = cmd(sa, %{"act" => "market_cancel", "listing" => lid})
+      assert r.ok and r.player.inv["potion_m"] == 2
+
+      # phải đứng cạnh Chủ Chợ
+      uc = create_user()
+      player_at(uc, %{map: "village", x: 12, y: 14}, %{inv: %{"herb" => 1}})
+      {_, sc} = join_game(uc)
+
+      assert %{ok: false, msg: "Hãy đến gặp Chủ Chợ ở Làng."} =
+               cmd(sc, %{"act" => "market_sell", "id" => "herb", "price" => 10})
+    end
+  end
+
   describe "bang hội" do
     setup do
       HacLong.RateLimit.reset()

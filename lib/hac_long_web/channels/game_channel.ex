@@ -22,6 +22,9 @@ defmodule HacLongWeb.GameChannel do
     `"shared"` (máu chung của trận đánh cùng). Chat tổ đội: `"chat"` với `"to" => "party"`.
   - `"arena"`: điểm đấu trường của mình, đối thủ gợi ý, bảng xếp hạng; thách đấu là lệnh
     `"cmd"` `%{"act" => "pvp_challenge", "uid" => ...}`.
+  - `"market"` `%{"q"}`: hàng đang bán ở chợ và hàng mình đang rao; rao bán, mua, rút về là
+    lệnh `"cmd"` `market_sell {id, count, price}`, `market_buy {listing}`,
+    `market_cancel {listing}` (đứng cạnh Chủ Chợ).
   - `"inspect"` `%{"uid"}`: xem thông tin người chơi khác (chạm vào họ trên bản đồ).
   - `"mail"`: danh sách thư; server đẩy `"mail"` `%{unread}` khi có thư mới. Mở thư (nhận quà)
     là lệnh `"cmd"` `%{"act" => "mail_claim", "id" => ...}`.
@@ -38,6 +41,7 @@ defmodule HacLongWeb.GameChannel do
     Guilds,
     Leaderboard,
     Mailbox,
+    Market,
     Moderation,
     Party,
     RateLimit,
@@ -147,6 +151,22 @@ defmodule HacLongWeb.GameChannel do
     with :ok <- limit({:party, uid}, 40, :timer.minutes(1)),
          :ok <- result do
       {:reply, {:ok, %{party: party_view(uid)}}, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("market", p, socket) do
+    uid = socket.assigns.user_id
+
+    with :ok <- limit({:market, uid}, 40, :timer.minutes(1)) do
+      {:reply,
+       {:ok,
+        %{
+          listings: Market.listings(p["q"] || "", uid),
+          fee: Market.fee_pct(),
+          max: Market.max_active()
+        }}, socket}
     else
       {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
     end

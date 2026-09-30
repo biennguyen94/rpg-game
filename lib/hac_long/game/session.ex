@@ -29,7 +29,7 @@ defmodule HacLong.Game.Session do
     Tutorial
   }
 
-  alias HacLong.{Arena, Guilds, Mailbox, Party, World, WorldBoss}
+  alias HacLong.{Arena, Guilds, Mailbox, Market, Party, World, WorldBoss}
 
   @idle_timeout :timer.minutes(10)
   @flush_ms 5_000
@@ -310,6 +310,40 @@ defmodule HacLong.Game.Session do
     case result do
       {:ok, msg, player} ->
         player = with_guild(player, s.user_id)
+        s = cancel_flush(%{s | player: player, dirty: false})
+        broadcast(s, player, origin)
+        reply({%{ok: true, msg: msg}, player}, s)
+
+      {:error, msg} ->
+        reply({%{ok: false, msg: msg}, p}, s)
+    end
+  end
+
+  # Chợ: rao bán, mua, rút về; đồ và vàng đổi trong cùng transaction với bảng chợ.
+  defp run_command(%{player: p} = s, %{"act" => act} = cmd, origin)
+       when p != nil and act in ["market_sell", "market_buy", "market_cancel"] do
+    save = &Characters.save!(s.user_id, &1)
+
+    result =
+      cond do
+        p.battle ->
+          {:error, "Đang trong trận đấu."}
+
+        World.near_npc(p, ["market"]) == nil ->
+          {:error, "Hãy đến gặp Chủ Chợ ở Làng."}
+
+        act == "market_sell" ->
+          Market.list(s.user_id, p, cmd["id"], cmd["count"] || 1, cmd["price"], save)
+
+        act == "market_buy" ->
+          Market.buy(s.user_id, p, cmd["listing"], save)
+
+        true ->
+          Market.cancel(s.user_id, p, cmd["listing"], save)
+      end
+
+    case result do
+      {:ok, msg, player} ->
         s = cancel_flush(%{s | player: player, dirty: false})
         broadcast(s, player, origin)
         reply({%{ok: true, msg: msg}, player}, s)

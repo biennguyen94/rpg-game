@@ -405,3 +405,6 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 .party-member .bar > span { line-height: 10px; font-size: 0.65rem; }
 .party-mark { color: #f0b36b; font-weight: 700; font-size: 0.8em; }
 .chat-line.party { color: #f6dcc0; }
+
+/* Chợ */
+.market-mine { display: grid; gap: 4px; justify-items: end; }
