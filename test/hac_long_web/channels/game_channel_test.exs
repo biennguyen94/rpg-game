@@ -120,6 +120,81 @@ defmodule HacLongWeb.GameChannelTest do
     assert Characters.load(user.id).pos.map == "village"
   end
 
+  test "chat thế giới: mọi người nhận được, chữ được làm sạch, chống spam" do
+    HacLong.RateLimit.reset()
+    a = create_user()
+    b = create_user()
+    player_at(a, %{map: "village", x: 12, y: 14})
+    player_at(b, %{map: "forest_1", x: 13, y: 16})
+    {_, sa} = join_game(a)
+    {_, _sb} = join_game(b)
+    assert_push "chat_history", %{messages: _}
+
+    ref = push(sa, "chat", %{"text" => "  xin\nchào\u0000   mọi người  "})
+    assert_reply ref, :ok
+    # cả hai kênh (a và b) đều nhận
+    assert_push "chat", %{text: "xin chào mọi người", name: "Hiệp", map: "village", uid: uid}
+    assert uid == a.id
+    assert_push "chat", %{text: "xin chào mọi người"}
+    assert Enum.any?(HacLong.Chat.history(), &(&1.text == "xin chào mọi người"))
+
+    ref = push(sa, "chat", %{"text" => String.duplicate("a", 500)})
+    assert_reply ref, :ok
+    assert_push "chat", %{text: long}
+    assert String.length(long) == 120
+
+    ref = push(sa, "chat", %{"text" => "   "})
+    assert_reply ref, :error, %{msg: "Tin nhắn trống."}
+
+    replies =
+      for i <- 1..6 do
+        ref = push(sa, "chat", %{"text" => "spam #{i}"})
+        assert_reply ref, status, _
+        status
+      end
+
+    assert :error in replies
+  end
+
+  test "chưa có nhân vật thì chưa chat được; xem bảng xếp hạng" do
+    user = create_user()
+    {_, socket} = join_game(user)
+    ref = push(socket, "chat", %{"text" => "alo"})
+    assert_reply ref, :error, %{msg: "Hãy tạo nhân vật trước."}
+
+    ref = push(socket, "leaderboard", %{})
+    assert_reply ref, :ok, %{level: level, kills: _, dragon: _, me: nil}
+    assert is_list(level)
+  end
+
+  test "hạ Hắc Long lần đầu thì ghi thời điểm cho bảng Diệt rồng" do
+    MapServer.clear_monsters("lair_boss")
+    user = create_user()
+    bosses = ~w(wolf orc_warrior lich hill_giant golden_dragon)
+
+    player_at(user, %{map: "lair_boss", x: 7, y: 4}, %{
+      level: 50,
+      bosses: bosses,
+      stats: %{str: 400, vit: 200, agi: 0, def: 200},
+      hp: 5000
+    })
+
+    {_, socket} = join_game(user)
+    MapServer.put_monster("lair_boss", "shadow_dragon", {7, 3}, true)
+    r = cmd(socket, %{"act" => "move", "dir" => "up", "confirm" => true})
+    assert r.player.battle.monster.final
+
+    r =
+      Enum.reduce_while(1..100, r, fn _, _ ->
+        r = cmd(socket, %{"act" => "attack"})
+        if r.player.battle.over, do: {:halt, r}, else: {:cont, r}
+      end)
+
+    assert r.player.battle.result == "win" and r.player.victory
+    assert %DateTime{} = Characters.load(user.id).victory_at
+    assert [%{name: "Hiệp"} | _] = HacLong.Leaderboard.top(:dragon)
+  end
+
   test "người chơi khác thấy nhau trên bản đồ, tab đóng thì rời bản đồ" do
     a = create_user()
     b = create_user()

@@ -13,6 +13,7 @@ defmodule HacLong.Application do
       {DNSCluster, query: Application.get_env(:hac_long, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: HacLong.PubSub},
       HacLong.RateLimit,
+      HacLong.Chat,
       {Registry, keys: :unique, name: HacLong.Game.Registry},
       {DynamicSupervisor, name: HacLong.Game.SessionSupervisor, strategy: :one_for_one},
       # mỗi bản đồ dùng chung (Làng, các vùng) một tiến trình

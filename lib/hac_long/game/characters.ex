@@ -63,7 +63,8 @@ defmodule HacLong.Game.Characters do
       battle: c.battle && atomize(c.battle),
       pos: World.valid_pos(%{map: c.map_id, x: c.x, y: c.y}),
       waystones: Enum.filter(c.waystones || [], &(&1 in Maps.waystone_ids())),
-      quests: quests(c.quests)
+      quests: quests(c.quests),
+      victory_at: c.victory_at
     }
   end
 

@@ -28,8 +28,8 @@ Các tính năng dự định cho Hắc Long RPG, xếp theo thứ tự ưu tiê
 
 ## B. Giữ người chơi quay lại
 
-- [ ] **Bảng xếp hạng** theo cấp, số quái đã hạ, người hạ Hắc Long nhanh nhất (ít trận nhất).
-  Bảng `characters` đã có đủ cột và index `level`.
+- [x] **Bảng xếp hạng**: cấp cao nhất, săn nhiều quái nhất, và ai hạ Hắc Long trước (ghi
+  thời điểm `victory_at`); hiện hạng của mình. Ở tab Hành trình.
 - [ ] **Nhiệm vụ hằng ngày**, ví dụ "Hạ 20 quái ở Nghĩa Địa Cổ", "Thắng 1 trùm"; thưởng vàng
   hoặc bình máu, làm mới mỗi ngày. Hiện sau khoảng 430 trận là phá đảo và hết việc để làm.
 - [ ] **Nội dung sau khi phá đảo**
@@ -46,7 +46,10 @@ Các tính năng dự định cho Hắc Long RPG, xếp theo thứ tự ưu tiê
 
 ## D. Tính năng nhiều người chơi (Phoenix Channels / PubSub)
 
-- [ ] **Chat thế giới**: kênh `chat:world`.
+- [x] **Chat thế giới**: khung chat dưới bản đồ, bong bóng lời nói trên đầu người đang ở
+  cùng bản đồ, giữ 50 tin gần nhất trong bộ nhớ (không lưu database), 5 tin/10 giây mỗi người.
+- [ ] Tên nhân vật đang được trùng nhau; nên bắt buộc tên duy nhất để không mạo danh trong
+  chat và bảng xếp hạng. Chưa có chặn/báo cáo người chat xấu.
 - [ ] **Trùm thế giới**: trùm cực mạnh xuất hiện theo giờ, mọi người đánh chung một thanh máu
   theo thời gian thực, chia thưởng theo sát thương. Một GenServer giữ máu trùm và phát cho mọi người.
 - [ ] **Chợ giữa người chơi**: rao bán đồ. Phải dùng transaction trong database để không

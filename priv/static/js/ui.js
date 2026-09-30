@@ -17,6 +17,9 @@
   let dialog = null;     // bảng trên bản đồ: { type: 'boss', dir, boss } | { type: 'waystone' }
   let npc = null;        // NPC đang nói chuyện: { map, id, line }
   let pwForm = false;    // đang mở form đổi mật khẩu
+  let chats = [];        // tin chat gần nhất
+  let chatDraft = '';    // chữ đang gõ dở (giữ lại khi vẽ lại trang)
+  let board = { kind: 'level', data: null, at: 0 }; // bảng xếp hạng
   const Map_ = window.MapView;
 
   const $ = (s) => document.querySelector(s);
@@ -75,8 +78,13 @@
       ['bag', 'backpack', 'Túi đồ'],
       ['quests', 'scroll-unfurled', 'Nhiệm vụ'],
     ].map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : Map_.html(P, viewDialog())), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests }[tab])();
-    if (tab === 'map' && !npc) Map_.mount(() => P);
+    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : Map_.html(P, viewDialog()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests }[tab])();
+    if (tab === 'map' && !npc) {
+      Map_.mount(() => P);
+      const log = $('#chat-log');
+      if (log) log.scrollTop = log.scrollHeight;
+    }
+    if (tab === 'town') loadBoard();
   }
 
   // Bảng nổi trên bản đồ: hỏi đấu trùm, chọn nơi dịch chuyển.
@@ -96,6 +104,75 @@
       <p class="small muted">Chạm vào đá ở nơi khác để ghi nhớ nó.</p>
       <div class="list">${places.map((id) => `<button class="btn" data-act="teleport" data-to="${id}" ${id === P.pos.map ? 'disabled' : ''}>${esc(W[id].name)}${id === P.pos.map ? ' · đang ở đây' : ''}</button>`).join('')}</div>
       <button class="btn" data-act="dialog-close">Đóng</button>
+    </div>`;
+  }
+
+  // ---------- Chat ----------
+  const mapName = (id) => (WORLD.maps[id] ? WORLD.maps[id].name : id);
+
+  function chatLine(m) {
+    const mine = m.uid === Net.userId;
+    return `<div class="chat-line ${mine ? 'mine' : ''}"><b>${esc(m.name)}</b> <span class="muted small">${esc(mapName(m.map))}</span> ${esc(m.text)}</div>`;
+  }
+
+  function viewChat() {
+    return `<div class="card chat">
+      <div class="chat-log" id="chat-log" aria-live="polite">${chats.length ? chats.map(chatLine).join('') : '<p class="small muted">Chưa có ai nói gì. Chào mọi người đi!</p>'}</div>
+      <form id="chat-form" class="chat-form" autocomplete="off">
+        <input type="text" id="chat-input" maxlength="120" placeholder="Nói với mọi người…" value="${esc(chatDraft)}" aria-label="Tin nhắn">
+        <button class="btn" type="submit">Gửi</button>
+      </form>
+    </div>`;
+  }
+
+  function onChatMessage(m) {
+    chats.push(m);
+    if (chats.length > 50) chats.shift();
+    // người nói đang ở cùng bản đồ thì hiện bong bóng trên đầu
+    if (P && m.map === P.pos.map) Map_.say(m.uid, m.text);
+    const log = $('#chat-log');
+    if (log) {
+      const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 30;
+      log.innerHTML = chats.map(chatLine).join('');
+      if (atBottom || m.uid === Net.userId) log.scrollTop = log.scrollHeight;
+    }
+  }
+
+  async function onChatSubmit() {
+    const input = $('#chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+    try {
+      await Net.chat(text);
+      input.value = ''; chatDraft = '';
+    } catch (err) {
+      toast(err.msg, true);
+    }
+  }
+
+  // ---------- Bảng xếp hạng ----------
+  async function loadBoard(force) {
+    if (!force && board.data && Date.now() - board.at < 30000) return;
+    board.at = Date.now();
+    try {
+      board.data = await Net.leaderboard();
+      if (tab === 'town') {
+        const el = $('#board');
+        if (el) el.outerHTML = viewBoard();
+      }
+    } catch (err) { /* thử lại lần sau */ }
+  }
+
+  function viewBoard() {
+    const kinds = [['level', 'Cấp cao'], ['kills', 'Săn nhiều'], ['dragon', 'Diệt rồng']];
+    const rows = board.data ? board.data[board.kind] : null;
+    const value = (r) => (board.kind === 'level' ? `Cấp ${r.level}` : board.kind === 'kills' ? `${fmt(r.kills)} quái` : new Date(r.victory_at).toLocaleDateString('vi-VN'));
+    return `<div class="card" id="board">
+      <div class="row"><h3 class="grow">Bảng xếp hạng</h3>${board.data && board.data.me ? `<span class="tag gold num">Bạn hạng ${board.data.me}</span>` : ''}</div>
+      <div class="seg">${kinds.map(([k, label]) => `<button class="btn ${board.kind === k ? 'primary' : ''}" data-board="${k}">${label}</button>`).join('')}</div>
+      ${rows == null ? '<p class="small muted">Đang tải…</p>'
+        : rows.length === 0 ? `<p class="small muted">${board.kind === 'dragon' ? 'Chưa ai hạ được Hắc Long. Bạn sẽ là người đầu tiên?' : 'Chưa có ai.'}</p>`
+        : `<ol class="board">${rows.map((r) => `<li class="${r.user_id === Net.userId ? 'me' : ''}"><span class="num rank">${r.rank}</span><span class="grow">${esc(r.name)} <span class="small muted">${CLASSES[r.cls] ? CLASSES[r.cls].name : ''}</span></span><span class="num">${value(r)}</span></li>`).join('')}</ol>`}
     </div>`;
   }
 
@@ -212,6 +289,8 @@
       </div>
 
       ${pots === 0 ? `<div class="card"><div class="row">${icon('health-potion', 'lg')}<div class="grow"><h3>Hết bình máu</h3><p class="small muted">Mua ở Bà Lang trong Làng, hoặc hái Thảo Dược nhờ bà pha.</p></div></div></div>` : ''}
+
+      ${viewBoard()}
 
       <div class="card">
         <h3>Thành tích</h3>
@@ -644,7 +723,7 @@
 
   function enter(r) {
     P = r ? r.player : null;
-    if (r) Map_.setUser(r.user_id);
+    if (r) { Map_.setUser(r.user_id); Net.userId = r.user_id; }
     tab = 'map';
     loading = false;
     render();
@@ -664,6 +743,7 @@
     if (t.dataset.cls) { pickCls = t.dataset.cls; document.querySelectorAll('.class-opt').forEach((b) => b.setAttribute('aria-pressed', b.dataset.cls === pickCls)); return; }
     if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; render(); $('#view').scrollTop = 0; return; }
     if (t.dataset.auth) { authMode = t.dataset.auth; render(); return; }
+    if (t.dataset.board) { board.kind = t.dataset.board; const el = $('#board'); if (el) el.outerHTML = viewBoard(); loadBoard(); return; }
     if (t.dataset.move) { walk = null; step(t.dataset.move); return; }
     const act = t.dataset.act;
     if (act === 'logout') return logout();
@@ -712,6 +792,7 @@
   function onSubmit(e) {
     if (e.target.id === 'auth') { e.preventDefault(); onAuth(); return; }
     if (e.target.id === 'pw-form') { e.preventDefault(); onPassword(); return; }
+    if (e.target.id === 'chat-form') { e.preventDefault(); onChatSubmit(); return; }
     if (e.target.id !== 'create') return;
     e.preventDefault();
     const name = $('#hero-name').value.trim();
@@ -727,6 +808,9 @@
     window.addEventListener('resize', () => Map_.resize());
     Net.onPlayer((p) => { if (!busy) { P = p; refresh(); } });
     Net.onMap((snap) => Map_.setWorld(snap));
+    Net.onChat(onChatMessage);
+    Net.onChatHistory((msgs) => { chats = msgs; const log = $('#chat-log'); if (log) { log.innerHTML = chats.map(chatLine).join(''); log.scrollTop = log.scrollHeight; } });
+    document.addEventListener('input', (e) => { if (e.target.id === 'chat-input') chatDraft = e.target.value; });
     Net.onStatus((st) => {
       const bar = $('#netbar');
       bar.hidden = st === 'online';

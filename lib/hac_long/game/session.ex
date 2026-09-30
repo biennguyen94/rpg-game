@@ -181,6 +181,12 @@ defmodule HacLong.Game.Session do
       player && old && old.battle && not old.battle.over && player.battle && player.battle.over ->
         player = World.finish_encounter(player, s.user_id)
 
+        # lần đầu hạ Hắc Long: ghi lại thời điểm cho bảng xếp hạng
+        player =
+          if player.victory and not old.victory,
+            do: Map.put(player, :victory_at, DateTime.truncate(DateTime.utc_now(), :second)),
+            else: player
+
         if player.battle.result == "win",
           do: Quests.on_kill(player, player.battle.monster.id),
           else: player

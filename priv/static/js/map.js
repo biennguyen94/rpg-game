@@ -26,6 +26,32 @@
   let frame = null, lastCam = [0, 0];
   const DUR = { me: 130, player: 160, monster: 380 };
 
+  // Bong bóng lời nói trên đầu nhân vật (chat), hiện vài giây.
+  const bubbles = new Map();
+  const BUBBLE_MS = 6000;
+  let bubbleTimer = null;
+
+  function bubble(text, cx, py) {
+    ctx.font = '500 11px "Be Vietnam Pro", system-ui, sans-serif';
+    let t = text;
+    while (ctx.measureText(t).width > 170 && t.length > 4) t = t.slice(0, -2);
+    if (t !== text) t = t.slice(0, -1) + '…';
+    const w = ctx.measureText(t).width + 12, x = Math.round(cx - w / 2), y = py - 34;
+    ctx.fillStyle = 'rgba(246, 240, 226, 0.95)';
+    ctx.beginPath(); ctx.roundRect(x, y, w, 18, 6); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx - 4, y + 18); ctx.lineTo(cx + 4, y + 18); ctx.lineTo(cx, y + 23); ctx.fill();
+    ctx.fillStyle = '#1b1422';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(t, cx, y + 9.5);
+  }
+
+  function bubbleOf(uid, now) {
+    const b = bubbles.get(uid);
+    if (!b) return null;
+    if (b.until < now) { bubbles.delete(uid); return null; }
+    return b.text;
+  }
+
   function smooth(key, x, y, dur, now) {
     let a = anim.get(key);
     if (!a || Math.abs(a.tx - x) + Math.abs(a.ty - y) > 1) {
@@ -151,7 +177,7 @@
     const x1 = Math.min(m.tiles[0].length - 1, Math.ceil((cx + canvas.clientWidth) / TILE));
     const y1 = Math.min(m.tiles.length - 1, Math.ceil((cy + canvas.clientHeight) / TILE));
     const floor = image(m.floor);
-    const labels = [];
+    const labels = [], talk = [];
 
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
@@ -221,13 +247,20 @@
       if (hero.complete) ctx.drawImage(hero, px, py, TILE, TILE);
       ctx.globalAlpha = 1;
       labels.push([`${o.name} · ${o.level}`, px + TILE / 2, py - 14, '#b9d7ff']);
+      const said = bubbleOf(o.id, now);
+      if (said) talk.push([said, px + TILE / 2, py]);
     }
 
     const px = Math.round(mx * TILE - cx), py = Math.round(my * TILE - cy);
     ctx.fillStyle = 'rgba(240, 207, 122, 0.35)';
     ctx.beginPath(); ctx.ellipse(px + TILE / 2, py + TILE - 4, 12, 5, 0, 0, Math.PI * 2); ctx.fill();
     if (hero.complete) ctx.drawImage(hero, px, py, TILE, TILE);
+    const mine = bubbleOf(userId, now);
+    if (mine) talk.push([mine, px + TILE / 2, py]);
     for (const l of labels) label(...l);
+    for (const t of talk) bubble(...t);
+    // vẽ lại khi bong bóng hết hạn
+    if (bubbles.size && !bubbleTimer) bubbleTimer = setTimeout(() => { bubbleTimer = null; draw(); }, 1000);
     // bỏ những con quái/người đã biến mất khỏi bản đồ
     for (const [k, a] of anim) if (a.seen !== now) anim.delete(k);
   }
@@ -274,6 +307,7 @@
     html, mount, resize, draw, tileFromEvent, nextStep, monsterAt, monsterById,
     mountedMap: () => mounted,
     setUser(id) { userId = id; },
+    say(uid, text) { bubbles.set(uid, { text, until: performance.now() + BUBBLE_MS }); draw(); },
     setWorld(snap) {
       world = snap;
       draw();

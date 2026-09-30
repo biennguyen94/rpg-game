@@ -6,7 +6,7 @@
  * (đăng xuất mọi thiết bị, đổi mật khẩu ở nơi khác) thì báo onExpired để về màn đăng nhập. */
 (function () {
   const TOKEN_KEY = 'hac-long-token';
-  const cb = { player: null, map: null, status: null, rejoin: null, expired: null };
+  const cb = { player: null, map: null, status: null, rejoin: null, expired: null, chat: null, history: null };
   let socket = null, channel = null, checkTimer = null;
 
   const store = {
@@ -66,12 +66,24 @@
       channel = s.channel('game', {});
       channel.on('player', (m) => cb.player && cb.player(m.player));
       channel.on('map', (m) => cb.map && cb.map(m));
+      channel.on('chat', (m) => cb.chat && cb.chat(m));
+      channel.on('chat_history', (m) => cb.history && cb.history(m.messages));
       channel.join()
         .receive('ok', (r) => {
           if (!joined) { joined = true; resolve(r); } else if (cb.rejoin) cb.rejoin(r);
         })
         .receive('error', () => { if (!joined) { close(); reject({ msg: 'Không vào được game.' }); } })
         .receive('timeout', () => { if (!joined) { close(); reject({ msg: 'Máy chủ không phản hồi.' }); } });
+    });
+  }
+
+  function push(event, payload) {
+    return new Promise((resolve, reject) => {
+      if (!channel) return reject({ msg: 'Chưa kết nối.' });
+      channel.push(event, payload, 10000)
+        .receive('ok', resolve)
+        .receive('error', (e) => reject({ msg: (e && e.msg) || 'Lỗi máy chủ.' }))
+        .receive('timeout', () => reject({ msg: 'Mất kết nối, thử lại.' }));
     });
   }
 
@@ -123,16 +135,13 @@
     },
 
     // Gửi một lệnh, nhận { ok, msg, result, player }.
-    send(cmd) {
-      return new Promise((resolve, reject) => {
-        if (!channel) return reject({ msg: 'Chưa kết nối.' });
-        channel.push('cmd', cmd, 10000)
-          .receive('ok', resolve)
-          .receive('error', (e) => reject({ msg: (e && e.msg) || 'Lỗi máy chủ.' }))
-          .receive('timeout', () => reject({ msg: 'Mất kết nối, thử lại.' }));
-      });
-    },
+    send(cmd) { return push('cmd', cmd); },
 
+    // Gửi tin nhắn chat thế giới.
+    chat(text) { return push('chat', { text }); },
+
+    // Bảng xếp hạng: { level, kills, dragon, me }.
+    leaderboard() { return push('leaderboard', {}); },
     // Nhân vật thay đổi từ tab/thiết bị khác.
     onPlayer(f) { cb.player = f; },
     // Quái và người chơi trên bản đồ đang đứng thay đổi.
@@ -143,6 +152,9 @@
     onRejoin(f) { cb.rejoin = f; },
     // Token hết hiệu lực (bị đăng xuất từ nơi khác).
     onExpired(f) { cb.expired = f; },
+    // Tin chat mới / các tin gần nhất lúc vào game.
+    onChat(f) { cb.chat = f; },
+    onChatHistory(f) { cb.history = f; },
   };
 
   window.Net = Net;

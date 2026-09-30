@@ -34,6 +34,8 @@ mix test           # chạy test (cần PostgreSQL)
 - Hái Thảo Dược/Linh Chi, đào Quặng Sắt/Mithril trên bản đồ (dùng chung, mọc lại); mang đi pha
   thuốc, bán hoặc nộp nhiệm vụ
 - 18 nhiệm vụ: mỗi vùng một việc diệt quái, một việc thu thập, một việc hạ trùm
+- Chat thế giới (bong bóng lời nói trên đầu người cùng bản đồ) và bảng xếp hạng: cấp cao nhất,
+  săn nhiều nhất, ai hạ Hắc Long trước
 - Gục ngã mất 10% vàng và tỉnh dậy ở Nhà; giếng nước ở Nhà hồi máu miễn phí
 - Mỗi tài khoản một nhân vật, lưu sau mỗi thao tác, chơi tiếp được trên thiết bị khác
 
@@ -89,6 +91,9 @@ lib/hac_long/world.ex               Đi lại trên bản đồ, qua cổng, ch�
 lib/hac_long/world/maps.ex          Đọc priv/maps (giải thích định dạng và các ký tự)
 lib/hac_long/world/map_server.ex    Tiến trình giữ quái và người chơi của một bản đồ
 lib/hac_long/accounts.ex            Đăng ký, đăng nhập, token
+lib/hac_long/chat.ex                Chat thế giới (giữ 50 tin gần nhất)
+lib/hac_long/leaderboard.ex         Bảng xếp hạng
+lib/hac_long/rate_limit.ex          Giới hạn tần suất (đăng nhập, chat...)
 lib/hac_long_web/channels/          UserSocket, GameChannel
 lib/hac_long_web/controllers/       API đăng nhập; trang chủ (chèn dữ liệu game cho client)
 ```
@@ -124,7 +129,9 @@ Kết quả in ra số trận trung bình để thắng, số lần chết và c
 | join `"game"` | → `{username, player}` (`player` là `null` nếu chưa tạo nhân vật) |
 | push `"cmd"` | `{act, ...}` → `{ok, msg?, result?, player}` |
 | server push `"player"` | `{player}` khi nhân vật đổi từ tab khác |
-| server push `"map"` | `{map, monsters, players}` của bản đồ đang đứng, mỗi khi có thay đổi |
+| server push `"map"` | `{map, monsters, nodes, players}` của bản đồ đang đứng, mỗi khi có thay đổi |
+| push `"chat"` | `{text}` → ok hoặc `{msg}` lỗi; server đẩy `"chat"` `{uid, name, map, text, at}` cho mọi người, `"chat_history"` lúc mới vào |
+| push `"leaderboard"` | → `{level, kills, dragon, me}` (mỗi bảng 10 người, `me` là hạng theo cấp) |
 
 Các `act`: `create {name, cls}`, `reset`, `move {dir, confirm?}` (`up`/`down`/`left`/`right`;
 bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: true` để đấu),

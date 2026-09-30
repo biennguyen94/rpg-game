@@ -8,9 +8,13 @@ defmodule HacLongWeb.GameChannel do
   - Khi nhân vật đổi từ tab khác, server đẩy `"player"`.
   - Server đẩy `"map"` với quái và người chơi trên bản đồ nhân vật đang đứng, mỗi khi
     bản đồ đó thay đổi. Kênh tự chuyển theo dõi khi nhân vật sang bản đồ khác.
+  - Chat thế giới: client gửi `"chat"` với `%{"text" => ...}`; server đẩy `"chat"` (một tin)
+    cho mọi người và `"chat_history"` (các tin gần nhất) lúc mới vào.
+  - `"leaderboard"`: trả về các bảng xếp hạng và hạng của mình.
   """
   use HacLongWeb, :channel
 
+  alias HacLong.{Chat, Leaderboard, RateLimit}
   alias HacLong.Game.{Data, Engine, Quests, Session}
   alias HacLong.World.{Maps, MapServer}
 
@@ -18,6 +22,7 @@ defmodule HacLongWeb.GameChannel do
   def join("game", _params, socket) do
     uid = socket.assigns.user_id
     Phoenix.PubSub.subscribe(HacLong.PubSub, Session.topic(uid))
+    Phoenix.PubSub.subscribe(HacLong.PubSub, Chat.topic())
     player = Session.attach(uid, self())
     send(self(), :push_map)
 
@@ -32,11 +37,50 @@ defmodule HacLongWeb.GameChannel do
     {:reply, {:ok, Map.put(result, :player, present(player))}, socket}
   end
 
+  def handle_in("chat", %{"text" => text}, socket) do
+    uid = socket.assigns.user_id
+
+    with :ok <- chat_limit(uid),
+         %{} = p <- Session.get(uid) || {:error, "Hãy tạo nhân vật trước."},
+         {:ok, _msg} <- Chat.post(%{uid: uid, name: p.name, map: p.pos.map}, text) do
+      {:reply, :ok, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("leaderboard", _payload, socket) do
+    uid = socket.assigns.user_id
+
+    case RateLimit.hit({:leaderboard, uid}, 20, :timer.minutes(1)) do
+      :ok ->
+        boards = Map.new(Leaderboard.kinds(), &{&1, Leaderboard.top(&1)})
+        {:reply, {:ok, Map.put(boards, :me, Leaderboard.level_rank(uid))}, socket}
+
+      {:error, _} ->
+        {:reply, {:error, %{msg: "Thao tác quá nhanh."}}, socket}
+    end
+  end
+
   def handle_in(_event, _payload, socket), do: {:reply, {:error, %{msg: "Sai cú pháp."}}, socket}
+
+  # 5 tin mỗi 10 giây, chống spam.
+  defp chat_limit(uid) do
+    case RateLimit.hit({:chat, uid}, 5, 10_000) do
+      :ok -> :ok
+      {:error, secs} -> {:error, "Chat chậm lại chút, đợi #{secs} giây."}
+    end
+  end
 
   @impl true
   def handle_info(:push_map, socket) do
+    push(socket, "chat_history", %{messages: Chat.history()})
     {:noreply, follow_map(socket, Session.get(socket.assigns.user_id))}
+  end
+
+  def handle_info({:chat, msg}, socket) do
+    push(socket, "chat", msg)
+    {:noreply, socket}
   end
 
   def handle_info({:player, player, origin}, socket) do

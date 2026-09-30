@@ -274,3 +274,20 @@ input[type="text"], input[type="password"] {
 }
 #netbar[hidden] { display: none; }
 .pw-form { display: grid; gap: 8px; margin-bottom: 8px; }
+
+/* Chat */
+.chat { gap: 8px; margin-top: 10px; }
+.chat-log { max-height: 150px; overflow-y: auto; display: grid; gap: 3px; font-size: 0.88rem; overscroll-behavior: contain; }
+.chat-line { word-break: break-word; }
+.chat-line b { color: #b9d7ff; }
+.chat-line.mine b { color: var(--gold); }
+.chat-form { display: flex; gap: 8px; }
+.chat-form input { flex: 1; min-width: 0; }
+
+/* Bảng xếp hạng */
+.seg { display: flex; gap: 6px; }
+.seg .btn { flex: 1; padding: 6px 4px; font-size: 0.85rem; }
+ol.board { list-style: none; display: grid; gap: 4px; margin: 0; padding: 0; }
+ol.board li { display: flex; align-items: baseline; gap: 10px; padding: 5px 8px; border-radius: 8px; background: #16121c; }
+ol.board li.me { box-shadow: inset 0 0 0 1px var(--gold); }
+ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weight: 700; }

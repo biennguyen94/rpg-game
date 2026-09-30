@@ -17,7 +17,8 @@ defmodule HacLong.Game.Commands do
          p
          |> Map.put(:pos, Maps.home_spawn())
          |> Map.put(:waystones, [])
-         |> Map.put(:quests, Quests.empty())}
+         |> Map.put(:quests, Quests.empty())
+         |> Map.put(:victory_at, nil)}
 
       {:error, msg} ->
         {%{ok: false, msg: msg}, nil}
