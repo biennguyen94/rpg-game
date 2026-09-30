@@ -35,6 +35,10 @@ defmodule HacLong.Chat do
 
   def post(_from, _text), do: {:error, "Tin nhắn không hợp lệ."}
 
+  @doc "Thông báo của hệ thống (trùm thế giới xuất hiện...)."
+  def system(text),
+    do: GenServer.call(__MODULE__, {:post, %{uid: 0, name: "Thông báo", map: nil}, text})
+
   @impl true
   def init(_), do: {:ok, %{msgs: [], next: 1}}
 

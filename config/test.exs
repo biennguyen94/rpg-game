@@ -31,3 +31,10 @@ config :pbkdf2_elixir, :rounds, 1
 
 # Quái đứng yên trong test để kết quả không phụ thuộc thời gian
 config :hac_long, :wander_ms, nil
+
+# Trùm thế giới chỉ xuất hiện khi test gọi WorldBoss.spawn_now/1
+config :hac_long, :world_boss,
+  first_after_minutes: nil,
+  every_minutes: nil,
+  duration_minutes: 30,
+  hp: 20_000

@@ -18,6 +18,7 @@
   let canvas = null, ctx = null, mounted = null, getPlayer = () => null;
   let world = { map: null, monsters: [], players: [] };
   let userId = null;
+  let boss = { alive: false }; // trùm thế giới (HacLong.WorldBoss)
 
   // ---------- Di chuyển mượt ----------
   // Server gửi vị trí theo ô; khi vẽ thì trượt từ ô cũ sang ô mới trong `dur` ms.
@@ -101,7 +102,7 @@
     return `
       <div class="map-top">
         <b>${m.name}</b>
-        <span class="small muted">${z ? (P.pos.map.endsWith('_boss') ? `Phòng trùm · cấp ${z.boss.level}` : `Quái cấp ${z.levels}`) : P.pos.map === 'home' ? 'Giếng nước hồi đầy máu' : 'Bước vào người dân để nói chuyện'}</span>
+        <span class="small muted">${z ? (P.pos.map.endsWith('_boss') ? `Phòng trùm · cấp ${z.boss.level}` : `Quái cấp ${z.levels}`) : P.pos.map === 'home' ? 'Giếng nước hồi đầy máu' : P.pos.map === 'altar' ? 'Nơi trùm thế giới xuất hiện' : 'Bước vào người dân để nói chuyện'}</span>
       </div>
       <div class="map-wrap"><canvas id="map-canvas" aria-label="Bản đồ ${m.name}"></canvas>${overlay || ''}</div>
       <div class="dpad" aria-label="Di chuyển">
@@ -238,6 +239,18 @@
       if ((n.role === 'quests' && P.view.questReady) || (n.role === 'daily' && P.view.dailyReady)) label('!', px + TILE - 4, py - 2, '#f0cf7a');
     }
 
+    // trùm thế giới: vẽ to gấp đôi, có thanh máu chung
+    if (m.worldBoss && boss.alive) {
+      const [bx, by] = m.worldBoss;
+      const px = Math.round(bx * TILE - cx), py = Math.round(by * TILE - cy);
+      const im = image('monsters/ancient_dragon');
+      if (im.complete) ctx.drawImage(im, px - TILE / 2, py - TILE, TILE * 2, TILE * 2);
+      const w = TILE * 2, k = boss.hp / boss.maxHp;
+      ctx.fillStyle = 'rgba(12,9,16,0.85)'; ctx.fillRect(px - TILE / 2, py - TILE - 8, w, 6);
+      ctx.fillStyle = '#d9483b'; ctx.fillRect(px - TILE / 2 + 1, py - TILE - 7, Math.max(0, (w - 2) * k), 4);
+      labels.push([boss.name, px + TILE / 2, py - TILE - 22, '#ef6a5a']);
+    }
+
     const hero = image('monsters/hero');
     for (const o of here ? world.players : []) {
       if (o.id === userId) continue;
@@ -289,7 +302,8 @@
         const goal = nx === tx && ny === ty;
         const c = tileAt(m, nx, ny);
         if (c == null) continue;
-        if (!goal && (!WALK.has(c) || PORTAL.has(c) || monsterAt(nx, ny) || nodeAt(nx, ny) || npcAt(m, nx, ny))) continue;
+        const bossHere = boss.alive && m.worldBoss && m.worldBoss[0] === nx && m.worldBoss[1] === ny;
+        if (!goal && (!WALK.has(c) || PORTAL.has(c) || monsterAt(nx, ny) || nodeAt(nx, ny) || npcAt(m, nx, ny) || bossHere)) continue;
         prev.set(k, [x, y, dir]);
         if (goal) {
           // lần ngược về ô xuất phát để lấy bước đầu
@@ -307,6 +321,7 @@
     html, mount, resize, draw, tileFromEvent, nextStep, monsterAt, monsterById,
     mountedMap: () => mounted,
     setUser(id) { userId = id; },
+    setBoss(st) { boss = st; draw(); },
     say(uid, text) { bubbles.set(uid, { text, until: performance.now() + BUBBLE_MS }); draw(); },
     setWorld(snap) {
       world = snap;

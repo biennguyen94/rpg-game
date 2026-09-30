@@ -11,10 +11,12 @@ defmodule HacLongWeb.GameChannel do
   - Chat thế giới: client gửi `"chat"` với `%{"text" => ...}`; server đẩy `"chat"` (một tin)
     cho mọi người và `"chat_history"` (các tin gần nhất) lúc mới vào.
   - `"leaderboard"`: trả về các bảng xếp hạng và hạng của mình.
+  - Server đẩy `"world_boss"` (trạng thái trùm thế giới: còn sống, máu, top sát thương) mỗi
+    khi thay đổi, và `"notice"` (`%{msg}`) khi có thông báo riêng (vd. nhận thưởng trùm).
   """
   use HacLongWeb, :channel
 
-  alias HacLong.{Chat, Leaderboard, RateLimit}
+  alias HacLong.{Chat, Leaderboard, RateLimit, WorldBoss}
   alias HacLong.Game.{Daily, Data, Engine, Quests, Session}
   alias HacLong.World.{Maps, MapServer}
 
@@ -23,6 +25,7 @@ defmodule HacLongWeb.GameChannel do
     uid = socket.assigns.user_id
     Phoenix.PubSub.subscribe(HacLong.PubSub, Session.topic(uid))
     Phoenix.PubSub.subscribe(HacLong.PubSub, Chat.topic())
+    Phoenix.PubSub.subscribe(HacLong.PubSub, WorldBoss.topic())
     player = Session.attach(uid, self())
     send(self(), :push_map)
 
@@ -75,7 +78,18 @@ defmodule HacLongWeb.GameChannel do
   @impl true
   def handle_info(:push_map, socket) do
     push(socket, "chat_history", %{messages: Chat.history()})
+    push(socket, "world_boss", WorldBoss.status())
     {:noreply, follow_map(socket, Session.get(socket.assigns.user_id))}
+  end
+
+  def handle_info({:world_boss, status}, socket) do
+    push(socket, "world_boss", status)
+    {:noreply, socket}
+  end
+
+  def handle_info({:notice, msg}, socket) do
+    push(socket, "notice", %{msg: msg})
+    {:noreply, socket}
   end
 
   def handle_info({:chat, msg}, socket) do

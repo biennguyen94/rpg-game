@@ -230,6 +230,107 @@ defmodule HacLongWeb.GameChannelTest do
     assert name == p.name
   end
 
+  describe "trùm thế giới" do
+    setup do
+      HacLong.WorldBoss.despawn()
+      on_exit(fn -> HacLong.WorldBoss.despawn() end)
+      :ok
+    end
+
+    # nhân vật mạnh đứng ngay dưới chỗ trùm ở Tế Đàn
+    defp champion(stats) do
+      {bx, by} = HacLong.World.Maps.get("altar").world_boss
+      user = create_user()
+
+      p =
+        player_at(user, %{map: "altar", x: bx, y: by + 1}, %{
+          level: 40,
+          stats: stats,
+          hp: 20_000
+        })
+
+      {_, socket} = join_game(user)
+      {user, p, socket}
+    end
+
+    defp fight(socket) do
+      r = cmd(socket, %{"act" => "move", "dir" => "up"})
+      assert %{ok: false, confirm: "boss", boss: %{world: true}} = r
+      r = cmd(socket, %{"act" => "move", "dir" => "up", "confirm" => true})
+      assert r.player.battle.monster.world
+      r
+    end
+
+    test "chưa xuất hiện thì ô của trùm là ô trống" do
+      {_user, _p, socket} = champion(%{str: 10, vit: 10, agi: 0, def: 10})
+      r = cmd(socket, %{"act" => "move", "dir" => "up"})
+      assert r.ok and r.player.battle == nil
+    end
+
+    test "cả server đánh chung một thanh máu, chia thưởng theo sát thương" do
+      HacLong.WorldBoss.spawn_now(hp: 3000)
+      {ua, pa, sa} = champion(%{str: 300, vit: 200, agi: 0, def: 300})
+      {ub, pb, sb} = champion(%{str: 40, vit: 200, agi: 0, def: 300})
+
+      fight(sb)
+      # trùm có thể né vài đòn, đánh tới khi trúng
+      rb =
+        Enum.reduce_while(1..20, nil, fn _, _ ->
+          r = cmd(sb, %{"act" => "attack"})
+          if r.player.battle.monster.hp < 3000, do: {:halt, r}, else: {:cont, r}
+        end)
+
+      # B đánh làm giảm máu chung
+      assert rb.player.battle.monster.hp < 3000
+      assert HacLong.WorldBoss.status().hp == rb.player.battle.monster.hp
+
+      # A vào sau thấy máu chung, không phải máu đầy
+      ra = fight(sa)
+      assert ra.player.battle.monster.hp == HacLong.WorldBoss.status().hp
+
+      ra =
+        Enum.reduce_while(1..200, ra, fn _, _ ->
+          r = cmd(sa, %{"act" => "attack"})
+          if r.player.battle.over, do: {:halt, r}, else: {:cont, r}
+        end)
+
+      assert ra.player.battle.result == "win"
+      refute HacLong.WorldBoss.status().alive
+
+      # thưởng đến qua Session (không đồng bộ): A và B đều được, A (gây nhiều hơn) được nhiều hơn
+      a = wait_for(fn -> Characters.load(ua.id) end, &(&1.gold > pa.gold))
+      b = wait_for(fn -> Characters.load(ub.id) end, &(&1.gold > pb.gold))
+      assert a.gold - pa.gold > b.gold - pb.gold
+      assert a.inv["dragon_scale"] == 1 and b.inv["dragon_scale"] == 1
+      # trận của B (đang đánh dở) cũng kết thúc
+      assert b.battle.over and b.battle.result == "win"
+      assert b.battle.monster.hp == 0
+      assert a.battle.reward.gold > 0
+    end
+
+    test "hết giờ thì trùm bay đi, trận đang đánh kết thúc, không ai được thưởng" do
+      HacLong.WorldBoss.spawn_now(hp: 100_000)
+      {ua, pa, sa} = champion(%{str: 20, vit: 200, agi: 0, def: 300})
+      fight(sa)
+      cmd(sa, %{"act" => "attack"})
+      HacLong.WorldBoss.despawn()
+      a = wait_for(fn -> Characters.load(ua.id) end, &(&1.battle && &1.battle.over))
+      assert a.battle.result == "fled" and a.gold == pa.gold
+      assert_push "notice", %{msg: msg}
+      assert msg =~ "bay đi"
+    end
+  end
+
+  defp wait_for(get, ok?, tries \\ 50) do
+    v = get.()
+
+    cond do
+      ok?.(v) -> v
+      tries == 0 -> flunk("đợi mãi không thấy: #{inspect(v, limit: 5)}")
+      true -> Process.sleep(50) && wait_for(get, ok?, tries - 1)
+    end
+  end
+
   test "người chơi khác thấy nhau trên bản đồ, tab đóng thì rời bản đồ" do
     a = create_user()
     b = create_user()

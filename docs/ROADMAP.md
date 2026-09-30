@@ -52,8 +52,10 @@ Các tính năng dự định cho Hắc Long RPG, xếp theo thứ tự ưu tiê
 - [x] Tên nhân vật duy nhất (không phân biệt hoa thường, 2–16 ký tự chữ/số/khoảng trắng/-/_),
   để không mạo danh trong chat và bảng xếp hạng.
 - [ ] Chặn/báo cáo người chat xấu.
-- [ ] **Trùm thế giới**: trùm cực mạnh xuất hiện theo giờ, mọi người đánh chung một thanh máu
-  theo thời gian thực, chia thưởng theo sát thương. Một GenServer giữ máu trùm và phát cho mọi người.
+- [x] **Trùm thế giới**: Cổ Long Ba Đầu xuất hiện định kỳ ở Tế Đàn (cổng mới trong Làng), cả
+  server đánh chung một thanh máu (`HacLong.WorldBoss`), chia thưởng theo phần sát thương,
+  top 3 được Vảy Cổ Long, người ra đòn cuối thêm vàng; hết giờ thì trùm bay đi. Thông báo
+  trong chat, băng báo và thanh máu trực tiếp trên màn hình.
 - [ ] **Chợ giữa người chơi**: rao bán đồ. Phải dùng transaction trong database để không
   bị nhân đôi đồ.
 - [ ] **PvP bất đồng bộ**: đánh với bản sao chỉ số của người chơi khác (đấu trường).

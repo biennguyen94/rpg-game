@@ -25,6 +25,14 @@ config :hac_long, HacLongWeb.Endpoint,
 # Quái trên bản đồ thử bước một ô sau mỗi khoảng này (ms). nil: đứng yên.
 config :hac_long, :wander_ms, 1200
 
+# Trùm thế giới: xuất hiện lần đầu sau `first_after_minutes` phút, rồi cứ `every_minutes`
+# phút một lần (tính từ lúc con trước gục hoặc bay đi), mỗi lần `duration_minutes` phút.
+config :hac_long, :world_boss,
+  first_after_minutes: 10,
+  every_minutes: 120,
+  duration_minutes: 30,
+  hp: 20_000
+
 # Configures Elixir's Logger
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",

@@ -38,6 +38,8 @@ mix test           # chạy test (cần PostgreSQL)
 - Tên nhân vật không trùng nhau (không phân biệt hoa thường)
 - Chat thế giới (bong bóng lời nói trên đầu người cùng bản đồ) và bảng xếp hạng: cấp cao nhất,
   săn nhiều nhất, ai hạ Hắc Long trước
+- Trùm thế giới: Cổ Long Ba Đầu xuất hiện định kỳ ở Tế Đàn, cả server đánh chung một thanh máu,
+  chia thưởng theo sát thương
 - Gục ngã mất 10% vàng và tỉnh dậy ở Nhà; giếng nước ở Nhà hồi máu miễn phí
 - Mỗi tài khoản một nhân vật, lưu sau mỗi thao tác, chơi tiếp được trên thiết bị khác
 
@@ -98,6 +100,7 @@ lib/hac_long/accounts.ex            Đăng ký, đăng nhập, token
 lib/hac_long/chat.ex                Chat thế giới (giữ 50 tin gần nhất)
 lib/hac_long/leaderboard.ex         Bảng xếp hạng
 lib/hac_long/rate_limit.ex          Giới hạn tần suất (đăng nhập, chat...)
+lib/hac_long/world_boss.ex          Trùm thế giới: lịch xuất hiện, máu chung, chia thưởng
 lib/hac_long_web/channels/          UserSocket, GameChannel
 lib/hac_long_web/controllers/       API đăng nhập; trang chủ (chèn dữ liệu game cho client)
 ```
@@ -135,6 +138,8 @@ Kết quả in ra số trận trung bình để thắng, số lần chết và c
 | server push `"player"` | `{player}` khi nhân vật đổi từ tab khác |
 | server push `"map"` | `{map, monsters, nodes, players}` của bản đồ đang đứng, mỗi khi có thay đổi |
 | push `"chat"` | `{text}` → ok hoặc `{msg}` lỗi; server đẩy `"chat"` `{uid, name, map, text, at}` cho mọi người, `"chat_history"` lúc mới vào |
+| server push `"world_boss"` | `{alive, name, hp, maxHp, endsAt, nextAt, now, fighters, top}` khi trùm thế giới thay đổi |
+| server push `"notice"` | `{msg}`: thông báo riêng (vd. nhận thưởng trùm thế giới) |
 | push `"leaderboard"` | → `{level, kills, dragon, me}` (mỗi bảng 10 người, `me` là hạng theo cấp) |
 
 Các `act`: `create {name, cls}`, `reset`, `move {dir, confirm?}` (`up`/`down`/`left`/`right`;
@@ -159,6 +164,10 @@ export PHX_HOST=game.example.com
 MIX_ENV=prod mix do compile, ecto.migrate
 MIX_ENV=prod PHX_SERVER=true mix phx.server
 ```
+
+Trùm thế giới chỉnh bằng `config :hac_long, :world_boss` hoặc biến môi trường
+`WORLD_BOSS_FIRST_MINUTES`, `WORLD_BOSS_EVERY_MINUTES`, `WORLD_BOSS_DURATION_MINUTES`,
+`WORLD_BOSS_HP` (vd. `WORLD_BOSS_FIRST_MINUTES=0.5 WORLD_BOSS_HP=5000 mix phx.server` để thử).
 
 Nếu chạy sau proxy (nginx, load balancer), giới hạn đăng nhập theo IP sẽ thấy IP của proxy;
 cần thêm plug đọc `X-Forwarded-For` (ví dụ thư viện `remote_ip`).

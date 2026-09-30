@@ -506,6 +506,13 @@
       "sprite": "nodes/ore_rare",
       "price": 125,
       "desc": "Đào ở Núi Khổng Lồ, Đầm Lầy Rồng, Hang Hắc Long."
+    },
+    "dragon_scale": {
+      "name": "Vảy Cổ Long",
+      "slot": "material",
+      "sprite": "nodes/dragon_scale",
+      "price": 1000,
+      "desc": "Chiến lợi phẩm từ trùm thế giới. Bán được giá cao."
     }
   },
   "BOSS_DROPS": {

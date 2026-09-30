@@ -10,6 +10,7 @@ defmodule HacLong.World do
   """
 
   alias HacLong.Game.{Daily, Data, Engine}
+  alias HacLong.WorldBoss
   alias HacLong.World.{Maps, MapServer}
 
   @dirs %{"up" => {0, -1}, "down" => {0, 1}, "left" => {-1, 0}, "right" => {1, 0}}
@@ -75,6 +76,7 @@ defmodule HacLong.World do
         npc = Maps.npc_at(map, tx, ty) -> {%{ok: true, npc: npc.id}, p}
         Maps.tile(map, tx, ty) == "F" -> drink_fountain(p)
         Maps.tile(map, tx, ty) == "W" -> touch_waystone(p, map)
+        map.world_boss == {tx, ty} and WorldBoss.hp() != nil -> world_boss(p, uid, confirm?)
         not Maps.walkable?(map, tx, ty) -> {%{ok: false}, p}
         map.private -> {%{ok: true}, put_pos(p, map_id, tx, ty)}
         true -> step_shared(p, uid, map, {tx, ty}, confirm?)
@@ -84,6 +86,29 @@ defmodule HacLong.World do
       _battle -> {%{ok: false, msg: "Đang trong trận đấu."}, p}
     end
   end
+
+  # Chạm trùm thế giới: hỏi xác nhận như trùm thường, rồi vào trận với thanh máu chung.
+  defp world_boss(p, _uid, confirm?) when confirm? != true do
+    {%{
+       ok: false,
+       confirm: "boss",
+       boss: %{id: "ancient_dragon", name: WorldBoss.name(), level: 34, world: true}
+     }, p}
+  end
+
+  defp world_boss(p, uid, _confirm) do
+    case WorldBoss.engage(uid) do
+      {:ok, m} ->
+        {r, p} = Engine.start_with_monster(p, 5, m)
+        if r.ok, do: {r, put_in(p.battle[:encounter], %{world_boss: true})}, else: {r, p}
+
+      {:error, msg} ->
+        {%{ok: false, msg: msg}, p}
+    end
+  end
+
+  def world_battle?(%{battle: %{encounter: %{world_boss: true}}}), do: true
+  def world_battle?(_), do: false
 
   defp put_pos(p, map, x, y), do: %{p | pos: %{map: map, x: x, y: y}}
 

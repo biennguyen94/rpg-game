@@ -20,6 +20,7 @@
   let chats = [];        // tin chat gần nhất
   let chatDraft = '';    // chữ đang gõ dở (giữ lại khi vẽ lại trang)
   let board = { kind: 'level', data: null, at: 0 }; // bảng xếp hạng
+  let wb = { alive: false }; // trùm thế giới; `skew`: lệch đồng hồ máy chủ - máy này
   const Map_ = window.MapView;
 
   const $ = (s) => document.querySelector(s);
@@ -78,7 +79,7 @@
       ['bag', 'backpack', 'Túi đồ'],
       ['quests', 'scroll-unfurled', 'Nhiệm vụ'],
     ].map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : Map_.html(P, viewDialog()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests }[tab])();
+    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewBossBanner() + Map_.html(P, viewDialog()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests }[tab])();
     if (tab === 'map' && !npc) {
       Map_.mount(() => P);
       const log = $('#chat-log');
@@ -107,10 +108,45 @@
     </div>`;
   }
 
+  // ---------- Trùm thế giới ----------
+  const clock = (ms) => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+
+  function viewBossBanner() {
+    if (!wb.alive) return '';
+    const pct = Math.max(0, Math.round((wb.hp / wb.maxHp) * 100));
+    const here = P.pos.map === 'altar';
+    return `<div class="card wb" id="wb">
+      <div class="row">${sprite('ancient_dragon', '', wb.name)}<div class="grow">
+        <b>${esc(wb.name)}</b> <span class="small muted">${here ? 'ngay trước mặt' : 'ở Tế Đàn (cổng dưới bên trái Làng)'}</span>
+        ${bar('boss', wb.hp, wb.maxHp, `${pct}% · còn <span id="wb-left">${clock(wb.endsAt - wb.skew - Date.now())}</span> · ${wb.fighters} người đánh`)}
+      </div></div>
+      ${here && wb.top.length ? `<ol class="board">${wb.top.map((t, i) => `<li class="${t.id === Net.userId ? 'me' : ''}"><span class="num rank">${i + 1}</span><span class="grow">${esc(t.name)}</span><span class="num">${fmt(t.dmg)}</span></li>`).join('')}</ol>` : ''}
+    </div>`;
+  }
+
+  function onWorldBoss(st) {
+    const wasAlive = wb.alive;
+    wb = Object.assign(st, { skew: st.now - Date.now() });
+    Map_.setBoss(wb);
+    // đang đánh trùm: thanh máu theo máu chung
+    if (P && P.battle && P.battle.monster.world && !P.battle.over && wb.alive) {
+      P.battle.monster.hp = wb.hp;
+      render();
+      return;
+    }
+    if (!P || P.battle) return;
+    if (tab === 'map' && !npc) {
+      const el = $('#wb');
+      if (el && wb.alive) el.outerHTML = viewBossBanner();
+      else if (el || wb.alive !== wasAlive) render();
+    }
+  }
+
   // ---------- Chat ----------
   const mapName = (id) => (WORLD.maps[id] ? WORLD.maps[id].name : id);
 
   function chatLine(m) {
+    if (!m.uid) return `<div class="chat-line system">${esc(m.text)}</div>`;
     const mine = m.uid === Net.userId;
     return `<div class="chat-line ${mine ? 'mine' : ''}"><b>${esc(m.name)}</b> <span class="muted small">${esc(mapName(m.map))}</span> ${esc(m.text)}</div>`;
   }
@@ -290,6 +326,7 @@
 
       ${pots === 0 ? `<div class="card"><div class="row">${icon('health-potion', 'lg')}<div class="grow"><h3>Hết bình máu</h3><p class="small muted">Mua ở Bà Lang trong Làng, hoặc hái Thảo Dược nhờ bà pha.</p></div></div></div>` : ''}
 
+      ${wb.alive ? '' : wb.nextAt ? `<div class="card"><div class="row">${sprite('ancient_dragon', '', '')}<div class="grow"><h3>Trùm thế giới</h3><p class="small muted">${esc(wb.name)} sẽ xuất hiện ở Tế Đàn sau khoảng ${Math.max(1, Math.round((wb.nextAt - wb.skew - Date.now()) / 60000))} phút. Cả server cùng đánh, chia thưởng theo sát thương.</p></div></div></div>` : ''}
       ${viewBoard()}
 
       <div class="card">
@@ -608,13 +645,13 @@
         </div>`;
     }
     return `
-      <div class="stage ${m.boss ? 'boss' : ''}" style="background-image:url('${asset('floors/' + z.id + '.png')}')">
-        <span class="eyebrow">${z.name}${m.boss ? ' · Trùm' : ''}</span>
+      <div class="stage ${m.boss ? 'boss' : ''} ${m.world ? 'world' : ''}" style="background-image:url('${asset('floors/' + z.id + '.png')}')">
+        <span class="eyebrow">${m.world ? 'Trùm thế giới · Tế Đàn' : z.name + (m.boss ? ' · Trùm' : '')}</span>
         ${sprite(m.id, fx && fx.mDmg ? 'hit' : '', m.name)}
         ${floatHtml}
         <h2>${m.name}</h2>
         <span class="small muted">Cấp ${m.level} · Tấn công ${m.atk} · Phòng thủ ${m.def}${m.special ? ` · ${m.special.name} mỗi ${m.special.every} lượt` : ''}</span>
-        ${bar(m.boss ? 'boss' : 'hp', m.hp, m.maxHp)}
+        ${bar(m.boss || m.world ? 'boss' : 'hp', m.hp, m.maxHp)}
       </div>
       <div class="me ${fx && fx.pDmg ? 'hurt' : ''}">
         ${sprite('hero', '', '')}
@@ -838,6 +875,9 @@
     Net.onPlayer((p) => { if (!busy) { P = p; refresh(); } });
     Net.onMap((snap) => Map_.setWorld(snap));
     Net.onChat(onChatMessage);
+    Net.onWorldBoss(onWorldBoss);
+    Net.onNotice((msg) => toast(msg));
+    setInterval(() => { const el = $('#wb-left'); if (el && wb.alive) el.textContent = clock(wb.endsAt - wb.skew - Date.now()); }, 1000);
     Net.onChatHistory((msgs) => { chats = msgs; const log = $('#chat-log'); if (log) { log.innerHTML = chats.map(chatLine).join(''); log.scrollTop = log.scrollHeight; } });
     document.addEventListener('input', (e) => { if (e.target.id === 'chat-input') chatDraft = e.target.value; });
     Net.onStatus((st) => {

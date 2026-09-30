@@ -114,7 +114,7 @@ defmodule HacLong.Game.Characters do
 
   # Tên các trường có trong trận đấu (trận, quái, nhật ký, phần thưởng).
   @battle_keys Map.new(
-                 ~w(zone monster turn skillCd log over result reward encounter map mid
+                 ~w(zone monster turn skillCd log over result reward encounter map mid world world_boss
                     id name level boss final special maxHp atk def crit dodge xp gold hp
                     every mult text kind items levels)a,
                  &{Atom.to_string(&1), &1}

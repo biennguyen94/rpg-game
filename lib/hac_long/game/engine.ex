@@ -167,10 +167,21 @@ defmodule HacLong.Game.Engine do
     end
   end
 
+  @doc "Trận với một con quái đã dựng sẵn `m` (trùm thế giới). `zi`: vùng lấy hình nền."
+  def start_with_monster(p, zi, m) do
+    cond do
+      p.battle -> {err("Đang trong trận đấu."), p}
+      p.hp <= 0 -> {err("Bạn cần hồi máu trước."), p}
+      true -> put_battle(p, zi, m, true)
+    end
+  end
+
   defp do_start_battle(p, zi, spec, boss?) do
     m = make_monster(spec, boss?)
-    m = Map.put(m, :hp, m.maxHp)
+    put_battle(p, zi, Map.put(m, :hp, m.maxHp), boss?)
+  end
 
+  defp put_battle(p, zi, m, boss?) do
     battle = %{
       zone: zi,
       monster: m,
@@ -342,10 +353,14 @@ defmodule HacLong.Game.Engine do
     m = p.battle.monster
     p = %{p | kills: p.kills + 1, gold: p.gold + m.gold}
     reward = %{xp: m.xp, gold: m.gold, items: [], levels: 0}
-    p = log(p, "🏆 Bạn đã hạ #{m.name}! +#{m.xp} kinh nghiệm, +#{m.gold} vàng.", "win")
+
+    p =
+      if m[:world],
+        do: log(p, "🏆 #{m.name} gục ngã dưới đòn của bạn!", "win"),
+        else: log(p, "🏆 Bạn đã hạ #{m.name}! +#{m.xp} kinh nghiệm, +#{m.gold} vàng.", "win")
 
     {p, reward} =
-      if not m.boss and chance(0.12) do
+      if not m.boss and !m[:world] and chance(0.12) do
         id =
           cond do
             m.level >= 20 -> "potion_l"

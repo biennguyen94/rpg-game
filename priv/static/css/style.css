@@ -291,3 +291,10 @@ ol.board { list-style: none; display: grid; gap: 4px; margin: 0; padding: 0; }
 ol.board li { display: flex; align-items: baseline; gap: 10px; padding: 5px 8px; border-radius: 8px; background: #16121c; }
 ol.board li.me { box-shadow: inset 0 0 0 1px var(--gold); }
 ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weight: 700; }
+
+/* Trùm thế giới */
+.card.wb { border-color: #7a3328; background: linear-gradient(#2a1418, var(--ink-2)); margin-bottom: 10px; }
+.card.wb .sprite { width: 48px; height: 48px; }
+.card.wb .bar { margin-top: 4px; }
+.stage.world .sprite { width: 160px; height: 160px; }
+.chat-line.system { color: #f0b36a; font-weight: 600; }

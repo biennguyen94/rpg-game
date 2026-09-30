@@ -6,7 +6,7 @@
  * (đăng xuất mọi thiết bị, đổi mật khẩu ở nơi khác) thì báo onExpired để về màn đăng nhập. */
 (function () {
   const TOKEN_KEY = 'hac-long-token';
-  const cb = { player: null, map: null, status: null, rejoin: null, expired: null, chat: null, history: null };
+  const cb = { player: null, map: null, status: null, rejoin: null, expired: null, chat: null, history: null, boss: null, notice: null };
   let socket = null, channel = null, checkTimer = null;
 
   const store = {
@@ -68,6 +68,8 @@
       channel.on('map', (m) => cb.map && cb.map(m));
       channel.on('chat', (m) => cb.chat && cb.chat(m));
       channel.on('chat_history', (m) => cb.history && cb.history(m.messages));
+      channel.on('world_boss', (m) => cb.boss && cb.boss(m));
+      channel.on('notice', (m) => cb.notice && cb.notice(m.msg));
       channel.join()
         .receive('ok', (r) => {
           if (!joined) { joined = true; resolve(r); } else if (cb.rejoin) cb.rejoin(r);
@@ -155,6 +157,9 @@
     // Tin chat mới / các tin gần nhất lúc vào game.
     onChat(f) { cb.chat = f; },
     onChatHistory(f) { cb.history = f; },
+    // Trạng thái trùm thế giới; thông báo riêng (vd. nhận thưởng).
+    onWorldBoss(f) { cb.boss = f; },
+    onNotice(f) { cb.notice = f; },
   };
 
   window.Net = Net;

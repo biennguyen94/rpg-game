@@ -17,8 +17,8 @@ defmodule HacLong.Game.Session do
   """
   use GenServer, restart: :transient
 
-  alias HacLong.Game.{Characters, Commands, Daily, Names, Quests}
-  alias HacLong.World
+  alias HacLong.Game.{Characters, Commands, Daily, Engine, Names, Quests}
+  alias HacLong.{World, WorldBoss}
 
   @idle_timeout :timer.minutes(10)
   @flush_ms 5_000
@@ -38,6 +38,13 @@ defmodule HacLong.Game.Session do
 
   @doc "Chạy một lệnh từ client. Trả về `{kết_quả, nhân_vật}`."
   def command(user_id, cmd) when is_map(cmd), do: call(user_id, {:command, cmd, self()})
+
+  @doc """
+  Trùm thế giới đã gục hoặc bay đi (gọi từ `HacLong.WorldBoss`). `info`:
+  `%{result: "win" | "fled", reward: nil | %{gold, xp, items, share}}`. Kết thúc trận đang
+  đánh trùm (nếu có) và trao thưởng; người chơi không online thì vẫn nhận (lưu database).
+  """
+  def world_boss_end(user_id, info), do: call(user_id, {:world_boss_end, info})
 
   defp call(user_id, msg, retry \\ true) do
     pid =
@@ -125,6 +132,66 @@ defmodule HacLong.Game.Session do
     end
   end
 
+  defp handle({:world_boss_end, _info}, _from, %{player: nil} = s), do: reply(:ok, s)
+
+  defp handle({:world_boss_end, info}, _from, s) do
+    old = s.player
+    p = s.player
+
+    p =
+      if World.world_battle?(p),
+        do:
+          end_world_battle(
+            p,
+            info.result,
+            if(info.result == "win",
+              do: "#{WorldBoss.name()} đã gục ngã!",
+              else: "#{WorldBoss.name()} đã bay đi."
+            )
+          ),
+        else: p
+
+    {p, notice} =
+      case info.reward do
+        nil ->
+          {p, if(info.result == "win", do: nil, else: "#{WorldBoss.name()} đã bay đi.")}
+
+        r ->
+          # không cho người cấp thấp nhảy vọt quá nhiều cấp nhờ một trận
+          xp = min(r.xp, 3 * Engine.xp_to_next(p.level))
+          p = %{p | gold: p.gold + r.gold}
+          p = Enum.reduce(r.items, p, fn {id, n}, p -> Engine.add_item(p, id, n) end)
+          {levels, p} = Engine.gain_xp(p, xp)
+
+          text =
+            "Thưởng trùm thế giới (#{r.share}% sát thương): +#{r.gold} vàng, +#{xp} kinh nghiệm#{if r.items != %{}, do: ", Vảy Cổ Long", else: ""}."
+
+          p =
+            if World.world_battle?(p) do
+              b = p.battle
+              reward = %{xp: xp, gold: r.gold, items: Map.keys(r.items), levels: levels}
+
+              %{
+                p
+                | battle: %{
+                    b
+                    | reward: reward,
+                      log: Enum.take(b.log ++ [%{text: text, kind: "win"}], -60)
+                  }
+              }
+            else
+              p
+            end
+
+          {p, text}
+      end
+
+    s = if p != old, do: save(s, p), else: s
+    broadcast(s, p, nil)
+    if notice, do: Phoenix.PubSub.broadcast(HacLong.PubSub, topic(s.user_id), {:notice, notice})
+    reply(:ok, s)
+  end
+
   # Tạo nhân vật: kiểm tra tên hợp lệ và chưa ai dùng (cần database nên làm ở đây).
   defp run_command(%{player: nil} = s, %{"act" => "create"} = cmd, origin) do
     with {:ok, name} <- Names.validate(cmd["name"]),
@@ -143,7 +210,7 @@ defmodule HacLong.Game.Session do
 
   defp run_command_(s, cmd, origin) do
     old = s.player
-    {result, player} = Commands.run(old, cmd)
+    {result, player} = run(s, old, cmd)
     # nhân vật vừa tạo cũng có ngay việc hằng ngày
     player = s |> after_command(old, player, cmd) |> Daily.ensure(Daily.today())
 
@@ -157,6 +224,59 @@ defmodule HacLong.Game.Session do
 
     reply({result, player}, s)
   end
+
+  # Đánh trùm thế giới: máu trùm là máu chung ở HacLong.WorldBoss. Trước lượt đánh lấy máu
+  # mới nhất, sau lượt đánh báo sát thương vừa gây.
+  @strikes ~w(attack skill potion flee)
+
+  defp run(s, %{battle: %{over: false}} = p, %{"act" => act} = cmd) when act in @strikes do
+    if World.world_battle?(p), do: world_strike(s, p, cmd), else: Commands.run(p, cmd)
+  end
+
+  defp run(_s, p, cmd), do: Commands.run(p, cmd)
+
+  defp world_strike(s, p, cmd) do
+    case WorldBoss.hp() do
+      nil ->
+        {%{ok: true}, end_world_battle(p, "fled", "#{WorldBoss.name()} đã rời khỏi Tế Đàn.")}
+
+      hp ->
+        p = put_in(p.battle.monster.hp, hp)
+        {result, p2} = Commands.run(p, cmd)
+        dealt = if p2.battle, do: hp - p2.battle.monster.hp, else: 0
+
+        case dealt > 0 && WorldBoss.hit(s.user_id, p.name, dealt) do
+          false ->
+            {result, p2}
+
+          {:alive, left} ->
+            {result, put_in(p2.battle.monster.hp, left)}
+
+          :killed ->
+            p2 = put_in(p2.battle.monster.hp, 0)
+
+            # người khác vừa đánh trước nên máu chung hết sớm hơn máu mình thấy
+            if p2.battle.over,
+              do: {result, p2},
+              else:
+                {%{ok: true, result: "win"},
+                 end_world_battle(p2, "win", "🏆 #{WorldBoss.name()} gục ngã dưới đòn của bạn!")}
+
+          :gone ->
+            {%{ok: true},
+             end_world_battle(p2, "win", "#{WorldBoss.name()} đã bị người khác hạ gục.")}
+        end
+    end
+  end
+
+  defp end_world_battle(%{battle: %{over: false}} = p, result, text) do
+    b = p.battle
+    b = if result == "win", do: put_in(b.monster.hp, 0), else: b
+    entry = %{text: text, kind: if(result == "win", do: "win", else: "info")}
+    %{p | battle: %{b | over: true, result: result, log: Enum.take(b.log ++ [entry], -60)}}
+  end
+
+  defp end_world_battle(p, _result, _text), do: p
 
   @impl true
   def handle_info({:DOWN, ref, :process, _pid, _}, s) do

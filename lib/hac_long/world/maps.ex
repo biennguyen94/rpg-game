@@ -14,6 +14,7 @@ defmodule HacLong.World.Maps do
     Chạm vào đá lần đầu thì ghi nhớ nó; đứng cạnh bất kỳ đá nào đều dịch chuyển được tới
     các đá đã ghi nhớ (Làng luôn có sẵn).
   - `private: true`: bản đồ riêng của mỗi người (Nhà), không có ai khác.
+  - `world_boss`: `{at}`: chỗ trùm thế giới đứng khi xuất hiện (xem `HacLong.WorldBoss`).
   - `npcs`: `{id, name, sprite, at, role, lines, stock?}`. NPC đứng yên, chặn đường; bước vào
     thì mở hội thoại. `role`: `quests` (Trưởng Làng), `shop` (bán `stock`, mua lại đồ),
     `herbalist` (bán `stock`, mua lại đồ, pha thuốc), `inn` (nghỉ trọ), `talk` (chỉ nói chuyện).
@@ -89,6 +90,7 @@ defmodule HacLong.World.Maps do
                ),
              boss:
                m["boss"] && %{at: List.to_tuple(m["boss"]["at"]), respawn: m["boss"]["respawn"]},
+             world_boss: m["world_boss"] && List.to_tuple(m["world_boss"]["at"]),
              waystone:
                m["waystone"] &&
                  %{
@@ -143,6 +145,7 @@ defmodule HacLong.World.Maps do
            tiles: m.tiles,
            portals: Enum.map(m.portals, &%{at: Tuple.to_list(&1.at), to: &1.to}),
            waystone: m.waystone != nil,
+           worldBoss: m.world_boss && Tuple.to_list(m.world_boss),
            npcs: Enum.map(m.npcs, &Map.update!(&1, :at, fn at -> Tuple.to_list(at) end))
          }}
       end)
