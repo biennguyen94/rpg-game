@@ -109,9 +109,8 @@ MIX_ENV=prod PHX_SERVER=true mix phx.server
 
 ## Hướng phát triển tiếp
 
-1. Giới hạn tần suất đăng nhập/thao tác, bảng xếp hạng
-2. Chat, clan, PvP, chợ mua bán giữa người chơi (Phoenix Channels + PubSub đã sẵn)
-3. Đóng gói app Android (PWA hoặc Capacitor)
+Xem [docs/ROADMAP.md](docs/ROADMAP.md): giới hạn tần suất, bảng xếp hạng, nhiệm vụ hằng ngày,
+chat, trùm thế giới, bản đồ ô vuông để đi lại và đánh quái...
 
 ## Bản quyền hình ảnh
 
