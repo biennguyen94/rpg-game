@@ -25,6 +25,8 @@
   let blocked = [];      // người mình đã chặn: [{ id, name }]
   let adm = { reports: null, user: null, loading: false }; // tab Quản trị
   let mail = { unread: 0, list: null, open: false }; // hộp thư
+  let guildUi = { open: false, list: null, requested: [], info: null, q: '', confirm: null }; // bang hội
+  let chatTo = 'world';  // 'world' | 'guild'
   let fishing = null;    // lượt câu: { phase: 'wait' | 'bite', timers: [] }
   let wb = { alive: false }; // trùm thế giới; `skew`: lệch đồng hồ máy chủ - máy này
   const Map_ = window.MapView;
@@ -86,8 +88,8 @@
       ['bag', 'backpack', 'Túi đồ'],
       ['quests', 'scroll-unfurled', 'Nhiệm vụ'],
     ].concat(Net.isAdmin ? [['admin', 'crowned-skull', 'Quản trị']] : []).map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = mail.open ? viewMail() : P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + Map_.html(P, viewDialog() + viewFishing()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests, admin: viewAdmin }[tab])();
-    if (tab === 'map' && !npc && !mail.open) {
+    view.innerHTML = mail.open ? viewMail() : guildUi.open ? viewGuild() : P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + Map_.html(P, viewDialog() + viewFishing()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests, admin: viewAdmin }[tab])();
+    if (tab === 'map' && !npc && !mail.open && !guildUi.open) {
       Map_.mount(() => P);
       const log = $('#chat-log');
       if (log) log.scrollTop = log.scrollHeight;
@@ -321,20 +323,21 @@
   const mapName = (id) => (WORLD.maps[id] ? WORLD.maps[id].name : id);
 
   function chatLine(m) {
-    if (!m.uid) return `<div class="chat-line system">${esc(m.text)}</div>`;
+    if (!m.uid) return `<div class="chat-line system ${m.guild ? 'guild' : ''}">${m.guild ? '[Bang] ' : ''}${esc(m.text)}</div>`;
     const mine = m.uid === Net.userId;
-    const title = m.title ? `<span class="title-tag">${esc(m.title)}</span> ` : '';
-    const name = title + (mine ? `<b>${esc(m.name)}</b>` : `<button class="chat-name" data-chat="${m.id}">${esc(m.name)}</button>`);
-    const menu = chatMenu === m.id
+    const title = (m.guild ? '<span class="guild-mark">[Bang]</span> ' : '') + (m.tag ? `<span class="guild-tag">[${esc(m.tag)}]</span> ` : '') + (m.title ? `<span class="title-tag">${esc(m.title)}</span> ` : '');
+    const name = title + (mine || m.id == null ? `<b>${esc(m.name)}</b>` : `<button class="chat-name" data-chat="${m.id}">${esc(m.name)}</button>`);
+    const menu = m.id != null && chatMenu === m.id
       ? `<div class="chat-menu"><button class="btn small-btn" data-act="chat-report" data-id="${m.id}">Báo cáo tin này</button><button class="btn small-btn" data-act="chat-block" data-uid="${m.uid}">Chặn ${esc(m.name)}</button></div>` : '';
-    return `<div class="chat-line ${mine ? 'mine' : ''}">${name} <span class="muted small">${esc(mapName(m.map))}</span> ${esc(m.text)}${menu}</div>`;
+    return `<div class="chat-line ${mine ? 'mine' : ''} ${m.guild ? 'guild' : ''}">${name} ${m.guild ? '' : `<span class="muted small">${esc(mapName(m.map))}</span> `}${esc(m.text)}${menu}</div>`;
   }
 
   function viewChat() {
     return `<div class="card chat">
       <div class="chat-log" id="chat-log" aria-live="polite">${chats.length ? chats.map(chatLine).join('') : '<p class="small muted">Chưa có ai nói gì. Chào mọi người đi!</p>'}</div>
       <form id="chat-form" class="chat-form" autocomplete="off">
-        <input type="text" id="chat-input" maxlength="120" placeholder="Nói với mọi người…" value="${esc(chatDraft)}" aria-label="Tin nhắn">
+        ${P.guild ? `<button type="button" class="btn chat-to ${chatTo === 'guild' ? 'on' : ''}" data-act="chat-to" aria-label="Đổi kênh chat">${chatTo === 'guild' ? 'Bang' : 'Tất cả'}</button>` : ''}
+        <input type="text" id="chat-input" maxlength="120" placeholder="${chatTo === 'guild' && P.guild ? 'Nói trong bang…' : 'Nói với mọi người…'}" value="${esc(chatDraft)}" aria-label="Tin nhắn">
         <button class="btn" type="submit">Gửi</button>
       </form>
     </div>`;
@@ -358,7 +361,7 @@
     const text = input.value.trim();
     if (!text) return;
     try {
-      await Net.chat(text);
+      await Net.chat(text, chatTo === 'guild' && P.guild ? 'guild' : null);
       input.value = ''; chatDraft = '';
     } catch (err) {
       toast(err.msg, true);
@@ -379,14 +382,15 @@
   }
 
   function viewBoard() {
-    const kinds = [['level', 'Cấp cao'], ['kills', 'Săn nhiều'], ['tower', 'Tháp'], ['dragon', 'Diệt rồng']];
+    const kinds = [['level', 'Cấp cao'], ['kills', 'Săn nhiều'], ['tower', 'Tháp'], ['dragon', 'Diệt rồng'], ['guild', 'Bang']];
     const rows = board.data ? board.data[board.kind] : null;
     const value = (r) => (board.kind === 'level' ? `${r.rebirths ? `CS${r.rebirths} · ` : ''}Cấp ${r.level}` : board.kind === 'kills' ? `${fmt(r.kills)} quái` : board.kind === 'tower' ? `Tầng ${r.tower_best}` : new Date(r.victory_at).toLocaleDateString('vi-VN'));
     return `<div class="card" id="board">
       <div class="row"><h3 class="grow">Bảng xếp hạng</h3>${board.data && board.data.me ? `<span class="tag gold num">Bạn hạng ${board.data.me}</span>` : ''}</div>
       <div class="seg">${kinds.map(([k, label]) => `<button class="btn ${board.kind === k ? 'primary' : ''}" data-board="${k}">${label}</button>`).join('')}</div>
       ${rows == null ? '<p class="small muted">Đang tải…</p>'
-        : rows.length === 0 ? `<p class="small muted">${board.kind === 'dragon' ? 'Chưa ai hạ được Hắc Long. Bạn sẽ là người đầu tiên?' : board.kind === 'tower' ? 'Chưa ai leo Tháp Vô Tận. Gặp Người Gác Tháp ở Làng.' : 'Chưa có ai.'}</p>`
+        : rows.length === 0 ? `<p class="small muted">${board.kind === 'guild' ? 'Chưa có bang nào. Lập bang ở thẻ Bang hội.' : board.kind === 'dragon' ? 'Chưa ai hạ được Hắc Long. Bạn sẽ là người đầu tiên?' : board.kind === 'tower' ? 'Chưa ai leo Tháp Vô Tận. Gặp Người Gác Tháp ở Làng.' : 'Chưa có ai.'}</p>`
+        : board.kind === 'guild' ? `<ol class="board">${rows.map((g) => `<li class="${P.guild && P.guild.id === g.id ? 'me' : ''}"><span class="num rank">${g.rank}</span><span class="grow"><span class="guild-tag">[${esc(g.tag)}]</span> ${esc(g.name)} <span class="small muted">${g.members} người</span></span><span class="num">Cấp ${g.level}</span></li>`).join('')}</ol>`
         : `<ol class="board">${rows.map((r) => `<li class="${r.user_id === Net.userId ? 'me' : ''}"><span class="num rank">${r.rank}</span><span class="grow">${r.title ? `<span class="title-tag">${esc(r.title)}</span> ` : ''}${esc(r.name)} <span class="small muted">${CLASSES[r.cls] ? CLASSES[r.cls].name : ''}</span></span><span class="num">${value(r)}</span></li>`).join('')}</ol>`}
     </div>`;
   }
@@ -542,6 +546,8 @@
         <button class="btn block" data-tab="map">${icon('walk')} Ra bản đồ</button>
       </div>
 
+      ${viewGuildCard()}
+
       ${viewBestiary()}
 
       ${pots === 0 ? `<div class="card"><div class="row">${icon('health-potion', 'lg')}<div class="grow"><h3>Hết bình máu</h3><p class="small muted">Mua ở Bà Lang trong Làng, hoặc hái Thảo Dược nhờ bà pha.</p></div></div></div>` : ''}
@@ -582,6 +588,104 @@
           ? `<p class="small" style="color:var(--bad)">Xóa nhân vật ${esc(P.name)} và chơi lại từ đầu? Không thể hoàn tác.</p>
              <div class="btn-row"><button class="btn" data-act="reset-cancel">Giữ lại</button><button class="btn danger" data-act="reset-yes">Xóa và chơi lại</button></div>`
           : `<button class="btn" data-act="reset-ask">Chơi lại từ đầu</button>`}
+      </div>`;
+  }
+
+  // ---------- Bang hội ----------
+  const ROLES = { leader: 'Bang chủ', officer: 'Phó bang', member: 'Thành viên' };
+
+  function viewGuildCard() {
+    const g = P.guild;
+    return `<div class="card"><div class="row">${icon('crossed-swords', 'lg')}<div class="grow"><h3>Bang hội</h3>
+      <p class="small muted">${g ? `<span class="guild-tag">[${esc(g.tag)}]</span> ${esc(g.name)} · cấp ${g.level} · ${ROLES[g.role]}` : 'Chưa vào bang nào. Vào bang để có kênh chat riêng và thêm kinh nghiệm mỗi trận.'}</p></div></div>
+      <button class="btn block" data-act="guild-open">${g ? 'Xem bang' : 'Tìm hoặc lập bang'}</button></div>`;
+  }
+
+  async function loadGuild() {
+    try {
+      if (P.guild) { guildUi.info = (await Net.guild('info')).guild; }
+      else { const r = await Net.guild('list', { q: guildUi.q }); guildUi.list = r.guilds; guildUi.requested = r.requested; guildUi.info = null; }
+    } catch (e) { toast(e.msg, true); }
+    if (guildUi.open) render();
+  }
+
+  // thao tác bang qua kênh "guild"; server trả lại thông tin bang mới
+  async function guildOp(op, payload) {
+    try {
+      const r = await Net.guild(op, payload);
+      if (r.msg) toast(r.msg);
+      guildUi.confirm = null;
+      if (r.guild !== undefined) guildUi.info = r.guild;
+      if (op === 'join' || op === 'cancel' || !r.guild) await loadGuild(); else render();
+    } catch (e) { toast(e.msg, true); }
+  }
+
+  function viewGuild() {
+    const head = `<div class="row"><h2 class="display grow">Bang hội</h2><button class="btn" data-act="guild-close">Đóng</button></div>`;
+    if (!P.guild) {
+      const list = guildUi.list;
+      return `${head}
+        <div class="card"><h3>Lập bang mới</h3>
+          <form id="guild-create" class="gift-form">
+            <input type="text" name="name" maxlength="20" placeholder="Tên bang (3–20 ký tự)" required>
+            <input type="text" name="tag" maxlength="4" placeholder="Ký hiệu 2–4 chữ, vd. RONG" required autocapitalize="characters">
+            <button class="btn primary" type="submit" ${P.gold < RULES.guildCost ? 'disabled' : ''}>${icon('two-coins')} Lập bang · ${fmt(RULES.guildCost)} vàng</button>
+          </form></div>
+        <div class="card"><h3>Tìm bang</h3>
+          <form id="guild-search" class="chat-form"><input type="text" id="guild-q" placeholder="Tên hoặc ký hiệu" value="${esc(guildUi.q)}"><button class="btn" type="submit">Tìm</button></form>
+          ${list == null ? '<p class="small muted">Đang tải…</p>' : list.length === 0 ? '<p class="small muted">Chưa có bang nào.</p>'
+            : `<div class="list">${list.map((g) => {
+              const asked = guildUi.requested.includes(g.id), full = g.members >= g.capacity;
+              return `<div class="item"><div class="grow"><div class="name"><span class="guild-tag">[${esc(g.tag)}]</span> ${esc(g.name)}</div>
+                <div class="small muted">Cấp ${g.level} · ${g.members}/${g.capacity} người · ${g.open ? 'vào tự do' : 'phải xin vào'}</div></div>
+                ${asked ? `<button class="btn" data-act="guild-op" data-op="cancel" data-id="${g.id}">Rút đơn</button>`
+                  : `<button class="btn primary" data-act="guild-op" data-op="join" data-id="${g.id}" ${full ? 'disabled' : ''}>${full ? 'Đủ người' : g.open ? 'Vào' : 'Xin vào'}</button>`}</div>`;
+            }).join('')}</div>`}
+        </div>`;
+    }
+    const g = guildUi.info;
+    if (!g) return head + '<p class="small muted">Đang tải…</p>';
+    const staff = g.role === 'leader' || g.role === 'officer', leader = g.role === 'leader';
+    const pct = g.next_fund ? Math.round((g.fund / g.next_fund) * 100) : 100;
+    const memberRow = (m) => {
+      const me = m.id === Net.userId;
+      const acts = [];
+      if (leader && !me && m.role === 'member') acts.push(['promote', 'Phong phó bang']);
+      if (leader && !me && m.role === 'officer') acts.push(['demote', 'Bỏ chức']);
+      if (leader && !me) acts.push(['transfer', 'Nhường bang chủ']);
+      if (!me && m.role !== 'leader' && (leader || (g.role === 'officer' && m.role === 'member'))) acts.push(['kick', 'Mời ra']);
+      const ask = guildUi.confirm && guildUi.confirm.uid === m.id ? guildUi.confirm : null;
+      return `<div class="item member"><div class="grow">
+        <div class="name">${esc(m.name)}${me ? ' <span class="small muted">(bạn)</span>' : ''}</div>
+        <div class="small muted">${ROLES[m.role]} · ${m.level ? `Cấp ${m.level}` : ''}${m.cls && CLASSES[m.cls] ? ` ${CLASSES[m.cls].name}` : ''} · góp ${fmt(m.contributed)} vàng</div>
+        ${ask ? `<div class="btn-row"><span class="small" style="color:var(--bad)">${ask.label} ${esc(m.name)}?</span><button class="btn small-btn" data-act="guild-confirm-no">Thôi</button><button class="btn small-btn danger" data-act="guild-op" data-op="${ask.op}" data-uid="${m.id}">Đồng ý</button></div>`
+          : acts.length ? `<div class="btn-row">${acts.map(([op, label]) => `<button class="btn small-btn" data-act="guild-ask" data-op="${op}" data-uid="${m.id}" data-label="${label}">${label}</button>`).join('')}</div>` : ''}
+      </div></div>`;
+    };
+    return `${head}
+      <div class="card">
+        <div class="row"><h3 class="grow"><span class="guild-tag">[${esc(g.tag)}]</span> ${esc(g.name)}</h3><span class="tag gold num">Cấp ${g.level}</span></div>
+        ${g.notice ? `<p>“${esc(g.notice)}”</p>` : ''}
+        ${bar('xp', g.fund, g.next_fund || g.fund, g.next_fund ? `Quỹ ${fmt(g.fund)} / ${fmt(g.next_fund)}` : `Quỹ ${fmt(g.fund)} · cấp tối đa`)}
+        <p class="small muted">${g.members.length}/${g.capacity} thành viên · +${Math.round(g.xp_bonus * 100)}% kinh nghiệm mỗi trận · ${g.open ? 'ai cũng vào được' : 'phải xin vào'}</p>
+        <form id="guild-donate" class="chat-form"><input type="number" id="donate-amount" min="${RULES.guildMinDonate}" step="100" placeholder="Số vàng góp quỹ"><button class="btn primary" type="submit">Góp</button></form>
+      </div>
+      ${staff ? `<div class="card"><h3>Quản lý</h3>
+        <form id="guild-settings" class="gift-form">
+          <input type="text" name="notice" maxlength="120" placeholder="Thông báo cho cả bang" value="${esc(g.notice || '')}">
+          <label class="small"><input type="checkbox" name="open" ${g.open ? 'checked' : ''}> Ai cũng vào được (bỏ chọn: phải xin, bang chủ/phó bang duyệt)</label>
+          <button class="btn" type="submit">Lưu</button>
+        </form>
+        ${g.requests.length ? `<h3>Đơn xin vào</h3><div class="list">${g.requests.map((r) => `<div class="item"><div class="grow"><div class="name">${esc(r.name)}</div><div class="small muted">${r.level ? `Cấp ${r.level}` : ''}</div></div>
+          <button class="btn small-btn" data-act="guild-op" data-op="reject" data-uid="${r.id}">Từ chối</button><button class="btn small-btn primary" data-act="guild-op" data-op="accept" data-uid="${r.id}">Nhận</button></div>`).join('')}</div>` : '<p class="small muted">Không có đơn xin vào nào.</p>'}
+      </div>` : ''}
+      <div class="card"><h3>Thành viên</h3><div class="list">${g.members.map(memberRow).join('')}</div></div>
+      <div class="card">
+        ${guildUi.confirm && guildUi.confirm.op === (leader && g.members.length === 1 ? 'disband' : 'leave') && !guildUi.confirm.uid
+          ? `<p class="small" style="color:var(--bad)">${leader && g.members.length === 1 ? 'Giải tán bang? Quỹ bang sẽ mất.' : 'Rời bang?'}</p>
+             <div class="btn-row"><button class="btn" data-act="guild-confirm-no">Thôi</button><button class="btn danger" data-act="guild-op" data-op="${leader && g.members.length === 1 ? 'disband' : 'leave'}">Đồng ý</button></div>`
+          : `<button class="btn block" data-act="guild-ask" data-op="${leader && g.members.length === 1 ? 'disband' : 'leave'}">${leader && g.members.length === 1 ? 'Giải tán bang' : 'Rời bang'}</button>`}
+        ${leader && g.members.length > 1 ? '<p class="small muted">Bang chủ muốn rời thì nhường bang chủ cho người khác trước.</p>' : ''}
       </div>`;
   }
 
@@ -1120,7 +1224,7 @@
         if (cmd.act === 'leave' || cmd.act === 'create') tab = 'map';
         if (cmd.act === 'reset') tab = 'map';
         if (cmd.act === 'tower_enter') { tab = 'map'; npc = null; }
-        if (cmd.act === 'rebirth') board.at = 0;
+        if (cmd.act === 'rebirth' || cmd.act === 'guild_create' || cmd.act === 'guild_donate') board.at = 0;
         if (cmd.act === 'mail_claim' && mail.list) { const m = mail.list.find((x) => x.id === cmd.id); if (m) m.claimed = true; }
         confirmReset = false;
         confirmRebirth = false;
@@ -1224,7 +1328,7 @@
     const t = e.target.closest('button');
     if (!t) return;
     if (t.dataset.cls) { pickCls = t.dataset.cls; document.querySelectorAll('.class-opt').forEach((b) => b.setAttribute('aria-pressed', b.dataset.cls === pickCls)); return; }
-    if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; mail.open = false; stopFishing(); render(); $('#view').scrollTop = 0; return; }
+    if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; mail.open = false; guildUi.open = false; stopFishing(); render(); $('#view').scrollTop = 0; return; }
     if (t.dataset.auth) { authMode = t.dataset.auth; render(); return; }
     if (t.dataset.board) { board.kind = t.dataset.board; const el = $('#board'); if (el) el.outerHTML = viewBoard(); loadBoard(); return; }
     if (t.dataset.move) { walk = null; step(t.dataset.move); return; }
@@ -1258,6 +1362,12 @@
     if (act === 'fish-cast') { walk = null; castLine(); return; }
     if (act === 'sound-toggle') { Sound.toggle(); render(); return; }
     if (act === 'bestiary-toggle') { bestiaryOpen = !bestiaryOpen; render(); return; }
+    if (act === 'guild-open') { guildUi.open = true; guildUi.list = null; guildUi.info = null; render(); $('#view').scrollTop = 0; loadGuild(); return; }
+    if (act === 'guild-close') { guildUi.open = false; guildUi.confirm = null; render(); return; }
+    if (act === 'guild-ask') { guildUi.confirm = { op: t.dataset.op, uid: t.dataset.uid ? +t.dataset.uid : null, label: t.dataset.label }; render(); return; }
+    if (act === 'guild-confirm-no') { guildUi.confirm = null; render(); return; }
+    if (act === 'guild-op') { const d = t.dataset; guildOp(d.op, Object.assign({}, d.id ? { id: +d.id } : {}, d.uid ? { uid: +d.uid } : {})); return; }
+    if (act === 'chat-to') { chatTo = chatTo === 'guild' ? 'world' : 'guild'; const f = $('#chat-form'); if (f) f.outerHTML = viewChat().match(/<form id="chat-form"[\s\S]*<\/form>/)[0]; return; }
     if (act === 'fish-reel') { reelIn(); return; }
     if (act === 'boss-yes') { const d = dialog; if (d) step(d.dir, true); return; }
     sendCommand(command(act, t));
@@ -1302,6 +1412,25 @@
       return;
     }
     if (e.target.id === 'adm-gift' || e.target.id === 'adm-gift-all') { e.preventDefault(); onGift(e.target); return; }
+    if (e.target.id === 'guild-create') {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      sendCommand({ act: 'guild_create', name: f.get('name'), tag: f.get('tag') }).then(() => { if (P && P.guild) loadGuild(); });
+      return;
+    }
+    if (e.target.id === 'guild-donate') {
+      e.preventDefault();
+      const amount = parseInt($('#donate-amount').value, 10);
+      sendCommand({ act: 'guild_donate', amount: amount || 0 }).then(loadGuild);
+      return;
+    }
+    if (e.target.id === 'guild-search') { e.preventDefault(); guildUi.q = $('#guild-q').value.trim(); loadGuild(); return; }
+    if (e.target.id === 'guild-settings') {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      guildOp('settings', { notice: f.get('notice') || '', open: f.get('open') === 'on' });
+      return;
+    }
     if (e.target.id === 'adm-announce') {
       e.preventDefault();
       Net.admin('announce', { text: $('#adm-text').value }).then(() => { toast('Đã gửi thông báo.'); $('#adm-text').value = ''; }).catch((err) => toast(err.msg, true));
@@ -1325,6 +1454,15 @@
     Net.onChat(onChatMessage);
     Net.onWorldBoss(onWorldBoss);
     Net.onNotice((msg) => { toast(msg); Sound.play(/Thành tựu/.test(msg) ? 'achieve' : 'notice'); });
+    Net.onGuild((g) => {
+      if (!P) return;
+      const before = P.guild;
+      P.guild = g;
+      if (!g) chatTo = 'world';
+      if (!before && g) toast(`Bạn đã vào bang ${g.name}.`);
+      if (before && !g) toast('Bạn không còn ở trong bang.');
+      if (guildUi.open) loadGuild(); else if (tab === 'town') render();
+    });
     Net.onMail((n) => {
       const more = n > mail.unread;
       mail.unread = n;

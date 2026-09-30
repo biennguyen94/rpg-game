@@ -54,6 +54,7 @@ defmodule HacLong.Chat do
       uid: from.uid,
       name: from.name,
       title: Map.get(from, :title),
+      tag: Map.get(from, :tag),
       map: from.map,
       text: text,
       at: System.system_time(:millisecond)

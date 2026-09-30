@@ -382,3 +382,14 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 
 /* Ngày và đêm */
 .phase { font-size: 0.9em; }
+
+/* Bang hội */
+.guild-tag { color: #8fd1c4; font-weight: 700; font-variant-numeric: tabular-nums; }
+.guild-mark { color: #9fe0a8; font-weight: 700; font-size: 0.8em; }
+.chat-line.guild { color: #cdeed2; }
+.chat-line.system.guild { color: #9fe0a8; }
+.chat-to { flex: none; padding: 6px 10px; font-size: 0.8rem; }
+.chat-to.on { border-color: #2e6a3a; color: #9fe0a8; }
+.item.member .btn-row { margin-top: 6px; flex-wrap: wrap; }
+.item.member .btn-row .btn { flex: none; }
+.gift-form label input[type="checkbox"] { width: auto; }

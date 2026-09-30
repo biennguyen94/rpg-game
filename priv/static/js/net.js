@@ -6,7 +6,7 @@
  * (đăng xuất mọi thiết bị, đổi mật khẩu ở nơi khác) thì báo onExpired để về màn đăng nhập. */
 (function () {
   const TOKEN_KEY = 'hac-long-token';
-  const cb = { player: null, map: null, status: null, rejoin: null, expired: null, chat: null, history: null, boss: null, notice: null, mail: null };
+  const cb = { player: null, map: null, status: null, rejoin: null, expired: null, chat: null, history: null, boss: null, notice: null, mail: null, guild: null };
   let socket = null, channel = null, checkTimer = null;
 
   const store = {
@@ -71,6 +71,7 @@
       channel.on('world_boss', (m) => cb.boss && cb.boss(m));
       channel.on('notice', (m) => cb.notice && cb.notice(m.msg));
       channel.on('mail', (m) => cb.mail && cb.mail(m.unread));
+      channel.on('guild', (m) => cb.guild && cb.guild(m.guild));
       channel.join()
         .receive('ok', (r) => {
           if (!joined) { joined = true; resolve(r); } else if (cb.rejoin) cb.rejoin(r);
@@ -141,7 +142,11 @@
     send(cmd) { return push('cmd', cmd); },
 
     // Gửi tin nhắn chat thế giới.
-    chat(text) { return push('chat', { text }); },
+    // `to`: 'guild' để chat trong bang, bỏ trống là chat thế giới.
+    chat(text, to) { return push('chat', to ? { text, to } : { text }); },
+
+    // Bang hội: guild('list', { q }), guild('info'), guild('join', { id })... (xem GameChannel).
+    guild(op, payload) { return push('guild', Object.assign({ op }, payload || {})); },
 
     // Bảng xếp hạng: { level, kills, dragon, me }.
     leaderboard() { return push('leaderboard', {}); },
@@ -174,6 +179,8 @@
     onNotice(f) { cb.notice = f; },
     // Số thư chưa mở thay đổi (có thư mới, vừa mở thư).
     onMail(f) { cb.mail = f; },
+    // Bang của mình vừa đổi (vào, rời, bị đuổi, lên cấp): { id, name, tag, level, role } hoặc null.
+    onGuild(f) { cb.guild = f; },
   };
 
   window.Net = Net;

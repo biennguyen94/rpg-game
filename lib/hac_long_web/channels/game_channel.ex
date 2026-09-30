@@ -15,6 +15,8 @@ defmodule HacLongWeb.GameChannel do
     khi thay đổi, và `"notice"` (`%{msg}`) khi có thông báo riêng (vd. nhận thưởng trùm).
   - `"block"` / `"unblock"` `%{"uid"}`: ẩn/hiện chat của một người; `"report"` `%{"id"}`: báo
     cáo một tin nhắn chat.
+  - `"guild"` `%{"op" => ...}`: bang hội (xem `guild/3`); chat bang là `"chat"` với
+    `"to" => "guild"`, server đẩy `"chat"` kèm `guild: true`; đổi bang thì server đẩy `"guild"`.
   - `"mail"`: danh sách thư; server đẩy `"mail"` `%{unread}` khi có thư mới. Mở thư (nhận quà)
     là lệnh `"cmd"` `%{"act" => "mail_claim", "id" => ...}`.
   - `"admin"` `%{"op" => ...}` (chỉ tài khoản quản trị): xem/xử lý báo cáo, tra cứu, cấm chat,
@@ -23,7 +25,7 @@ defmodule HacLongWeb.GameChannel do
   require Logger
   use HacLongWeb, :channel
 
-  alias HacLong.{Accounts, Chat, Leaderboard, Mailbox, Moderation, RateLimit, WorldBoss}
+  alias HacLong.{Accounts, Chat, Guilds, Leaderboard, Mailbox, Moderation, RateLimit, WorldBoss}
   alias HacLong.Game.{Achievements, Chests, Daily, Data, Engine, Quests, Session, Tutorial}
   alias HacLong.World.{Maps, MapServer}
 
@@ -36,6 +38,8 @@ defmodule HacLongWeb.GameChannel do
     player = Session.attach(uid, self())
     send(self(), :push_map)
     blocked = Moderation.blocked(uid)
+    gid = player && player[:guild] && player.guild.id
+    if gid, do: Phoenix.PubSub.subscribe(HacLong.PubSub, Guilds.topic(gid))
 
     reply = %{
       username: socket.assigns.username,
@@ -46,7 +50,11 @@ defmodule HacLongWeb.GameChannel do
       player: present(player)
     }
 
-    {:ok, reply, socket |> assign(:map, nil) |> assign(:blocked, MapSet.new(blocked, & &1.id))}
+    {:ok, reply,
+     socket
+     |> assign(:map, nil)
+     |> assign(:guild_id, gid)
+     |> assign(:blocked, MapSet.new(blocked, & &1.id))}
   end
 
   @impl true
@@ -56,7 +64,7 @@ defmodule HacLongWeb.GameChannel do
     {:reply, {:ok, Map.put(result, :player, present(player))}, socket}
   end
 
-  def handle_in("chat", %{"text" => text}, socket) do
+  def handle_in("chat", %{"text" => text} = payload, socket) do
     uid = socket.assigns.user_id
 
     with :ok <- chat_limit(uid),
@@ -66,9 +74,14 @@ defmodule HacLongWeb.GameChannel do
            uid: uid,
            name: p.name,
            map: p.pos.map,
-           title: Achievements.title_name(p[:title])
+           title: Achievements.title_name(p[:title]),
+           tag: p[:guild] && p.guild.tag
          },
-         {:ok, _msg} <- Chat.post(from, text) do
+         {:ok, _msg} <-
+           if(payload["to"] == "guild",
+             do: guild_chat(p, from, text),
+             else: Chat.post(from, text)
+           ) do
       {:reply, :ok, socket}
     else
       {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
@@ -81,10 +94,22 @@ defmodule HacLongWeb.GameChannel do
     case RateLimit.hit({:leaderboard, uid}, 20, :timer.minutes(1)) do
       :ok ->
         boards = Map.new(Leaderboard.kinds(), &{&1, Leaderboard.top(&1)})
+        boards = Map.put(boards, :guild, Guilds.top())
         {:reply, {:ok, Map.put(boards, :me, Leaderboard.level_rank(uid))}, socket}
 
       {:error, _} ->
         {:reply, {:error, %{msg: "Thao tác quá nhanh."}}, socket}
+    end
+  end
+
+  def handle_in("guild", %{"op" => op} = p, socket) do
+    uid = socket.assigns.user_id
+
+    with :ok <- limit({:guild, uid}, 40, :timer.minutes(1)),
+         {:ok, data} <- guild(op, p, uid) do
+      {:reply, {:ok, data}, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
     end
   end
 
@@ -143,6 +168,66 @@ defmodule HacLongWeb.GameChannel do
   def handle_in("admin", _p, socket), do: {:reply, {:error, %{msg: "Không có quyền."}}, socket}
 
   def handle_in(_event, _payload, socket), do: {:reply, {:error, %{msg: "Sai cú pháp."}}, socket}
+
+  # ---------- Bang hội ----------
+
+  defp guild_chat(%{guild: %{id: gid}}, from, text) do
+    text =
+      text
+      |> String.replace(~r/[\p{Cc}\p{Cf}]/u, " ")
+      |> String.replace(~r/\s+/u, " ")
+      |> String.trim()
+      |> String.slice(0, 120)
+
+    if text == "" do
+      {:error, "Tin nhắn trống."}
+    else
+      msg =
+        Map.merge(from, %{id: nil, text: text, guild: true, at: System.system_time(:millisecond)})
+
+      Phoenix.PubSub.broadcast(HacLong.PubSub, Guilds.topic(gid), {:guild_chat, msg})
+      {:ok, msg}
+    end
+  end
+
+  defp guild_chat(_p, _from, _text), do: {:error, "Bạn chưa vào bang nào."}
+
+  # Trả về {:ok, dữ_liệu} hoặc {:error, lý_do}. Sau mỗi thay đổi trả lại thông tin bang.
+  defp guild("list", p, uid),
+    do: {:ok, %{guilds: Guilds.list(p["q"] || ""), requested: Guilds.my_requests(uid)}}
+
+  defp guild("info", _p, uid) do
+    case Guilds.brief(uid) do
+      nil -> {:ok, %{guild: nil}}
+      b -> {:ok, %{guild: Guilds.info(b.id, uid)}}
+    end
+  end
+
+  defp guild(op, p, uid) do
+    target = p["uid"]
+    gid = p["id"]
+
+    result =
+      case op do
+        "join" -> Guilds.join(uid, gid)
+        "cancel" -> Guilds.cancel_request(uid, gid)
+        "accept" -> Guilds.accept(uid, target)
+        "reject" -> Guilds.reject(uid, target)
+        "kick" -> Guilds.kick(uid, target)
+        "promote" -> Guilds.set_role(uid, target, "officer")
+        "demote" -> Guilds.set_role(uid, target, "member")
+        "transfer" -> Guilds.transfer(uid, target)
+        "leave" -> Guilds.leave(uid)
+        "disband" -> Guilds.disband(uid)
+        "settings" -> Guilds.settings(uid, p)
+        _ -> {:error, "Thao tác không hợp lệ."}
+      end
+
+    with {:ok, msg} <- result do
+      {:ok, info} = guild("info", p, uid)
+      {:ok, Map.put(info, :msg, msg)}
+    end
+  end
 
   # ---------- Quản trị ----------
 
@@ -269,6 +354,25 @@ defmodule HacLongWeb.GameChannel do
 
   def handle_info({:world_boss, status}, socket) do
     push(socket, "world_boss", status)
+    {:noreply, socket}
+  end
+
+  # Bang của mình vừa đổi (vào, rời, bị đuổi, giải tán): đổi kênh chat bang.
+  def handle_info({:guild, brief}, socket) do
+    old = socket.assigns[:guild_id]
+    new = brief && brief.id
+
+    if old != new do
+      if old, do: Phoenix.PubSub.unsubscribe(HacLong.PubSub, Guilds.topic(old))
+      if new, do: Phoenix.PubSub.subscribe(HacLong.PubSub, Guilds.topic(new))
+    end
+
+    push(socket, "guild", %{guild: brief})
+    {:noreply, assign(socket, :guild_id, new)}
+  end
+
+  def handle_info({:guild_chat, msg}, socket) do
+    unless msg.uid in socket.assigns.blocked, do: push(socket, "chat", msg)
     {:noreply, socket}
   end
 

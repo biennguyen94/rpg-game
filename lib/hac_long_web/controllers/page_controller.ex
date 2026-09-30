@@ -35,7 +35,9 @@ defmodule HacLongWeb.PageController do
         pointsPerLevel: Engine.points_per_level(),
         gearBag: HacLong.Game.Gear.max_bag(),
         rebirthPoints: Engine.rebirth_points(),
-        maxRebirths: Engine.max_rebirths()
+        maxRebirths: Engine.max_rebirths(),
+        guildCost: HacLong.Guilds.create_cost(),
+        guildMinDonate: HacLong.Guilds.min_donate()
       },
       WORLD: Maps.client_data()
     }

@@ -124,7 +124,7 @@ defmodule HacLongWeb.GameChannelTest do
     assert r.player.battle.result in ~w(win lose)
 
     # trận đấu (kể cả nhật ký) được lưu và đọc lại đúng như trong bộ nhớ
-    assert Characters.load(user.id) == Map.delete(r.player, :view)
+    assert Characters.load(user.id) == Map.drop(r.player, [:view, :guild])
     assert r.player.view.derived.maxHp > 0
 
     if r.player.battle.result == "win" do
@@ -476,6 +476,104 @@ defmodule HacLongWeb.GameChannelTest do
       assert_reply ref, :ok
       assert_push "chat", %{uid: 0, text: "📢 Bảo trì lúc 22 giờ"}
       _ = ua
+    end
+  end
+
+  describe "bang hội" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    defp member(gold \\ 20_000) do
+      u = create_user()
+      p = player_at(u, %{map: "village", x: 12, y: 14}, %{gold: gold})
+      {_, socket} = join_game(u)
+      {u, p, socket}
+    end
+
+    defp gop(socket, op, payload \\ %{}) do
+      ref = push(socket, "guild", Map.put(payload, "op", op))
+      assert_reply ref, status, reply
+      {status, reply}
+    end
+
+    test "lập bang, vào bang, chat bang, góp quỹ lên cấp" do
+      {ua, pa, sa} = member()
+      tag = "T#{rem(System.unique_integer([:positive]), 1000)}"
+      name = "Rồng Lửa #{tag}"
+
+      assert %{ok: false, msg: "Ký hiệu bang gồm 2–4 chữ cái không dấu hoặc số."} =
+               cmd(sa, %{"act" => "guild_create", "name" => name, "tag" => "!"})
+
+      r = cmd(sa, %{"act" => "guild_create", "name" => name, "tag" => String.downcase(tag)})
+      assert r.ok and r.player.gold == pa.gold - HacLong.Guilds.create_cost()
+      assert %{tag: ^tag, role: "leader", level: 1} = r.player.guild
+      assert_push "guild", %{guild: %{tag: ^tag}}
+      gid = r.player.guild.id
+
+      # tên trùng (khác hoa thường) thì không được
+      {_ub, _pb, sb} = member()
+
+      assert %{ok: false, msg: "Tên hoặc ký hiệu bang đã có người dùng."} =
+               cmd(sb, %{"act" => "guild_create", "name" => String.upcase(name), "tag" => "ZZZ"})
+
+      # bang mở: vào ngay
+      assert {:ok, %{guild: %{members: [_, _]}, msg: "Đã vào bang " <> _}} =
+               gop(sb, "join", %{"id" => gid})
+
+      # chat bang: chỉ người trong bang nhận
+      {_uc, _pc, sc} = member()
+      ref = push(sb, "chat", %{"text" => "chào cả bang", "to" => "guild"})
+      assert_reply ref, :ok
+      assert_push "chat", %{text: "chào cả bang", guild: true, tag: ^tag}
+      assert_push "chat", %{text: "chào cả bang", guild: true}
+      refute_push "chat", %{text: "chào cả bang"}
+      ref = push(sc, "chat", %{"text" => "tôi cũng muốn", "to" => "guild"})
+      assert_reply ref, :error, %{msg: "Bạn chưa vào bang nào."}
+
+      # bang đóng: phải xin, bang chủ duyệt
+      assert {:ok, _} = gop(sa, "settings", %{"open" => false, "notice" => "Săn rồng tối nay"})
+      assert {:ok, %{msg: "Đã gửi đơn" <> _}} = gop(sc, "join", %{"id" => gid})
+      assert {:ok, %{guild: %{requests: [%{id: cid}]}}} = gop(sa, "info")
+      assert {:ok, %{guild: %{members: members}}} = gop(sa, "accept", %{"uid" => cid})
+      assert length(members) == 3
+
+      # góp quỹ đủ 10.000 thì lên cấp 2: thêm kinh nghiệm mỗi trận
+      assert %{ok: false, msg: "Góp ít nhất 100 vàng."} =
+               cmd(sa, %{"act" => "guild_donate", "amount" => 5})
+
+      r = cmd(sa, %{"act" => "guild_donate", "amount" => 10_000})
+      assert r.ok and r.player.gold == pa.gold - 5000 - 10_000
+      assert %{level: 2} = Session.get(ua.id).guild
+
+      # phó bang không đuổi được phó bang khác; bang chủ đuổi được
+      assert {:ok, _} = gop(sa, "promote", %{"uid" => cid})
+      assert {:error, %{msg: "Chỉ bang chủ làm được."}} = gop(sb, "promote", %{"uid" => cid})
+      assert {:ok, %{guild: %{members: [_, _]}}} = gop(sa, "kick", %{"uid" => cid})
+      assert_push "guild", %{guild: nil}
+
+      # bang chủ phải chuyển quyền trước khi rời
+      assert {:error, %{msg: "Chuyển quyền" <> _}} = gop(sa, "leave")
+      {:ok, %{guild: %{members: [_ | _]}}} = gop(sb, "info")
+      [ub_id] = HacLong.Guilds.member_ids(gid) -- [ua.id]
+      assert {:ok, _} = gop(sa, "transfer", %{"uid" => ub_id})
+      assert {:ok, %{guild: nil}} = gop(sa, "leave")
+      assert {:ok, %{guild: nil, msg: "Đã giải tán" <> _}} = gop(sb, "disband")
+      assert HacLong.Guilds.member_ids(gid) == []
+    end
+
+    test "danh sách bang và bảng xếp hạng bang" do
+      {_u, _p, s} = member()
+      tag = "L#{rem(System.unique_integer([:positive]), 1000)}"
+      %{ok: true} = cmd(s, %{"act" => "guild_create", "name" => "Bang #{tag}", "tag" => tag})
+
+      assert {:ok, %{guilds: [%{tag: ^tag, members: 1, level: 1}]}} =
+               gop(s, "list", %{"q" => tag})
+
+      ref = push(s, "leaderboard", %{})
+      assert_reply ref, :ok, %{guild: guilds}
+      assert Enum.any?(guilds, &(&1.tag == tag))
     end
   end
 
