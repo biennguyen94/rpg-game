@@ -7,10 +7,9 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 
 Ước lượng công sức: nhỏ (vài giờ), vừa (khoảng một ngày), lớn (nhiều ngày).
 
-1. **Tổ đội** (vừa–lớn): đánh chung một trận, chia kinh nghiệm; hợp với bang hội.
-2. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
-   **chợ giữa người chơi** (lớn).
-3. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
+1. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
+2. Các việc còn mở trong từng mục dưới đây (thăm nhà người khác, thú hỗ trợ đánh, nhạc nền,
+   nhiệm vụ bang, giao dịch trực tiếp...).
 
 ---
 
@@ -90,24 +89,29 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [x] **Chặn/báo cáo người chat xấu**: bấm tên trong khung chat để báo cáo tin đó (quản trị
   viên xử lý ở tab Quản trị) hoặc chặn người đó (không thấy chat của họ nữa; bỏ chặn trong thẻ
   Dữ liệu ở tab Làng).
-- [ ] **PvP bất đồng bộ**: đánh với bản sao chỉ số của người chơi khác (đấu trường).
-- [ ] **Chợ giữa người chơi**: rao bán đồ; phải dùng transaction trong database để không bị
-  nhân đôi đồ.
+- [x] **PvP bất đồng bộ** (`HacLong.Arena`, bảng `pvp`): đánh với bản sao chỉ số của người khác
+  (đọc từ database, họ không cần online, mặc đúng đồ); điểm Elo cho cả hai; thắng thêm ít vàng,
+  thua không mất gì; 15 trận mỗi ngày; đối thủ gợi ý gần điểm; bảng xếp hạng đấu trường.
+- [x] **Chợ giữa người chơi** (`HacLong.Market`, Chủ Chợ trong Làng): rao bán đồ thường hoặc đồ
+  chỉ số ngẫu nhiên (giữ cấp nâng), mua, rút về. Mua trong transaction khóa dòng hàng nên không
+  nhân đôi đồ; người bán nhận tiền qua hộp thư, trừ 5% phí.
 - [x] **Hộp thư** (`HacLong.Mailbox`): thư hệ thống kèm quà (vàng, kinh nghiệm, đồ); nút phong
   bì trên HUD có số thư chưa mở. Mở thư là nhận quà, trong cùng transaction với lần ghi nhân vật
   nên không nhận đôi. Thưởng trùm thế giới lúc không online gửi qua đây; quản trị viên tặng quà
   cho một người hoặc mọi người.
-  - [ ] Nhận tiền khi bán được đồ ở chợ (khi có chợ).
+  - [x] Nhận tiền khi bán được đồ ở chợ.
 - [x] **Bang hội** (`HacLong.Guilds`): lập bang 5.000 vàng (tên, ký hiệu không trùng); bang mở
   vào ngay, bang đóng thì xin vào; bang chủ / phó bang / thành viên (phong, nhường, mời ra, rời,
   giải tán); góp quỹ lên cấp (tối đa 5: thêm chỗ, +2% kinh nghiệm mỗi cấp từ cấp 2); kênh chat
   bang; ký hiệu bang cạnh tên trong chat; bảng xếp hạng bang theo quỹ.
   - [ ] Bảng xếp hạng bang theo sát thương lên trùm thế giới; nhiệm vụ bang.
-- [ ] **Tổ đội**: mời người khác vào nhóm, đánh chung một trận với một con quái, chia kinh
-  nghiệm; việc hằng ngày và nhiệm vụ tính cho cả nhóm. Hiện ngoài trùm thế giới thì ai cũng
-  đánh một mình.
-- [ ] **Chạm vào người chơi khác** để xem thông tin, mời PvP hoặc giao dịch (hiện người chơi
-  đi xuyên qua nhau, chạm vào không có gì).
+- [x] **Tổ đội** (`HacLong.Party`, giữ trong bộ nhớ): mời người đang online (tối đa 3), kênh chat
+  tổ đội, thẻ tổ đội có máu từng người. Đồng đội chạm vào con quái mình đang đánh thì vào cùng
+  trận, máu quái chung; quái gục thì mọi người cùng thắng, được tính nhiệm vụ/việc hằng
+  ngày/sổ tay; thưởng mỗi người = gốc × 1,2 / số người.
+- [x] **Chạm vào người chơi khác**: xem cấp, lớp, bang, danh hiệu, đồ đang mặc, điểm đấu trường;
+  mời tổ đội, thách đấu, chặn chat.
+  - [ ] Giao dịch trực tiếp giữa hai người (hiện dùng chợ).
 
 ## E. Bản đồ ô vuông
 

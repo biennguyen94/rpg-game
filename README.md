@@ -38,6 +38,10 @@ mix test           # chạy test (cần PostgreSQL)
 - Bang hội: lập/vào bang, chat bang, quỹ bang lên cấp, bảng xếp hạng bang
 - Nhân vật mặc đúng đồ đang trang bị (người khác cũng thấy); thú cưng đi theo sau
 - Trang trí nhà bằng đồ mua ở Thợ Mộc; nhà tiện nghi thì thêm kinh nghiệm
+- Tổ đội tối đa 3 người: đánh chung một con quái, chia thưởng, chat tổ đội
+- Chạm vào người chơi khác để xem đồ, mời tổ đội, thách đấu ở đấu trường (PvP với bản sao chỉ số,
+  điểm Elo)
+- Chợ giữa người chơi: rao bán, mua; tiền bán được gửi qua hộp thư
 - Lên cấp nhận 3 điểm tiềm năng để cộng vào Sức mạnh, Thể lực, Nhanh nhẹn, Phòng thủ
 - NPC trong Làng: Trưởng Làng giao nhiệm vụ, Thợ Rèn bán vũ khí/giáp/khiên, Bà Lang bán và pha
   thuốc, Chủ Quán Trọ cho nghỉ; mua bán phải đến gặp họ. 2 món đồ hiếm chỉ rơi từ trùm
@@ -123,6 +127,9 @@ lib/hac_long/game/pets.ex           Thú cưng
 lib/hac_long/game/home.ex           Trang trí nhà
 lib/hac_long/world/clock.ex         Ngày và đêm
 lib/hac_long/guilds.ex              Bang hội
+lib/hac_long/party.ex               Tổ đội, trận đánh chung
+lib/hac_long/arena.ex               Đấu trường (PvP bất đồng bộ, điểm Elo)
+lib/hac_long/market.ex              Chợ giữa người chơi
 lib/hac_long/game/names.ex          Kiểm tra và chuẩn hóa tên nhân vật
 lib/hac_long/game/simulator.ex      Bot chơi thử để kiểm tra cân bằng
 lib/hac_long/world.ex               Đi lại trên bản đồ, qua cổng, chạm quái, kết thúc trận
@@ -182,11 +189,15 @@ lúc hạ từng trùm.
 | push `"block"`, `"unblock"` | `{uid}` → `{blocked}`: chặn/bỏ chặn chat của một người |
 | push `"report"` | `{id}` (id tin chat) → ok hoặc `{msg}` lỗi; tối đa 10 lần/10 phút |
 | push `"guild"` | `{op, ...}`: `list {q}`, `info`, `join {id}`, `cancel {id}`, `accept`/`reject`/`kick`/`promote`/`demote`/`transfer {uid}`, `leave`, `disband`, `settings {open?, notice?}` → `{guild, msg}` (hoặc `{guilds, requested}` với `list`); server đẩy `"guild"` `{guild}` khi bang của mình đổi. Chat bang: push `"chat"` `{text, to: "guild"}` |
+| push `"party"` | `{op, ...}`: `invite {uid}`, `accept`, `decline`, `leave`, `kick {uid}`, `info` → `{party}`; server đẩy `"party"` `{party}`, `"party_invite"` `{from, name}`, `"shared"` `{key, hp, n}` (máu chung khi đánh cùng). Chat tổ đội: `"chat"` `{text, to: "party"}` |
+| push `"inspect"` | `{uid}` → thông tin người chơi khác: tên, lớp, cấp, `look`, danh hiệu, bang, đồ đang mặc, điểm đấu trường |
+| push `"arena"` | → `{me: {rating, wins, losses, today, per_day}, suggestions, top}` |
+| push `"market"` | `{q?}` → `{listings: [{id, seller, name, item, count, gear, price, mine}], fee, max}` |
 | push `"mail"` | → `{mails: [{id, subject, body, gold, xp, items, claimed, at}], unread}`; server đẩy `"mail"` `{unread}` khi có thư mới hoặc vừa mở thư |
 | push `"admin"` | Chỉ admin. `{op, ...}`: `reports`, `lookup {name}`, `resolve {id, action: dismiss/mute/ban, minutes}`, `mute`/`ban {uid, minutes?, reason?}` (không có `minutes` là vĩnh viễn), `unmute`/`unban {uid}`, `announce {text}`, `gift {uid | all: true, subject, body?, gold?, xp?, items?}`, `world_boss` |
 | server push `"world_boss"` | `{alive, name, hp, maxHp, endsAt, nextAt, now, fighters, top}` khi trùm thế giới thay đổi |
 | server push `"notice"` | `{msg}`: thông báo riêng (vd. nhận thưởng trùm thế giới) |
-| push `"leaderboard"` | → `{level, kills, dragon, tower, guild, me}` (mỗi bảng 10 người kèm `title`, `me` là hạng theo cấp) |
+| push `"leaderboard"` | → `{level, kills, dragon, tower, guild, arena, me}` (mỗi bảng 10 người kèm `title`, `me` là hạng theo cấp) |
 
 Các `act`: `create {name, cls}`, `reset`, `move {dir, confirm?}` (`up`/`down`/`left`/`right`;
 bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: true` để đấu),
@@ -198,7 +209,8 @@ bỏ danh hiệu), `fish_cast` (đứng cạnh nước; trả `wait` mili giây 
 `fish_reel`, `chest_open` (Rương Gia Truyền ở Nhà), `chest_buy {tier}` (Thợ Rèn: wood/silver/gold),
 `guild_create {name, tag}`, `guild_donate {amount}`, `pet_buy {id}` (Người Nuôi Thú),
 `pet_choose {id}` (`null` để thú ở nhà), `decor_buy {id}` (Thợ Mộc), `decor_place {id, x, y}`,
-`decor_take {x, y}` (ở Nhà). Bước vào NPC thì nhận `npc: id`; các lệnh sau phải đứng cạnh
+`decor_take {x, y}` (ở Nhà), `pvp_challenge {uid}` (thách đấu), `market_sell {id, count, price}`,
+`market_buy {listing}`, `market_cancel {listing}` (đứng cạnh Chủ Chợ). Bước vào NPC thì nhận `npc: id`; các lệnh sau phải đứng cạnh
 đúng NPC: `buy {id, n}`, `sell {id}` (Thợ Rèn, Bà Lang), `upgrade {slot}` (Thợ Rèn), `craft {id}` (Bà Lang), `rest`
 (Chủ Quán Trọ), `quest_accept {id}`, `quest_turnin {id}` (Trưởng Làng), `daily_claim {i}`
 (Bảng Tin), `tower_enter {floor}` (Người Gác Tháp).
