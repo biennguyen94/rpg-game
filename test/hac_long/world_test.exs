@@ -76,6 +76,34 @@ defmodule HacLong.WorldTest do
     refute Enum.any?(MapServer.snapshot("village").players, &(&1.id == uid))
   end
 
+  test "quái Bóng Đêm mạnh hơn, thưởng nhiều hơn", %{uid: uid, p: p} do
+    {x, y} = open_spot("forest_1")
+    p = at(p, "forest_1", x, y)
+    World.enter(p, uid)
+    MapServer.put_monster("forest_1", "spider", {x + 1, y}, false, true)
+    assert [%{rare: true}] = MapServer.snapshot("forest_1").monsters
+
+    {%{ok: true}, f} = World.move(p, uid, "right")
+    m = f.battle.monster
+    assert m.name == "Nhện Độc Bóng Đêm" and m.night
+    spec = HacLong.Game.Data.monster("spider")
+    strong = Engine.make_monster(Map.put(spec, :mult, 1.5), false)
+    normal = Engine.make_monster(spec, false)
+    assert m.maxHp == strong.maxHp and m.xp == strong.xp and m.xp > normal.xp
+    assert HacLong.Game.Gear.drop_chance(m) == 0.25
+  end
+
+  test "buổi trong ngày theo giờ Việt Nam" do
+    alias HacLong.World.Clock
+    at_utc = fn h -> DateTime.new!(~D[2026-10-01], Time.new!(h, 0, 0)) end
+    # 7 giờ sáng giờ Việt Nam là 0 giờ UTC
+    assert Clock.phase(at_utc.(0)) == "day"
+    assert Clock.phase(at_utc.(22)) == "dawn"
+    assert Clock.phase(at_utc.(11)) == "dusk"
+    assert Clock.phase(at_utc.(15)) == "night"
+    assert Clock.night?(at_utc.(20))
+  end
+
   test "chạm quái thì vào trận, người khác không tranh được", %{uid: uid, p: p} do
     {x, y} = open_spot("forest_1")
     p = at(p, "forest_1", x, y)

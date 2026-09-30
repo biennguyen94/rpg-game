@@ -30,6 +30,9 @@ defmodule HacLongWeb.AuthController do
         {:ok, user} ->
           json(conn, session(user))
 
+        {:error, {:banned, user}} ->
+          conn |> put_status(:forbidden) |> json(%{error: banned_msg(user)})
+
         {:error, _} ->
           conn |> put_status(:unauthorized) |> json(%{error: "Sai tên đăng nhập hoặc mật khẩu."})
       end
@@ -107,9 +110,19 @@ defmodule HacLongWeb.AuthController do
   defp disconnect(user),
     do: HacLongWeb.Endpoint.broadcast("user_socket:#{user.id}", "disconnect", %{})
 
-  # Địa chỉ IP của người gọi. Nếu chạy sau proxy (nginx, load balancer) cần thêm plug
-  # đọc X-Forwarded-For (vd. RemoteIp) để có IP thật.
+  # Địa chỉ IP của người gọi (đã tính X-Forwarded-For nếu có proxy tin cậy, xem
+  # HacLongWeb.RemoteIp).
   defp ip(conn), do: conn.remote_ip |> :inet.ntoa() |> to_string()
+
+  defp banned_msg(user) do
+    until =
+      if user.banned_until.year >= 9999,
+        do: "vĩnh viễn",
+        else:
+          "đến " <> Calendar.strftime(DateTime.add(user.banned_until, 7 * 3600), "%H:%M %d/%m/%Y")
+
+    "Tài khoản bị khóa #{until}" <> if(user.ban_reason, do: ": #{user.ban_reason}.", else: ".")
+  end
 
   defp session(user), do: %{token: Accounts.sign_token(user), username: user.username}
 

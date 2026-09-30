@@ -35,7 +35,12 @@ defmodule HacLongWeb.GameChannelTest do
     # tên nhân vật không được trùng nên thêm số riêng cho mỗi người
     name = "Hiệp #{System.unique_integer([:positive]) |> rem(100_000)}"
     {_, p} = Commands.run(nil, %{"act" => "create", "name" => name, "cls" => "knight"})
-    p = p |> Map.merge(attrs) |> Map.put(:pos, pos)
+
+    # các test ở đây không nói về hướng dẫn người mới: tắt để không có thông báo lẫn vào
+    p = p |> Map.put(:tutorial, nil) |> Map.merge(attrs) |> Map.put(:pos, pos)
+
+    # thành tựu đã đủ điều kiện thì nhận trước, cũng để không có thông báo lẫn vào
+    {p, _} = HacLong.Game.Achievements.check(p)
     Characters.save!(user.id, p)
     p
   end
@@ -82,6 +87,10 @@ defmodule HacLongWeb.GameChannelTest do
     # bước xuống cửa nhà thì ra Làng
     r = cmd(socket, %{"act" => "move", "dir" => "down"})
     assert r.ok and r.player.pos == %{map: "village", x: 12, y: 15}
+    # hướng dẫn người mới sang bước 2, chỉ đường tới Trưởng Làng
+    assert_push "notice", %{msg: "Hướng dẫn 2/5" <> _}
+    assert %{step: 2, target: %{map: "village"}} = r.player.view.tutorial
+    assert Characters.load(user.id).tutorial == 1
     assert_push "map", %{map: "village", players: players}
     assert Enum.any?(players, &(&1.id == user.id))
     assert Characters.load(user.id).pos.map == "village"
@@ -115,7 +124,7 @@ defmodule HacLongWeb.GameChannelTest do
     assert r.player.battle.result in ~w(win lose)
 
     # trận đấu (kể cả nhật ký) được lưu và đọc lại đúng như trong bộ nhớ
-    assert Characters.load(user.id) == Map.delete(r.player, :view)
+    assert Characters.load(user.id) == Map.drop(r.player, [:view, :guild])
     assert r.player.view.derived.maxHp > 0
 
     if r.player.battle.result == "win" do
@@ -347,6 +356,304 @@ defmodule HacLongWeb.GameChannelTest do
     r = cmd(socket, %{"act" => "move", "dir" => "down"})
     assert r.player.pos.map == "village" and r.player.tower == nil
     assert Enum.any?(MapServer.snapshot("village").players, &(&1.id == user.id))
+  end
+
+  describe "chặn, báo cáo, quản trị" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    defp chatter do
+      u = create_user()
+      p = player_at(u, %{map: "village", x: 12, y: 14})
+      {reply, socket} = join_game(u)
+      {u, p, reply, socket}
+    end
+
+    defp say(socket, text) do
+      ref = push(socket, "chat", %{"text" => text})
+      assert_reply ref, status, payload
+      {status, payload}
+    end
+
+    test "chặn thì không thấy chat của người đó; báo cáo lấy đúng nội dung từ server" do
+      {_ua, _pa, reply, sa} = chatter()
+      assert reply.admin == false and reply.blocked == []
+      {ub, pb, _, sb} = chatter()
+
+      {:ok, _} = say(sb, "câu nói xấu")
+      assert_push "chat", %{text: "câu nói xấu", id: msg_id, uid: uid}
+      assert uid == ub.id
+
+      # báo cáo: chỉ gửi id, nội dung lấy từ lịch sử chat trên server
+      ref = push(sa, "report", %{"id" => msg_id})
+      assert_reply ref, :ok
+      assert [%{text: "câu nói xấu", target: target}] = HacLong.Moderation.open_reports()
+      assert target == pb.name
+      ref = push(sa, "report", %{"id" => 999_999})
+      assert_reply ref, :error, %{msg: "Tin nhắn đã quá cũ để báo cáo."}
+
+      ref = push(sa, "block", %{"uid" => ub.id})
+      assert_reply ref, :ok, %{blocked: [%{id: id}]}
+      assert id == ub.id
+      # tin của B vẫn đến kênh B, nhưng kênh A không nhận
+      {:ok, _} = say(sb, "sau khi bị chặn")
+      assert_push "chat", %{text: "sau khi bị chặn"}
+      refute_push "chat", %{text: "sau khi bị chặn"}
+
+      ref = push(sa, "unblock", %{"uid" => ub.id})
+      assert_reply ref, :ok, %{blocked: []}
+    end
+
+    test "danh hiệu hiện trong chat và bảng xếp hạng" do
+      u = create_user()
+      player_at(u, %{map: "village", x: 12, y: 14}, %{kills: 150})
+      {_, socket} = join_game(u)
+
+      r = cmd(socket, %{"act" => "title_set", "id" => "hunter"})
+      assert r.ok and r.player.title == "hunter"
+      assert Enum.find(r.player.view.achievements, &(&1.id == "hunter")).done
+
+      {:ok, _} = say(socket, "chào")
+      assert_push "chat", %{text: "chào", title: "Thợ Săn"}
+
+      ref = push(socket, "leaderboard", %{})
+      assert_reply ref, :ok, %{kills: kills}
+      assert Enum.find(kills, &(&1.user_id == u.id)).title == "Thợ Săn"
+    end
+
+    test "người thường không gọi được lệnh quản trị" do
+      {_u, _p, _r, socket} = chatter()
+      ref = push(socket, "admin", %{"op" => "reports"})
+      assert_reply ref, :error, %{msg: "Không có quyền."}
+    end
+
+    test "quản trị: xử lý báo cáo bằng cấm chat, khóa và mở khóa tài khoản" do
+      {ua, _pa, _, sa} = chatter()
+      {ub, pb, _, sb} = chatter()
+      admin = create_user()
+      {:ok, _} = HacLong.Moderation.set_admin(admin.username, true)
+      admin = HacLong.Accounts.get_user(admin.id)
+      player_at(admin, %{map: "village", x: 11, y: 14})
+      {reply, sadm} = join_game(admin)
+      assert reply.admin
+
+      {:ok, _} = say(sb, "spam quảng cáo")
+      assert_push "chat", %{text: "spam quảng cáo", id: msg_id}
+      ref = push(sa, "report", %{"id" => msg_id})
+      assert_reply ref, :ok
+
+      ref = push(sadm, "admin", %{"op" => "reports"})
+      assert_reply ref, :ok, %{reports: [%{id: rid, target_id: tid}]}
+      assert tid == ub.id
+
+      ref =
+        push(sadm, "admin", %{"op" => "resolve", "id" => rid, "action" => "mute", "minutes" => 30})
+
+      assert_reply ref, :ok
+      assert HacLong.Moderation.open_reports() == []
+      {:error, %{msg: msg}} = say(sb, "còn nói được không")
+      assert msg =~ "cấm chat"
+
+      ref = push(sadm, "admin", %{"op" => "lookup", "name" => pb.name})
+      assert_reply ref, :ok, %{user: %{id: ^tid, muted_until: %DateTime{}}}
+
+      # khóa tài khoản: đăng nhập bị từ chối, token cũ hết hiệu lực, kết nối bị ngắt
+      token = HacLong.Accounts.sign_token(ub)
+      @endpoint.subscribe("user_socket:#{ub.id}")
+      ref = push(sadm, "admin", %{"op" => "ban", "uid" => ub.id, "reason" => "spam"})
+      assert_reply ref, :ok
+      assert_receive %Phoenix.Socket.Broadcast{event: "disconnect", topic: "user_socket:" <> _}
+      assert {:error, :invalid} = HacLong.Accounts.verify_token(token)
+      assert {:error, {:banned, _}} = HacLong.Accounts.authenticate(ub.username, "matkhau1")
+
+      ref = push(sadm, "admin", %{"op" => "unban", "uid" => ub.id})
+      assert_reply ref, :ok
+      assert {:ok, _} = HacLong.Accounts.authenticate(ub.username, "matkhau1")
+
+      ref = push(sadm, "admin", %{"op" => "announce", "text" => "Bảo trì lúc 22 giờ"})
+      assert_reply ref, :ok
+      assert_push "chat", %{uid: 0, text: "📢 Bảo trì lúc 22 giờ"}
+      _ = ua
+    end
+  end
+
+  describe "bang hội" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    defp member(gold \\ 20_000) do
+      u = create_user()
+      p = player_at(u, %{map: "village", x: 12, y: 14}, %{gold: gold})
+      {_, socket} = join_game(u)
+      {u, p, socket}
+    end
+
+    defp gop(socket, op, payload \\ %{}) do
+      ref = push(socket, "guild", Map.put(payload, "op", op))
+      assert_reply ref, status, reply
+      {status, reply}
+    end
+
+    test "lập bang, vào bang, chat bang, góp quỹ lên cấp" do
+      {ua, pa, sa} = member()
+      tag = "T#{rem(System.unique_integer([:positive]), 1000)}"
+      name = "Rồng Lửa #{tag}"
+
+      assert %{ok: false, msg: "Ký hiệu bang gồm 2–4 chữ cái không dấu hoặc số."} =
+               cmd(sa, %{"act" => "guild_create", "name" => name, "tag" => "!"})
+
+      r = cmd(sa, %{"act" => "guild_create", "name" => name, "tag" => String.downcase(tag)})
+      assert r.ok and r.player.gold == pa.gold - HacLong.Guilds.create_cost()
+      assert %{tag: ^tag, role: "leader", level: 1} = r.player.guild
+      assert_push "guild", %{guild: %{tag: ^tag}}
+      gid = r.player.guild.id
+
+      # tên trùng (khác hoa thường) thì không được
+      {_ub, _pb, sb} = member()
+
+      assert %{ok: false, msg: "Tên hoặc ký hiệu bang đã có người dùng."} =
+               cmd(sb, %{"act" => "guild_create", "name" => String.upcase(name), "tag" => "ZZZ"})
+
+      # bang mở: vào ngay
+      assert {:ok, %{guild: %{members: [_, _]}, msg: "Đã vào bang " <> _}} =
+               gop(sb, "join", %{"id" => gid})
+
+      # chat bang: chỉ người trong bang nhận
+      {_uc, _pc, sc} = member()
+      ref = push(sb, "chat", %{"text" => "chào cả bang", "to" => "guild"})
+      assert_reply ref, :ok
+      assert_push "chat", %{text: "chào cả bang", guild: true, tag: ^tag}
+      assert_push "chat", %{text: "chào cả bang", guild: true}
+      refute_push "chat", %{text: "chào cả bang"}
+      ref = push(sc, "chat", %{"text" => "tôi cũng muốn", "to" => "guild"})
+      assert_reply ref, :error, %{msg: "Bạn chưa vào bang nào."}
+
+      # bang đóng: phải xin, bang chủ duyệt
+      assert {:ok, _} = gop(sa, "settings", %{"open" => false, "notice" => "Săn rồng tối nay"})
+      assert {:ok, %{msg: "Đã gửi đơn" <> _}} = gop(sc, "join", %{"id" => gid})
+      assert {:ok, %{guild: %{requests: [%{id: cid}]}}} = gop(sa, "info")
+      assert {:ok, %{guild: %{members: members}}} = gop(sa, "accept", %{"uid" => cid})
+      assert length(members) == 3
+
+      # góp quỹ đủ 10.000 thì lên cấp 2: thêm kinh nghiệm mỗi trận
+      assert %{ok: false, msg: "Góp ít nhất 100 vàng."} =
+               cmd(sa, %{"act" => "guild_donate", "amount" => 5})
+
+      r = cmd(sa, %{"act" => "guild_donate", "amount" => 10_000})
+      assert r.ok and r.player.gold == pa.gold - 5000 - 10_000
+      assert %{level: 2} = Session.get(ua.id).guild
+
+      # phó bang không đuổi được phó bang khác; bang chủ đuổi được
+      assert {:ok, _} = gop(sa, "promote", %{"uid" => cid})
+      assert {:error, %{msg: "Chỉ bang chủ làm được."}} = gop(sb, "promote", %{"uid" => cid})
+      assert {:ok, %{guild: %{members: [_, _]}}} = gop(sa, "kick", %{"uid" => cid})
+      assert_push "guild", %{guild: nil}
+
+      # bang chủ phải chuyển quyền trước khi rời
+      assert {:error, %{msg: "Chuyển quyền" <> _}} = gop(sa, "leave")
+      {:ok, %{guild: %{members: [_ | _]}}} = gop(sb, "info")
+      [ub_id] = HacLong.Guilds.member_ids(gid) -- [ua.id]
+      assert {:ok, _} = gop(sa, "transfer", %{"uid" => ub_id})
+      assert {:ok, %{guild: nil}} = gop(sa, "leave")
+      assert {:ok, %{guild: nil, msg: "Đã giải tán" <> _}} = gop(sb, "disband")
+      assert HacLong.Guilds.member_ids(gid) == []
+    end
+
+    test "danh sách bang và bảng xếp hạng bang" do
+      {_u, _p, s} = member()
+      tag = "L#{rem(System.unique_integer([:positive]), 1000)}"
+      %{ok: true} = cmd(s, %{"act" => "guild_create", "name" => "Bang #{tag}", "tag" => tag})
+
+      assert {:ok, %{guilds: [%{tag: ^tag, members: 1, level: 1}]}} =
+               gop(s, "list", %{"q" => tag})
+
+      ref = push(s, "leaderboard", %{})
+      assert_reply ref, :ok, %{guild: guilds}
+      assert Enum.any?(guilds, &(&1.tag == tag))
+    end
+  end
+
+  describe "hộp thư" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    test "quản trị tặng quà; mở thư nhận quà đúng một lần" do
+      u = create_user()
+      p = player_at(u, %{map: "village", x: 12, y: 14})
+      {reply, socket} = join_game(u)
+      assert reply.mail == 0
+
+      admin = create_user()
+      {:ok, _} = HacLong.Moderation.set_admin(admin.username, true)
+      admin = HacLong.Accounts.get_user(admin.id)
+      player_at(admin, %{map: "village", x: 11, y: 14})
+      {_, sadm} = join_game(admin)
+
+      ref =
+        push(sadm, "admin", %{
+          "op" => "gift",
+          "uid" => u.id,
+          "subject" => "Đền bù bảo trì",
+          "gold" => 500,
+          "items" => %{"potion_m" => 2}
+        })
+
+      assert_reply ref, :ok, %{sent: 1}
+      assert_push "mail", %{unread: 1}
+
+      ref = push(socket, "mail", %{})
+
+      assert_reply ref, :ok, %{
+        unread: 1,
+        mails: [%{id: id, subject: "Đền bù bảo trì", claimed: false}]
+      }
+
+      r = cmd(socket, %{"act" => "mail_claim", "id" => id})
+      assert r.ok and r.msg =~ "+500 vàng"
+      assert r.player.gold == p.gold + 500
+      assert r.player.inv["potion_m"] == 2
+      assert_push "mail", %{unread: 0}
+      # đã lưu database
+      assert Characters.load(u.id).gold == p.gold + 500
+
+      assert %{ok: false, msg: "Thư đã mở rồi."} =
+               cmd(socket, %{"act" => "mail_claim", "id" => id})
+
+      assert Characters.load(u.id).gold == p.gold + 500
+
+      # vật phẩm không có thật thì không gửi
+      ref = push(sadm, "admin", %{"op" => "gift", "uid" => u.id, "items" => %{"xyz" => 1}})
+      assert_reply ref, :error, %{msg: "Vật phẩm không hợp lệ."}
+
+      ref = push(sadm, "admin", %{"op" => "gift", "all" => true, "gold" => 10})
+      assert_reply ref, :ok, %{sent: n}
+      assert n >= 2
+      assert_push "mail", %{unread: 1}
+    end
+
+    test "không online lúc hạ trùm thế giới thì nhận thưởng qua hộp thư" do
+      u = create_user()
+      p = player_at(u, %{map: "village", x: 12, y: 14})
+
+      :ok =
+        Session.world_boss_end(u.id, %{
+          result: "win",
+          reward: %{gold: 300, xp: 40, items: %{"dragon_scale" => 1}, share: 25}
+        })
+
+      assert Characters.load(u.id).gold == p.gold
+
+      assert [%{subject: "Thưởng trùm thế giới", gold: 300, body: body}] =
+               HacLong.Mailbox.list(u.id)
+
+      assert body =~ "25%"
+    end
   end
 
   test "người chơi khác thấy nhau trên bản đồ, tab đóng thì rời bản đồ" do

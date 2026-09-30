@@ -7,7 +7,7 @@ defmodule HacLongWeb.AuthControllerTest do
     :ok
   end
 
-  defp api(method, path, body \\ %{}, token \\ nil) do
+  defp api(method, path, body, token \\ nil) do
     conn = build_conn()
     conn = if token, do: put_req_header(conn, "authorization", "Bearer " <> token), else: conn
     conn = dispatch(conn, @endpoint, method, path, body)
@@ -64,6 +64,24 @@ defmodule HacLongWeb.AuthControllerTest do
     assert {200, _} = api(:get, "/api/me", %{}, t3)
     assert {401, _} = api(:post, "/api/login", %{username: "doimatkhau", password: "matkhau1"})
     assert {200, _} = api(:post, "/api/login", %{username: "doimatkhau", password: "moi123456"})
+  end
+
+  test "tài khoản bị khóa thì không đăng nhập được, báo lý do và thời hạn" do
+    new_account("bikhoa")
+    user = HacLong.Repo.get_by!(HacLong.Accounts.User, username: "bikhoa")
+    :ok = HacLong.Moderation.ban(user.id, 60, "gian lận")
+
+    assert {403, %{"error" => msg}} =
+             api(:post, "/api/login", %{username: "bikhoa", password: "matkhau1"})
+
+    assert msg =~ "Tài khoản bị khóa đến" and msg =~ "gian lận"
+    # mật khẩu sai thì vẫn báo sai mật khẩu (không lộ là tài khoản bị khóa)
+    assert {401, _} = api(:post, "/api/login", %{username: "bikhoa", password: "sai"})
+
+    :ok = HacLong.Moderation.ban(user.id, nil, nil)
+
+    assert {403, %{"error" => "Tài khoản bị khóa vĩnh viễn."}} =
+             api(:post, "/api/login", %{username: "bikhoa", password: "matkhau1"})
   end
 
   test "dò mật khẩu một tài khoản bị chặn sau 10 lần trong 5 phút" do

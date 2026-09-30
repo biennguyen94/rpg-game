@@ -4,7 +4,7 @@ defmodule HacLong.Game.TowerTest do
   alias HacLong.Game.{Commands, Tower}
   alias HacLong.World
 
-  defp player(attrs \\ %{}) do
+  defp player(attrs) do
     {_, p} = Commands.run(nil, %{"act" => "create", "name" => "Leo Tháp", "cls" => "warrior"})
     Map.merge(p, attrs)
   end

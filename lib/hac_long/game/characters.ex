@@ -77,7 +77,19 @@ defmodule HacLong.Game.Characters do
       victory_at: c.victory_at,
       daily: daily(c.daily),
       tower: tower(c.tower),
-      tower_best: c.tower_best || 0
+      tower_best: c.tower_best || 0,
+      tutorial: c.tutorial,
+      upgrades:
+        Map.filter(c.upgrades || %{}, fn {id, _} ->
+          HacLong.Game.Data.item(id) || HacLong.Game.Gear.instance?(id)
+        end),
+      fish_caught: c.fish_caught || 0,
+      achievements: c.achievements || [],
+      title: c.title,
+      gear: HacLong.Game.Gear.load(c.gear),
+      bestiary: c.bestiary || %{},
+      rebirths: c.rebirths || 0,
+      chest_day: c.chest_day
     }
   end
 
@@ -146,9 +158,10 @@ defmodule HacLong.Game.Characters do
 
   # Tên các trường có trong trận đấu (trận, quái, nhật ký, phần thưởng).
   @battle_keys Map.new(
-                 ~w(zone monster turn skillCd log over result reward encounter map mid world world_boss tower elite
+                 ~w(zone monster turn skillCd cds effects player turns power on_hit effect chance
+                    log over result reward encounter map mid world world_boss tower elite
                     id name level boss final special maxHp atk def crit dodge xp gold hp
-                    every mult text kind items levels)a,
+                    every mult text kind items levels gear night)a,
                  &{Atom.to_string(&1), &1}
                )
 

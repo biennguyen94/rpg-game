@@ -17,8 +17,19 @@ defmodule HacLong.Game.Session do
   """
   use GenServer, restart: :transient
 
-  alias HacLong.Game.{Characters, Commands, Daily, Engine, Names, Quests, Tower}
-  alias HacLong.{World, WorldBoss}
+  alias HacLong.Game.{
+    Achievements,
+    Characters,
+    Commands,
+    Daily,
+    Engine,
+    Names,
+    Quests,
+    Tower,
+    Tutorial
+  }
+
+  alias HacLong.{Guilds, Mailbox, World, WorldBoss}
 
   @idle_timeout :timer.minutes(10)
   @flush_ms 5_000
@@ -46,6 +57,14 @@ defmodule HacLong.Game.Session do
   """
   def world_boss_end(user_id, info), do: call(user_id, {:world_boss_end, info})
 
+  @doc "Bang của người chơi vừa đổi: Session đang chạy thì nạp lại (không chạy thì thôi)."
+  def refresh_guild(user_id) do
+    case Registry.lookup(HacLong.Game.Registry, user_id) do
+      [{pid, _}] -> GenServer.cast(pid, :refresh_guild)
+      [] -> :ok
+    end
+  end
+
   defp call(user_id, msg, retry \\ true) do
     pid =
       case DynamicSupervisor.start_child(HacLong.Game.SessionSupervisor, {__MODULE__, user_id}) do
@@ -72,7 +91,7 @@ defmodule HacLong.Game.Session do
 
     s = %{
       user_id: user_id,
-      player: Characters.load(user_id),
+      player: with_guild(Characters.load(user_id), user_id),
       tabs: %{},
       dirty: false,
       flush_timer: nil,
@@ -83,8 +102,23 @@ defmodule HacLong.Game.Session do
     {:ok, s, @idle_timeout}
   end
 
+  # Bang hội không lưu trong bảng characters: đọc từ HacLong.Guilds.
+  defp with_guild(nil, _uid), do: nil
+  defp with_guild(p, uid), do: Map.put(p, :guild, Guilds.brief(uid))
+
   @impl true
   def handle_call(msg, from, s), do: handle(msg, from, fresh(s))
+
+  @impl true
+  def handle_cast(:refresh_guild, %{player: nil} = s), do: {:noreply, s, timeout(s)}
+
+  def handle_cast(:refresh_guild, s) do
+    p = with_guild(s.player, s.user_id)
+    s = %{s | player: p}
+    broadcast(s, p, nil)
+    Phoenix.PubSub.broadcast(HacLong.PubSub, topic(s.user_id), {:guild, p.guild})
+    {:noreply, s, timeout(s)}
+  end
 
   # Sang ngày mới thì đổi việc hằng ngày (lưu cùng lần ghi tiếp theo).
   defp fresh(s), do: %{s | player: Daily.ensure(s.player, Daily.today())}
@@ -102,6 +136,7 @@ defmodule HacLong.Game.Session do
     case take(s, :steps, @step_ms, @step_burst) do
       {:ok, s} ->
         {result, player} = run_move(s, cmd)
+        {player, notes} = checks(player)
         old = s.player
 
         s =
@@ -110,7 +145,9 @@ defmodule HacLong.Game.Session do
               s
 
             old.pos.map != player.pos.map or player.battle != nil or
-              player.waystones != old.waystones or player[:tower] != old[:tower] ->
+              player.waystones != old.waystones or player[:tower] != old[:tower] or
+              player[:tutorial] != old[:tutorial] or
+                player[:achievements] != old[:achievements] ->
               save(s, player)
 
             true ->
@@ -118,6 +155,7 @@ defmodule HacLong.Game.Session do
           end
 
         if player != old, do: broadcast(s, player, origin)
+        Enum.each(notes, &notify(s, &1))
         reply({result, player}, s)
 
       :too_fast ->
@@ -155,6 +193,20 @@ defmodule HacLong.Game.Session do
       case info.reward do
         nil ->
           {p, if(info.result == "win", do: nil, else: "#{WorldBoss.name()} đã bay đi.")}
+
+        # không online: gửi thưởng qua hộp thư, lần sau vào game thấy ngay
+        r when map_size(s.tabs) == 0 ->
+          xp = min(r.xp, 3 * Engine.xp_to_next(p.level))
+
+          Mailbox.send(s.user_id, %{
+            subject: "Thưởng trùm thế giới",
+            body: "#{WorldBoss.name()} đã gục ngã. Bạn gây #{r.share}% sát thương.",
+            gold: r.gold,
+            xp: xp,
+            items: r.items
+          })
+
+          {p, nil}
 
         r ->
           # không cho người cấp thấp nhảy vọt quá nhiều cấp nhờ một trận
@@ -206,6 +258,42 @@ defmodule HacLong.Game.Session do
     Ecto.ConstraintError -> reply({%{ok: false, msg: "Tên này đã có người dùng."}, nil}, s)
   end
 
+  # Mở thư: đánh dấu thư đã nhận và ghi nhân vật trong cùng một transaction.
+  defp run_command(%{player: p} = s, %{"act" => "mail_claim", "id" => id}, origin)
+       when p != nil do
+    case Mailbox.claim(s.user_id, id, p, &Characters.save!(s.user_id, &1)) do
+      {:ok, msg, player} ->
+        s = cancel_flush(%{s | player: player, dirty: false})
+        broadcast(s, player, origin)
+        reply({%{ok: true, msg: msg}, player}, s)
+
+      {:error, msg} ->
+        reply({%{ok: false, msg: msg}, p}, s)
+    end
+  end
+
+  # Lập bang, góp quỹ: trừ vàng và ghi nhân vật trong cùng transaction với bảng bang hội.
+  defp run_command(%{player: p} = s, %{"act" => act} = cmd, origin)
+       when p != nil and act in ["guild_create", "guild_donate"] do
+    save = &Characters.save!(s.user_id, &1)
+
+    result =
+      if act == "guild_create",
+        do: Guilds.create(s.user_id, cmd["name"], cmd["tag"], p, save),
+        else: Guilds.donate(s.user_id, cmd["amount"], p, save)
+
+    case result do
+      {:ok, msg, player} ->
+        player = with_guild(player, s.user_id)
+        s = cancel_flush(%{s | player: player, dirty: false})
+        broadcast(s, player, origin)
+        reply({%{ok: true, msg: msg}, player}, s)
+
+      {:error, msg} ->
+        reply({%{ok: false, msg: msg}, p}, s)
+    end
+  end
+
   defp run_command(s, cmd, origin), do: run_command_(s, cmd, origin)
 
   defp run_command_(s, cmd, origin) do
@@ -213,6 +301,9 @@ defmodule HacLong.Game.Session do
     {result, player} = run(s, old, cmd)
     # nhân vật vừa tạo cũng có ngay việc hằng ngày
     player = s |> after_command(old, player, cmd) |> Daily.ensure(Daily.today())
+    # nhân vật vừa tạo: gắn thông tin bang (chưa có) như lúc nạp từ database
+    player = if player && old == nil, do: with_guild(player, s.user_id), else: player
+    {player, notes} = checks(player)
 
     s =
       if player != old do
@@ -222,8 +313,22 @@ defmodule HacLong.Game.Session do
         s
       end
 
+    Enum.each(notes, &notify(s, &1))
     reply({result, player}, s)
   end
+
+  # Hướng dẫn người mới và thành tựu: tính lại sau mỗi thay đổi, trả về các thông báo mới.
+  defp checks(player) do
+    {player, tut} = Tutorial.check(player)
+    {player, ach} = Achievements.check(player)
+    {player, Enum.reject([tut, ach], &is_nil/1)}
+  end
+
+  # Thông báo riêng cho người chơi này (hiện ở mọi tab đang mở), vd. bước hướng dẫn mới.
+  defp notify(_s, nil), do: :ok
+
+  defp notify(s, text),
+    do: Phoenix.PubSub.broadcast(HacLong.PubSub, topic(s.user_id), {:notice, text})
 
   # Đánh trùm thế giới: máu trùm là máu chung ở HacLong.WorldBoss. Trước lượt đánh lấy máu
   # mới nhất, sau lượt đánh báo sát thương vừa gây.
@@ -331,6 +436,7 @@ defmodule HacLong.Game.Session do
 
         if player.battle.result == "win" do
           player
+          |> guild_xp()
           |> Quests.on_kill(player.battle.monster.id)
           |> Daily.on_kill(player.battle.monster.id, player.battle.zone)
         else
@@ -354,6 +460,21 @@ defmodule HacLong.Game.Session do
         player
     end
   end
+
+  # Bang từ cấp 2: thêm kinh nghiệm mỗi trận thắng.
+  defp guild_xp(%{guild: %{level: lv}} = p) when lv > 1 do
+    bonus = round(p.battle.monster.xp * Guilds.xp_bonus(lv))
+
+    if bonus > 0 do
+      {_levels, p} = Engine.gain_xp(p, bonus)
+      log = p.battle.log ++ [%{text: "Bang hội: +#{bonus} kinh nghiệm.", kind: "good"}]
+      put_in(p.battle.log, Enum.take(log, -60))
+    else
+      p
+    end
+  end
+
+  defp guild_xp(p), do: p
 
   # Xô token: mỗi `every_ms` hồi một lượt, tối đa `burst` lượt.
   defp take(s, key, every_ms, burst) do

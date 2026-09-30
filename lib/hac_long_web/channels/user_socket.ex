@@ -6,8 +6,11 @@ defmodule HacLongWeb.UserSocket do
   @impl true
   def connect(%{"token" => token}, socket, _connect_info) do
     case HacLong.Accounts.verify_token(token) do
-      {:ok, user} -> {:ok, assign(socket, user_id: user.id, username: user.username)}
-      _ -> :error
+      {:ok, user} ->
+        {:ok, assign(socket, user_id: user.id, username: user.username, admin: user.admin)}
+
+      _ ->
+        :error
     end
   end
 

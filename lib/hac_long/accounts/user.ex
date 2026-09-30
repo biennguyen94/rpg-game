@@ -6,6 +6,10 @@ defmodule HacLong.Accounts.User do
     field :username, :string
     field :password, :string, virtual: true, redact: true
     field :password_hash, :string, redact: true
+    field :admin, :boolean, default: false
+    field :banned_until, :utc_datetime
+    field :ban_reason, :string
+    field :muted_until, :utc_datetime
     timestamps(type: :utc_datetime)
   end
 

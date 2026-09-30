@@ -6,7 +6,7 @@ defmodule HacLong.Game.Commands do
   Client chỉ gửi *ý định* (tấn công, mua món X...), mọi con số đều do server tính.
   """
 
-  alias HacLong.Game.{Daily, Data, Engine, Quests, Tower}
+  alias HacLong.Game.{Achievements, Chests, Daily, Data, Engine, Fishing, Quests, Tower, Tutorial}
   alias HacLong.World
   alias HacLong.World.Maps
 
@@ -21,7 +21,8 @@ defmodule HacLong.Game.Commands do
          |> Map.put(:victory_at, nil)
          |> Map.put(:daily, nil)
          |> Map.put(:tower, nil)
-         |> Map.put(:tower_best, 0)}
+         |> Map.put(:tower_best, 0)
+         |> Map.put(:tutorial, 0)}
 
       {:error, msg} ->
         {%{ok: false, msg: msg}, nil}
@@ -38,7 +39,7 @@ defmodule HacLong.Game.Commands do
         rest(p)
 
       a when a in ~w(attack skill potion flee) ->
-        Engine.act(p, a)
+        Engine.act(p, a, c["skill"])
 
       "leave" ->
         Engine.leave_battle(p)
@@ -64,11 +65,37 @@ defmodule HacLong.Game.Commands do
       "craft" ->
         craft(p, c["id"])
 
+      "title_set" ->
+        Achievements.set_title(p, c["id"])
+
+      "fish_cast" ->
+        Fishing.cast(p, System.monotonic_time(:millisecond))
+
+      "fish_reel" ->
+        Fishing.reel(p, System.monotonic_time(:millisecond))
+
+      "chest_buy" ->
+        at_npc(p, ["shop"], "Thợ Rèn ở Làng", fn _ -> Chests.buy(p, c["tier"]) end)
+
+      "chest_open" ->
+        at_npc(p, ["chest"], "Rương Gia Truyền ở Nhà", fn _ ->
+          Chests.open_daily(p, Daily.today())
+        end)
+
+      "upgrade" ->
+        at_npc(p, ["shop"], "Thợ Rèn ở Làng", fn _ -> Engine.upgrade(p, c["slot"]) end)
+
       "quest_accept" ->
         at_npc(p, ["quests"], "Trưởng Làng", fn _ -> Quests.accept(p, c["id"]) end)
 
       "quest_turnin" ->
         at_npc(p, ["quests"], "Trưởng Làng", fn _ -> Quests.turn_in(p, c["id"]) end)
+
+      "rebirth" ->
+        at_npc(p, ["quests"], "Trưởng Làng", fn _ -> Engine.rebirth(p) end)
+
+      "tutorial_skip" ->
+        Tutorial.skip(p)
 
       "tower_enter" ->
         at_npc(p, ["tower"], "Người Gác Tháp ở Làng", fn _ ->

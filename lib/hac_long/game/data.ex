@@ -4,10 +4,12 @@ defmodule HacLong.Game.Data do
   quái, vùng đất, vật phẩm; biên dịch lại là có hiệu lực). Client nhận cùng dữ liệu
   này qua `window.GAME_DATA` (xem `HacLongWeb.PageController`).
 
-  - `CLASSES`: lớp nhân vật với chỉ số gốc (`base`), tăng mỗi cấp (`growth`) và kỹ năng.
+  - `CLASSES`: lớp nhân vật với chỉ số gốc (`base`), tăng mỗi cấp (`growth`) và các kỹ năng
+    (`skills`, mở ở cấp `level`; tác dụng viết trong `Engine`).
   - `ZONES`: vùng đất theo thứ tự mở khóa; mỗi vùng có quái thường và một trùm.
     Quái chỉ khai báo `level`, `mult` (hệ số sức mạnh, mặc định 1) và `special`
-    (đòn đặc biệt của trùm, dùng mỗi `every` lượt với sát thương ×`mult`);
+    (đòn đặc biệt của trùm, dùng mỗi `every` lượt với sát thương ×`mult`, có thể kèm hiệu ứng
+    `effect`), `on_hit` (hiệu ứng gây ra với xác suất `chance` mỗi đòn trúng);
     chỉ số còn lại tính trong `HacLong.Game.Engine.make_monster/2`.
   - `ITEMS`: `slot` là weapon | armor | shield | potion; `drop: true` là đồ chỉ rơi từ trùm.
   - `BOSS_DROPS`: đồ trùm rơi ra lần đầu bị hạ. `SHOP`: những món cửa hàng bán.
@@ -61,6 +63,10 @@ defmodule HacLong.Game.Data do
   def zone(i) when is_integer(i) and i >= 0, do: Enum.at(@zones, i)
   def zone(_), do: nil
   def zone_count, do: length(@zones)
+
+  @monsters Enum.flat_map(@zones, fn z -> [z.boss | z.monsters] end) |> Map.new(&{&1.id, &1})
+  @doc "Quái (hoặc trùm vùng) theo id."
+  def monster(id), do: Map.get(@monsters, id)
   def items, do: @items
   def item(id), do: Map.get(@items, id)
   def boss_drop(boss_id), do: Map.get(@boss_drops, boss_id)

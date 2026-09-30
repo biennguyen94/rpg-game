@@ -42,6 +42,18 @@ if config_env() != :test do
   config :hac_long, :world_boss, wb
 end
 
+# Proxy tin cậy (nginx, load balancer) để đọc IP thật từ X-Forwarded-For:
+#   TRUSTED_PROXIES="10.0.0.0/8,127.0.0.1"
+if proxies = System.get_env("TRUSTED_PROXIES") do
+  config :hac_long, :trusted_proxies, String.split(proxies, ",", trim: true)
+end
+
+# Ép một buổi trong ngày để thử (dawn | day | dusk | night), không đặt thì theo giờ thật:
+#   TIME_OF_DAY=night mix phx.server
+if tod = System.get_env("TIME_OF_DAY") do
+  config :hac_long, :time_of_day, tod
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

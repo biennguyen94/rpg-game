@@ -16,6 +16,9 @@ defmodule HacLong.Chat do
   @doc "Các tin gần nhất, cũ trước mới sau."
   def history, do: GenServer.call(__MODULE__, :history)
 
+  @doc "Tin nhắn `id` nếu còn trong lịch sử gần đây (để báo cáo đúng nội dung)."
+  def find(id), do: Enum.find(history(), &(&1.id == id))
+
   @doc """
   Gửi tin. `from`: `%{uid, name, map}`. Chữ được bỏ ký tự điều khiển, gộp khoảng trắng,
   cắt còn #{@max_len} ký tự. Trả về `{:ok, tin}` hoặc `{:error, lý_do}`.
@@ -50,6 +53,8 @@ defmodule HacLong.Chat do
       id: s.next,
       uid: from.uid,
       name: from.name,
+      title: Map.get(from, :title),
+      tag: Map.get(from, :tag),
       map: from.map,
       text: text,
       at: System.system_time(:millisecond)

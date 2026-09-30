@@ -2,13 +2,14 @@
  * Mọi thao tác gửi lên server qua Net (net.js); server tính toán rồi trả trạng thái mới.
  * P.view chứa các chỉ số server tính sẵn (máu tối đa, tấn công, giá nghỉ trọ...). */
 (function () {
-  const { CLASSES, ZONES, ITEMS, RULES, RECIPES, QUESTS, WORLD } = window.GAME_DATA;
+  const { CLASSES, ZONES, ITEMS, RULES, RECIPES, QUESTS, WORLD, ACHIEVEMENTS } = window.GAME_DATA;
   const Net = window.Net;
 
   let P = null;          // trạng thái người chơi
   let tab = 'map';       // tab đang mở
   let pickCls = 'warrior';
   let confirmReset = false;
+  let confirmRebirth = false;
   let fx = null;         // hiệu ứng trận đấu của lượt vừa rồi
   let authMode = 'login'; // 'login' | 'register'
   let loading = true;    // đang kết nối server
@@ -20,8 +21,16 @@
   let chats = [];        // tin chat gần nhất
   let chatDraft = '';    // chữ đang gõ dở (giữ lại khi vẽ lại trang)
   let board = { kind: 'level', data: null, at: 0 }; // bảng xếp hạng
+  let chatMenu = null;   // id tin nhắn đang mở menu Báo cáo/Chặn
+  let blocked = [];      // người mình đã chặn: [{ id, name }]
+  let adm = { reports: null, user: null, loading: false }; // tab Quản trị
+  let mail = { unread: 0, list: null, open: false }; // hộp thư
+  let guildUi = { open: false, list: null, requested: [], info: null, q: '', confirm: null }; // bang hội
+  let chatTo = 'world';  // 'world' | 'guild'
+  let fishing = null;    // lượt câu: { phase: 'wait' | 'bite', timers: [] }
   let wb = { alive: false }; // trùm thế giới; `skew`: lệch đồng hồ máy chủ - máy này
   const Map_ = window.MapView;
+  const Sound = window.Sound;
 
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -30,7 +39,7 @@
   const asset = (path) => 'assets/' + path;
   const icon = (name, cls) => `<img class="ic ${cls || ''}" src="${asset('icons/' + name + '.svg')}" alt="">`;
   // Hình vật phẩm: nguyên liệu dùng ảnh PNG (`sprite`), còn lại dùng icon SVG.
-  const itemIcon = (it) => (it.sprite ? `<img class="ic lg px" src="${asset(it.sprite + '.png')}" alt="">` : icon(it.icon, 'lg'));
+  const itemIcon = (it, rarity) => (it.sprite ? `<img class="ic lg px" src="${asset(it.sprite + '.png')}" alt="">` : icon(it.icon, 'lg' + (rarity ? ` rar-ic-${rarity}` : '')));
   const sprite = (id, cls, alt) => `<img class="sprite ${cls || ''}" src="${asset('monsters/' + id + '.png')}" alt="${esc(alt || '')}">`;
 
   let toastTimer;
@@ -78,14 +87,104 @@
       ['hero', 'person', 'Nhân vật'],
       ['bag', 'backpack', 'Túi đồ'],
       ['quests', 'scroll-unfurled', 'Nhiệm vụ'],
-    ].map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewBossBanner() + Map_.html(P, viewDialog()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests }[tab])();
-    if (tab === 'map' && !npc) {
+    ].concat(Net.isAdmin ? [['admin', 'crowned-skull', 'Quản trị']] : []).map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
+    view.innerHTML = mail.open ? viewMail() : guildUi.open ? viewGuild() : P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + Map_.html(P, viewDialog() + viewFishing()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests, admin: viewAdmin }[tab])();
+    if (tab === 'map' && !npc && !mail.open && !guildUi.open) {
       Map_.mount(() => P);
       const log = $('#chat-log');
       if (log) log.scrollTop = log.scrollHeight;
     }
     if (tab === 'town') loadBoard();
+    if (tab === 'admin' && adm.reports == null && !adm.loading) loadReports();
+  }
+
+  // ---------- Quản trị ----------
+  const vnTime = (t) => (!t ? '' : new Date(t).getFullYear() >= 9999 ? 'vĩnh viễn' : 'đến ' + new Date(t).toLocaleString('vi-VN'));
+
+  async function loadReports() {
+    adm.loading = true;
+    try { adm.reports = (await Net.admin('reports')).reports; } catch (e) { toast(e.msg, true); }
+    adm.loading = false;
+    if (tab === 'admin') render();
+  }
+
+  function viewAdmin() {
+    const reports = adm.reports == null ? '<p class="small muted">Đang tải…</p>'
+      : adm.reports.length === 0 ? '<p class="small muted">Không có báo cáo nào chưa xử lý.</p>'
+      : `<div class="list">${adm.reports.map((r) => `<div class="item quest"><div class="grow">
+          <div class="name">${esc(r.target)}</div>
+          <div>“${esc(r.text)}”</div>
+          <div class="small muted">Báo cáo bởi ${esc(r.reporter)} · ${new Date(r.at).toLocaleString('vi-VN')}</div>
+          <div class="btn-row"><button class="btn small-btn" data-adm="resolve" data-id="${r.id}" data-action="dismiss">Bỏ qua</button>
+            <button class="btn small-btn" data-adm="resolve" data-id="${r.id}" data-action="mute" data-minutes="60">Cấm chat 1 giờ</button>
+            <button class="btn small-btn danger" data-adm="resolve" data-id="${r.id}" data-action="ban" data-minutes="1440">Khóa 1 ngày</button></div>
+        </div></div>`).join('')}</div>`;
+    const u = adm.user;
+    const user = !u ? '' : `<div class="card">
+        <div class="row"><h3 class="grow">${esc(u.character ? u.character.name : u.username)}</h3><span class="small muted">@${esc(u.username)}</span></div>
+        <p class="small">${u.character ? `Cấp ${u.character.level} · ${fmt(u.character.gold)} vàng · ${fmt(u.character.kills)} quái` : 'Chưa có nhân vật'} · bị báo cáo ${u.reports} lần</p>
+        <p class="small">${u.banned_until ? `<span style="color:var(--bad)">Bị khóa ${vnTime(u.banned_until)}${u.ban_reason ? ': ' + esc(u.ban_reason) : ''}</span>` : 'Không bị khóa'} · ${u.muted_until ? `<span style="color:var(--bad)">Bị cấm chat ${vnTime(u.muted_until)}</span>` : 'Được chat'}</p>
+        <div class="btn-row">
+          <button class="btn small-btn" data-adm="mute" data-uid="${u.id}" data-minutes="60">Cấm chat 1 giờ</button>
+          <button class="btn small-btn" data-adm="mute" data-uid="${u.id}" data-minutes="1440">Cấm chat 1 ngày</button>
+          <button class="btn small-btn" data-adm="unmute" data-uid="${u.id}">Bỏ cấm chat</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn small-btn danger" data-adm="ban" data-uid="${u.id}" data-minutes="1440">Khóa 1 ngày</button>
+          <button class="btn small-btn danger" data-adm="ban" data-uid="${u.id}">Khóa vĩnh viễn</button>
+          <button class="btn small-btn" data-adm="unban" data-uid="${u.id}">Mở khóa</button>
+        </div>
+        ${u.character ? giftForm('adm-gift', u.id) : ''}
+      </div>`;
+    return `<h2 class="display">Quản trị</h2>
+      <div class="card"><div class="row"><h3 class="grow">Báo cáo chưa xử lý</h3><button class="btn small-btn" data-adm="reload">Tải lại</button></div>${reports}</div>
+      <div class="card"><h3>Tra cứu người chơi</h3>
+        <form id="adm-lookup" class="chat-form"><input type="text" id="adm-name" placeholder="Tên nhân vật hoặc tên đăng nhập" autocomplete="off"><button class="btn" type="submit">Tìm</button></form>
+      </div>
+      ${user}
+      <div class="card"><h3>Thông báo cho cả server</h3>
+        <form id="adm-announce" class="chat-form"><input type="text" id="adm-text" maxlength="200" placeholder="Nội dung thông báo" autocomplete="off"><button class="btn" type="submit">Gửi</button></form>
+      </div>
+      <div class="card"><h3>Quà cho mọi người</h3><p class="small muted">Gửi vào hộp thư của mọi nhân vật (vd. đền bù bảo trì).</p>${giftForm('adm-gift-all')}</div>
+      <div class="card"><h3>Trùm thế giới</h3><button class="btn" data-adm="world_boss">Gọi Cổ Long xuất hiện ngay</button></div>`;
+  }
+
+  function giftForm(id, uid) {
+    const items = Object.entries(ITEMS).filter(([, it]) => it.slot !== 'material' || it.price);
+    return `<form id="${id}" class="gift-form" ${uid ? `data-uid="${uid}"` : ''}>
+      <input type="text" name="subject" maxlength="80" placeholder="Tiêu đề thư" required>
+      <input type="text" name="body" maxlength="300" placeholder="Lời nhắn (không bắt buộc)">
+      <div class="btn-row"><label class="small">Vàng <input type="number" name="gold" min="0" value="0"></label>
+        <label class="small">EXP <input type="number" name="xp" min="0" value="0"></label></div>
+      <div class="btn-row"><select name="item"><option value="">(không kèm đồ)</option>${items.map(([k, it]) => `<option value="${k}">${esc(it.name)}</option>`).join('')}</select>
+        <input type="number" name="n" min="1" value="1" aria-label="Số lượng"></div>
+      <button class="btn primary" type="submit">${icon('envelope')} Gửi quà</button>
+    </form>`;
+  }
+
+  function onGift(form) {
+    const f = new FormData(form);
+    const payload = { subject: f.get('subject'), body: f.get('body'), gold: +f.get('gold') || 0, xp: +f.get('xp') || 0, items: {} };
+    if (f.get('item')) payload.items[f.get('item')] = Math.max(1, +f.get('n') || 1);
+    if (form.id === 'adm-gift') payload.uid = +form.dataset.uid; else payload.all = true;
+    Net.admin('gift', payload).then((r) => { toast(`Đã gửi ${r.sent} thư.`); form.reset(); }).catch((err) => toast(err.msg, true));
+  }
+
+  async function onAdmin(t) {
+    const d = t.dataset, op = d.adm;
+    if (op === 'reload') { adm.reports = null; render(); return loadReports(); }
+    const payload = {};
+    if (d.id) payload.id = +d.id;
+    if (d.uid) payload.uid = +d.uid;
+    if (d.action) payload.action = d.action;
+    if (d.minutes) payload.minutes = +d.minutes;
+    try {
+      await Net.admin(op, payload);
+      toast('Đã xong.');
+      if (op === 'resolve') adm.reports = adm.reports.filter((r) => r.id !== payload.id);
+      if (adm.user && payload.uid === adm.user.id) adm.user = (await Net.admin('lookup', { name: adm.user.username })).user;
+      render();
+    } catch (e) { toast(e.msg, true); }
   }
 
   // Bảng nổi trên bản đồ: hỏi đấu trùm, chọn nơi dịch chuyển.
@@ -105,6 +204,84 @@
       <p class="small muted">Chạm vào đá ở nơi khác để ghi nhớ nó.</p>
       <div class="list">${places.map((id) => `<button class="btn" data-act="teleport" data-to="${id}" ${id === P.pos.map ? 'disabled' : ''}>${esc(W[id].name)}${id === P.pos.map ? ' · đang ở đây' : ''}</button>`).join('')}</div>
       <button class="btn" data-act="dialog-close">Đóng</button>
+    </div>`;
+  }
+
+  // ---------- Câu cá ----------
+  function nearWater() {
+    const m = WORLD.maps[P.pos.map];
+    if (!m) return false;
+    return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => (m.tiles[P.pos.y + dy] || '')[P.pos.x + dx] === '~');
+  }
+
+  function viewFishing() {
+    if (fishing) {
+      const bite = fishing.phase === 'bite';
+      return `<div id="fish-ui" class="fish-ui ${bite ? 'bite' : ''}">
+        <span class="bobber ${bite ? 'sink' : ''}" aria-hidden="true"></span>
+        <b>${bite ? 'Cá cắn câu! Giật ngay!' : 'Đang chờ cá cắn câu…'}</b>
+        <button class="btn ${bite ? 'primary' : ''}" data-act="fish-reel">${icon('fishing-pole')} Giật cần</button>
+      </div>`;
+    }
+    if (dialog || P.pos.map === 'tower' || !nearWater()) return '<div id="fish-ui" hidden></div>';
+    return `<div id="fish-ui" class="fish-ui idle"><button class="btn" data-act="fish-cast">${icon('fishing-pole')} Câu cá</button></div>`;
+  }
+
+  function stopFishing() {
+    if (!fishing) return;
+    fishing.timers.forEach(clearTimeout);
+    fishing = null;
+  }
+
+  function redrawFishing() {
+    const el = $('#fish-ui');
+    if (el) el.outerHTML = viewFishing();
+  }
+
+  async function castLine() {
+    if (busy || fishing) return;
+    busy = true;
+    const t0 = performance.now();
+    try {
+      const r = await Net.send({ act: 'fish_cast' });
+      P = r.player;
+      if (!r.ok) { toast(r.msg, true); busy = false; return; }
+      const rtt = performance.now() - t0;
+      // server tính giờ cá cắn từ lúc nhận lệnh; lệnh giật cũng mất nửa vòng mạng mới tới,
+      // nên hiện "cá cắn" sớm hơn một vòng mạng để bấm kịp
+      const biteIn = Math.max(0, r.wait - rtt);
+      const f = { phase: 'wait', timers: [] };
+      fishing = f;
+      f.timers.push(setTimeout(() => { if (fishing !== f) return; f.phase = 'bite'; Sound.play('bite'); if (navigator.vibrate) navigator.vibrate(120); redrawFishing(); }, biteIn));
+      f.timers.push(setTimeout(() => { if (fishing !== f) return; stopFishing(); toast('Chậm tay rồi, cá ăn mất mồi.', true); redrawFishing(); }, biteIn + r.window + 400));
+      Sound.play('cast');
+    } catch (e) { toast(e.msg, true); }
+    busy = false;
+    redrawFishing();
+  }
+
+  async function reelIn() {
+    if (!fishing || busy) return;
+    stopFishing();
+    busy = true;
+    try {
+      const r = await Net.send({ act: 'fish_reel' });
+      P = r.player;
+      result(r);
+      Sound.play(!r.ok ? 'error' : r.fish === 'fish_gold' ? 'rare' : 'catch');
+    } catch (e) { toast(e.msg, true); }
+    busy = false;
+    refresh();
+  }
+
+  // ---------- Hướng dẫn người mới ----------
+  function viewTutorial() {
+    const t = P.view.tutorial;
+    if (!t) return '<div id="tut" hidden></div>';
+    return `<div class="card tut" id="tut">
+      <div class="row"><span class="tag gold num">Hướng dẫn ${t.step}/${t.total}</span><b class="grow">${esc(t.text)}</b>
+        <button class="btn small-btn" data-act="tutorial_skip" aria-label="Tắt hướng dẫn">Bỏ qua</button></div>
+      <p class="small muted">${esc(t.hint)}${t.target ? ' Làm theo vòng sáng trên bản đồ.' : ''}</p>
     </div>`;
   }
 
@@ -146,16 +323,21 @@
   const mapName = (id) => (WORLD.maps[id] ? WORLD.maps[id].name : id);
 
   function chatLine(m) {
-    if (!m.uid) return `<div class="chat-line system">${esc(m.text)}</div>`;
+    if (!m.uid) return `<div class="chat-line system ${m.guild ? 'guild' : ''}">${m.guild ? '[Bang] ' : ''}${esc(m.text)}</div>`;
     const mine = m.uid === Net.userId;
-    return `<div class="chat-line ${mine ? 'mine' : ''}"><b>${esc(m.name)}</b> <span class="muted small">${esc(mapName(m.map))}</span> ${esc(m.text)}</div>`;
+    const title = (m.guild ? '<span class="guild-mark">[Bang]</span> ' : '') + (m.tag ? `<span class="guild-tag">[${esc(m.tag)}]</span> ` : '') + (m.title ? `<span class="title-tag">${esc(m.title)}</span> ` : '');
+    const name = title + (mine || m.id == null ? `<b>${esc(m.name)}</b>` : `<button class="chat-name" data-chat="${m.id}">${esc(m.name)}</button>`);
+    const menu = m.id != null && chatMenu === m.id
+      ? `<div class="chat-menu"><button class="btn small-btn" data-act="chat-report" data-id="${m.id}">Báo cáo tin này</button><button class="btn small-btn" data-act="chat-block" data-uid="${m.uid}">Chặn ${esc(m.name)}</button></div>` : '';
+    return `<div class="chat-line ${mine ? 'mine' : ''} ${m.guild ? 'guild' : ''}">${name} ${m.guild ? '' : `<span class="muted small">${esc(mapName(m.map))}</span> `}${esc(m.text)}${menu}</div>`;
   }
 
   function viewChat() {
     return `<div class="card chat">
       <div class="chat-log" id="chat-log" aria-live="polite">${chats.length ? chats.map(chatLine).join('') : '<p class="small muted">Chưa có ai nói gì. Chào mọi người đi!</p>'}</div>
       <form id="chat-form" class="chat-form" autocomplete="off">
-        <input type="text" id="chat-input" maxlength="120" placeholder="Nói với mọi người…" value="${esc(chatDraft)}" aria-label="Tin nhắn">
+        ${P.guild ? `<button type="button" class="btn chat-to ${chatTo === 'guild' ? 'on' : ''}" data-act="chat-to" aria-label="Đổi kênh chat">${chatTo === 'guild' ? 'Bang' : 'Tất cả'}</button>` : ''}
+        <input type="text" id="chat-input" maxlength="120" placeholder="${chatTo === 'guild' && P.guild ? 'Nói trong bang…' : 'Nói với mọi người…'}" value="${esc(chatDraft)}" aria-label="Tin nhắn">
         <button class="btn" type="submit">Gửi</button>
       </form>
     </div>`;
@@ -179,7 +361,7 @@
     const text = input.value.trim();
     if (!text) return;
     try {
-      await Net.chat(text);
+      await Net.chat(text, chatTo === 'guild' && P.guild ? 'guild' : null);
       input.value = ''; chatDraft = '';
     } catch (err) {
       toast(err.msg, true);
@@ -200,15 +382,16 @@
   }
 
   function viewBoard() {
-    const kinds = [['level', 'Cấp cao'], ['kills', 'Săn nhiều'], ['tower', 'Tháp'], ['dragon', 'Diệt rồng']];
+    const kinds = [['level', 'Cấp cao'], ['kills', 'Săn nhiều'], ['tower', 'Tháp'], ['dragon', 'Diệt rồng'], ['guild', 'Bang']];
     const rows = board.data ? board.data[board.kind] : null;
-    const value = (r) => (board.kind === 'level' ? `Cấp ${r.level}` : board.kind === 'kills' ? `${fmt(r.kills)} quái` : board.kind === 'tower' ? `Tầng ${r.tower_best}` : new Date(r.victory_at).toLocaleDateString('vi-VN'));
+    const value = (r) => (board.kind === 'level' ? `${r.rebirths ? `CS${r.rebirths} · ` : ''}Cấp ${r.level}` : board.kind === 'kills' ? `${fmt(r.kills)} quái` : board.kind === 'tower' ? `Tầng ${r.tower_best}` : new Date(r.victory_at).toLocaleDateString('vi-VN'));
     return `<div class="card" id="board">
       <div class="row"><h3 class="grow">Bảng xếp hạng</h3>${board.data && board.data.me ? `<span class="tag gold num">Bạn hạng ${board.data.me}</span>` : ''}</div>
       <div class="seg">${kinds.map(([k, label]) => `<button class="btn ${board.kind === k ? 'primary' : ''}" data-board="${k}">${label}</button>`).join('')}</div>
       ${rows == null ? '<p class="small muted">Đang tải…</p>'
-        : rows.length === 0 ? `<p class="small muted">${board.kind === 'dragon' ? 'Chưa ai hạ được Hắc Long. Bạn sẽ là người đầu tiên?' : board.kind === 'tower' ? 'Chưa ai leo Tháp Vô Tận. Gặp Người Gác Tháp ở Làng.' : 'Chưa có ai.'}</p>`
-        : `<ol class="board">${rows.map((r) => `<li class="${r.user_id === Net.userId ? 'me' : ''}"><span class="num rank">${r.rank}</span><span class="grow">${esc(r.name)} <span class="small muted">${CLASSES[r.cls] ? CLASSES[r.cls].name : ''}</span></span><span class="num">${value(r)}</span></li>`).join('')}</ol>`}
+        : rows.length === 0 ? `<p class="small muted">${board.kind === 'guild' ? 'Chưa có bang nào. Lập bang ở thẻ Bang hội.' : board.kind === 'dragon' ? 'Chưa ai hạ được Hắc Long. Bạn sẽ là người đầu tiên?' : board.kind === 'tower' ? 'Chưa ai leo Tháp Vô Tận. Gặp Người Gác Tháp ở Làng.' : 'Chưa có ai.'}</p>`
+        : board.kind === 'guild' ? `<ol class="board">${rows.map((g) => `<li class="${P.guild && P.guild.id === g.id ? 'me' : ''}"><span class="num rank">${g.rank}</span><span class="grow"><span class="guild-tag">[${esc(g.tag)}]</span> ${esc(g.name)} <span class="small muted">${g.members} người</span></span><span class="num">Cấp ${g.level}</span></li>`).join('')}</ol>`
+        : `<ol class="board">${rows.map((r) => `<li class="${r.user_id === Net.userId ? 'me' : ''}"><span class="num rank">${r.rank}</span><span class="grow">${r.title ? `<span class="title-tag">${esc(r.title)}</span> ` : ''}${esc(r.name)} <span class="small muted">${CLASSES[r.cls] ? CLASSES[r.cls].name : ''}</span></span><span class="num">${value(r)}</span></li>`).join('')}</ol>`}
     </div>`;
   }
 
@@ -218,6 +401,10 @@
       $('#hud').innerHTML = viewHud();
       const head = $('.map-top');
       if (head) head.outerHTML = Map_.top(P);
+      const tut = $('#tut');
+      if (tut) tut.outerHTML = viewTutorial();
+      const fish = $('#fish-ui');
+      if (fish) fish.outerHTML = viewFishing();
       Map_.draw();
     } else {
       render();
@@ -236,14 +423,47 @@
         ${sprite('hero', '', 'Nhân vật')}
         <div class="hud-who">
           <div class="hud-name">${esc(P.name)}</div>
-          <div class="small muted">${CLASSES[P.cls].name} · Cấp ${P.level}</div>
+          <div class="small muted">${CLASSES[P.cls].name} · ${P.rebirths ? `<span class="tag gold num" title="Số lần chuyển sinh">CS ${P.rebirths}</span> ` : ''}Cấp ${P.level}</div>
         </div>
         <div class="gold">${icon('two-coins')}${fmt(P.gold)}</div>
+        <button class="hud-btn" data-act="mail-open" aria-label="Hộp thư${mail.unread ? `, ${mail.unread} thư mới` : ''}">${icon('envelope')}${mail.unread ? `<span class="points-dot">${mail.unread}</span>` : ''}</button>
       </div>
       <div class="bars">
         ${bar('hp', P.hp, d.maxHp, `❤ ${fmt(P.hp)} / ${fmt(d.maxHp)}`)}
         ${P.level >= RULES.maxLevel ? bar('xp', 1, 1, 'Cấp tối đa') : bar('xp', P.xp, need, `EXP ${Math.floor((P.xp / need) * 100)}%`)}
       </div>`;
+  }
+
+  // ---------- Hộp thư ----------
+  async function loadMail() {
+    try {
+      const r = await Net.mail();
+      mail.list = r.mails; mail.unread = r.unread;
+    } catch (e) { toast(e.msg, true); mail.list = mail.list || []; }
+    if (mail.open) render();
+  }
+
+  function mailGifts(m) {
+    return [m.gold ? `${fmt(m.gold)} vàng` : '', m.xp ? `${fmt(m.xp)} kinh nghiệm` : '']
+      .concat(Object.entries(m.items).map(([id, n]) => `${ITEMS[id] ? ITEMS[id].name : id}${n > 1 ? ` ×${n}` : ''}`))
+      .filter(Boolean).join(' · ');
+  }
+
+  function viewMail() {
+    const list = mail.list;
+    return `<div class="row"><h2 class="display grow">Hộp thư</h2><button class="btn" data-act="mail-close">Đóng</button></div>
+      ${list == null ? '<p class="small muted">Đang tải…</p>'
+        : list.length === 0 ? '<div class="card"><p class="small muted">Chưa có thư nào. Quà nhận lúc vắng mặt (trùm thế giới) và quà của Ban Quản Trị sẽ gửi vào đây.</p></div>'
+        : `<div class="list">${list.map((m) => {
+          const gifts = mailGifts(m);
+          return `<div class="card mail ${m.claimed ? 'read' : ''}">
+            <div class="row"><b class="grow">${esc(m.subject)}</b><span class="small muted">${new Date(m.at).toLocaleString('vi-VN')}</span></div>
+            ${m.body ? `<p class="small">${esc(m.body)}</p>` : ''}
+            ${gifts ? `<p class="small" style="color:var(--gold)">Quà: ${gifts}</p>` : ''}
+            ${m.claimed ? `<span class="tag good">${gifts ? 'Đã nhận' : 'Đã đọc'}</span>`
+              : `<button class="btn ${gifts ? 'primary' : ''}" data-act="mail_claim" data-id="${m.id}">${gifts ? 'Nhận quà' : 'Đánh dấu đã đọc'}</button>`}
+          </div>`;
+        }).join('')}</div>`}`;
   }
 
   // ---------- Tạo nhân vật ----------
@@ -267,7 +487,7 @@
                   <b>${c.name}</b>
                   <span class="small muted">${c.desc}</span>
                   <span class="stats">Sức mạnh ${c.base.str} · Thể lực ${c.base.vit} · Nhanh nhẹn ${c.base.agi} · Phòng thủ ${c.base.def}</span>
-                  <span class="small" style="color:var(--gold)">Kỹ năng: ${c.skill.name}. ${c.skill.desc}</span>
+                  <span class="small" style="color:var(--gold)">Kỹ năng: ${c.skills[0].name}. ${c.skills[0].desc}</span>
                 </span>
               </button>`).join('')}
           </div>
@@ -326,6 +546,10 @@
         <button class="btn block" data-tab="map">${icon('walk')} Ra bản đồ</button>
       </div>
 
+      ${viewGuildCard()}
+
+      ${viewBestiary()}
+
       ${pots === 0 ? `<div class="card"><div class="row">${icon('health-potion', 'lg')}<div class="grow"><h3>Hết bình máu</h3><p class="small muted">Mua ở Bà Lang trong Làng, hoặc hái Thảo Dược nhờ bà pha.</p></div></div></div>` : ''}
 
       ${wb.alive ? '' : wb.nextAt ? `<div class="card"><div class="row">${sprite('ancient_dragon', '', '')}<div class="grow"><h3>Trùm thế giới</h3><p class="small muted">${esc(wb.name)} sẽ xuất hiện ở Tế Đàn sau khoảng ${Math.max(1, Math.round((wb.nextAt - wb.skew - Date.now()) / 60000))} phút. Cả server cùng đánh, chia thưởng theo sát thương.</p></div></div></div>` : ''}
@@ -337,6 +561,12 @@
           <div class="stat"><span class="small muted">Quái đã hạ</span><b>${fmt(P.kills)}</b></div>
           <div class="stat"><span class="small muted">Số lần gục ngã</span><b>${fmt(P.deaths)}</b></div>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="row">${icon(Sound.on ? 'speaker' : 'speaker-off', 'lg')}<h3 class="grow">Âm thanh</h3>
+          <button class="btn" data-act="sound-toggle" aria-pressed="${Sound.on}">${Sound.on ? 'Đang bật' : 'Đang tắt'}</button></div>
+        <label class="small volume">Âm lượng <input type="range" id="volume" min="0" max="100" value="${Math.round(Sound.volume * 100)}" ${Sound.on ? '' : 'disabled'}></label>
       </div>
 
       <div class="card">
@@ -353,11 +583,133 @@
           <button class="btn primary" type="submit">Lưu mật khẩu mới</button>
         </form>` : ''}
         <button class="btn" data-act="logout-all" style="margin-bottom:8px">Đăng xuất mọi thiết bị</button>
+        ${blocked.length ? `<p class="small muted">Đã chặn chat:</p><div class="list">${blocked.map((b) => `<div class="item"><span class="grow">${esc(b.name)}</span><button class="btn small-btn" data-act="unblock" data-uid="${b.id}">Bỏ chặn</button></div>`).join('')}</div>` : ''}
         ${confirmReset
           ? `<p class="small" style="color:var(--bad)">Xóa nhân vật ${esc(P.name)} và chơi lại từ đầu? Không thể hoàn tác.</p>
              <div class="btn-row"><button class="btn" data-act="reset-cancel">Giữ lại</button><button class="btn danger" data-act="reset-yes">Xóa và chơi lại</button></div>`
           : `<button class="btn" data-act="reset-ask">Chơi lại từ đầu</button>`}
       </div>`;
+  }
+
+  // ---------- Bang hội ----------
+  const ROLES = { leader: 'Bang chủ', officer: 'Phó bang', member: 'Thành viên' };
+
+  function viewGuildCard() {
+    const g = P.guild;
+    return `<div class="card"><div class="row">${icon('crossed-swords', 'lg')}<div class="grow"><h3>Bang hội</h3>
+      <p class="small muted">${g ? `<span class="guild-tag">[${esc(g.tag)}]</span> ${esc(g.name)} · cấp ${g.level} · ${ROLES[g.role]}` : 'Chưa vào bang nào. Vào bang để có kênh chat riêng và thêm kinh nghiệm mỗi trận.'}</p></div></div>
+      <button class="btn block" data-act="guild-open">${g ? 'Xem bang' : 'Tìm hoặc lập bang'}</button></div>`;
+  }
+
+  async function loadGuild() {
+    try {
+      if (P.guild) { guildUi.info = (await Net.guild('info')).guild; }
+      else { const r = await Net.guild('list', { q: guildUi.q }); guildUi.list = r.guilds; guildUi.requested = r.requested; guildUi.info = null; }
+    } catch (e) { toast(e.msg, true); }
+    if (guildUi.open) render();
+  }
+
+  // thao tác bang qua kênh "guild"; server trả lại thông tin bang mới
+  async function guildOp(op, payload) {
+    try {
+      const r = await Net.guild(op, payload);
+      if (r.msg) toast(r.msg);
+      guildUi.confirm = null;
+      if (r.guild !== undefined) guildUi.info = r.guild;
+      if (op === 'join' || op === 'cancel' || !r.guild) await loadGuild(); else render();
+    } catch (e) { toast(e.msg, true); }
+  }
+
+  function viewGuild() {
+    const head = `<div class="row"><h2 class="display grow">Bang hội</h2><button class="btn" data-act="guild-close">Đóng</button></div>`;
+    if (!P.guild) {
+      const list = guildUi.list;
+      return `${head}
+        <div class="card"><h3>Lập bang mới</h3>
+          <form id="guild-create" class="gift-form">
+            <input type="text" name="name" maxlength="20" placeholder="Tên bang (3–20 ký tự)" required>
+            <input type="text" name="tag" maxlength="4" placeholder="Ký hiệu 2–4 chữ, vd. RONG" required autocapitalize="characters">
+            <button class="btn primary" type="submit" ${P.gold < RULES.guildCost ? 'disabled' : ''}>${icon('two-coins')} Lập bang · ${fmt(RULES.guildCost)} vàng</button>
+          </form></div>
+        <div class="card"><h3>Tìm bang</h3>
+          <form id="guild-search" class="chat-form"><input type="text" id="guild-q" placeholder="Tên hoặc ký hiệu" value="${esc(guildUi.q)}"><button class="btn" type="submit">Tìm</button></form>
+          ${list == null ? '<p class="small muted">Đang tải…</p>' : list.length === 0 ? '<p class="small muted">Chưa có bang nào.</p>'
+            : `<div class="list">${list.map((g) => {
+              const asked = guildUi.requested.includes(g.id), full = g.members >= g.capacity;
+              return `<div class="item"><div class="grow"><div class="name"><span class="guild-tag">[${esc(g.tag)}]</span> ${esc(g.name)}</div>
+                <div class="small muted">Cấp ${g.level} · ${g.members}/${g.capacity} người · ${g.open ? 'vào tự do' : 'phải xin vào'}</div></div>
+                ${asked ? `<button class="btn" data-act="guild-op" data-op="cancel" data-id="${g.id}">Rút đơn</button>`
+                  : `<button class="btn primary" data-act="guild-op" data-op="join" data-id="${g.id}" ${full ? 'disabled' : ''}>${full ? 'Đủ người' : g.open ? 'Vào' : 'Xin vào'}</button>`}</div>`;
+            }).join('')}</div>`}
+        </div>`;
+    }
+    const g = guildUi.info;
+    if (!g) return head + '<p class="small muted">Đang tải…</p>';
+    const staff = g.role === 'leader' || g.role === 'officer', leader = g.role === 'leader';
+    const pct = g.next_fund ? Math.round((g.fund / g.next_fund) * 100) : 100;
+    const memberRow = (m) => {
+      const me = m.id === Net.userId;
+      const acts = [];
+      if (leader && !me && m.role === 'member') acts.push(['promote', 'Phong phó bang']);
+      if (leader && !me && m.role === 'officer') acts.push(['demote', 'Bỏ chức']);
+      if (leader && !me) acts.push(['transfer', 'Nhường bang chủ']);
+      if (!me && m.role !== 'leader' && (leader || (g.role === 'officer' && m.role === 'member'))) acts.push(['kick', 'Mời ra']);
+      const ask = guildUi.confirm && guildUi.confirm.uid === m.id ? guildUi.confirm : null;
+      return `<div class="item member"><div class="grow">
+        <div class="name">${esc(m.name)}${me ? ' <span class="small muted">(bạn)</span>' : ''}</div>
+        <div class="small muted">${ROLES[m.role]} · ${m.level ? `Cấp ${m.level}` : ''}${m.cls && CLASSES[m.cls] ? ` ${CLASSES[m.cls].name}` : ''} · góp ${fmt(m.contributed)} vàng</div>
+        ${ask ? `<div class="btn-row"><span class="small" style="color:var(--bad)">${ask.label} ${esc(m.name)}?</span><button class="btn small-btn" data-act="guild-confirm-no">Thôi</button><button class="btn small-btn danger" data-act="guild-op" data-op="${ask.op}" data-uid="${m.id}">Đồng ý</button></div>`
+          : acts.length ? `<div class="btn-row">${acts.map(([op, label]) => `<button class="btn small-btn" data-act="guild-ask" data-op="${op}" data-uid="${m.id}" data-label="${label}">${label}</button>`).join('')}</div>` : ''}
+      </div></div>`;
+    };
+    return `${head}
+      <div class="card">
+        <div class="row"><h3 class="grow"><span class="guild-tag">[${esc(g.tag)}]</span> ${esc(g.name)}</h3><span class="tag gold num">Cấp ${g.level}</span></div>
+        ${g.notice ? `<p>“${esc(g.notice)}”</p>` : ''}
+        ${bar('xp', g.fund, g.next_fund || g.fund, g.next_fund ? `Quỹ ${fmt(g.fund)} / ${fmt(g.next_fund)}` : `Quỹ ${fmt(g.fund)} · cấp tối đa`)}
+        <p class="small muted">${g.members.length}/${g.capacity} thành viên · +${Math.round(g.xp_bonus * 100)}% kinh nghiệm mỗi trận · ${g.open ? 'ai cũng vào được' : 'phải xin vào'}</p>
+        <form id="guild-donate" class="chat-form"><input type="number" id="donate-amount" min="${RULES.guildMinDonate}" step="100" placeholder="Số vàng góp quỹ"><button class="btn primary" type="submit">Góp</button></form>
+      </div>
+      ${staff ? `<div class="card"><h3>Quản lý</h3>
+        <form id="guild-settings" class="gift-form">
+          <input type="text" name="notice" maxlength="120" placeholder="Thông báo cho cả bang" value="${esc(g.notice || '')}">
+          <label class="small"><input type="checkbox" name="open" ${g.open ? 'checked' : ''}> Ai cũng vào được (bỏ chọn: phải xin, bang chủ/phó bang duyệt)</label>
+          <button class="btn" type="submit">Lưu</button>
+        </form>
+        ${g.requests.length ? `<h3>Đơn xin vào</h3><div class="list">${g.requests.map((r) => `<div class="item"><div class="grow"><div class="name">${esc(r.name)}</div><div class="small muted">${r.level ? `Cấp ${r.level}` : ''}</div></div>
+          <button class="btn small-btn" data-act="guild-op" data-op="reject" data-uid="${r.id}">Từ chối</button><button class="btn small-btn primary" data-act="guild-op" data-op="accept" data-uid="${r.id}">Nhận</button></div>`).join('')}</div>` : '<p class="small muted">Không có đơn xin vào nào.</p>'}
+      </div>` : ''}
+      <div class="card"><h3>Thành viên</h3><div class="list">${g.members.map(memberRow).join('')}</div></div>
+      <div class="card">
+        ${guildUi.confirm && guildUi.confirm.op === (leader && g.members.length === 1 ? 'disband' : 'leave') && !guildUi.confirm.uid
+          ? `<p class="small" style="color:var(--bad)">${leader && g.members.length === 1 ? 'Giải tán bang? Quỹ bang sẽ mất.' : 'Rời bang?'}</p>
+             <div class="btn-row"><button class="btn" data-act="guild-confirm-no">Thôi</button><button class="btn danger" data-act="guild-op" data-op="${leader && g.members.length === 1 ? 'disband' : 'leave'}">Đồng ý</button></div>`
+          : `<button class="btn block" data-act="guild-ask" data-op="${leader && g.members.length === 1 ? 'disband' : 'leave'}">${leader && g.members.length === 1 ? 'Giải tán bang' : 'Rời bang'}</button>`}
+        ${leader && g.members.length > 1 ? '<p class="small muted">Bang chủ muốn rời thì nhường bang chủ cho người khác trước.</p>' : ''}
+      </div>`;
+  }
+
+  // ---------- Sổ tay quái vật ----------
+  let bestiaryOpen = false;
+  function viewBestiary() {
+    const all = ZONES.flatMap((z) => z.monsters.concat([z.boss]));
+    const count = (id) => (P.bestiary && P.bestiary[id]) || 0;
+    const seen = all.filter((m) => count(m.id) > 0).length;
+    const cells = all.map((m) => {
+      const n = count(m.id), stars = n >= 100 ? '★★' : n >= 25 ? '★' : '';
+      return `<div class="beast ${n ? '' : 'unseen'}" title="${n ? esc(m.name) : '???'}">
+        ${sprite(m.id, '', n ? m.name : '')}
+        <span class="small">${n ? esc(m.name) : '???'}</span>
+        <span class="small num">${n ? `${fmt(n)} con` : ''}${stars ? ` <b class="stars">${stars}</b>` : ''}</span>
+      </div>`;
+    }).join('');
+    return `<div class="card">
+      <div class="row">${icon('open-book', 'lg')}<div class="grow"><h3>Sổ tay quái vật</h3>
+        <p class="small muted">Hạ 25 con một loài: +5% sát thương lên loài đó (★), 100 con: +10% (★★), mỗi mốc kèm thưởng vàng.</p></div>
+        <span class="tag gold num">${seen}/${all.length}</span></div>
+      ${bestiaryOpen ? `<div class="bestiary">${cells}</div>` : ''}
+      <button class="btn block" data-act="bestiary-toggle">${bestiaryOpen ? 'Thu gọn' : 'Xem sổ tay'}</button>
+    </div>`;
   }
 
   function viewVictory() {
@@ -377,9 +729,24 @@
     def: ['Phòng thủ', 'Giảm sát thương nhận vào'],
   };
 
-  function itemStat(it) {
-    if (it.atk) return `Tấn công +${it.atk}`;
-    if (it.def) return `Phòng thủ +${it.def}`;
+  // Tên món đồ kèm cấp nâng cấp (+1…+5) nếu có.
+  const upLevel = (id) => (P.upgrades && P.upgrades[id]) || 0;
+  // Món đồ theo id: đồ thường trong ITEMS, đồ chỉ số ngẫu nhiên (id bắt đầu bằng #) do server gửi.
+  const isGear = (id) => typeof id === 'string' && id[0] === '#';
+  const itemOf = (id) => (isGear(id) ? P.view.gear[id] : ITEMS[id]);
+  const RARITY = { 1: 'Tốt', 2: 'Hiếm', 3: 'Sử Thi' };
+  const itemName = (id) => {
+    const it = itemOf(id);
+    const name = it.rarity ? `<span class="rar-${it.rarity}">${esc(it.name)}</span>` : it.name;
+    return name + (upLevel(id) ? ` <span class="up-lv">+${upLevel(id)}</span>` : '');
+  };
+  const bonusText = (it) => (it.bonus ? Object.entries(it.bonus).sort((a, b) => b[1] - a[1]).map(([k, v]) => `+${v} ${STAT_INFO[k][0]}`).join(', ') : '');
+
+  function itemStat(it, id) {
+    const b = id ? P.view.bonus[id] || 0 : 0;
+    const extra = it.bonus ? ` · <span class="rar-${it.rarity}">${RARITY[it.rarity]}: ${bonusText(it)}</span>` : '';
+    if (it.atk) return `Tấn công +${it.atk}${b ? ` <span class="up">+${b}</span>` : ''}${extra}`;
+    if (it.def) return `Phòng thủ +${it.def}${b ? ` <span class="up">+${b}</span>` : ''}${extra}`;
     if (it.heal) return `Hồi ${it.heal} máu`;
     return '';
   }
@@ -390,7 +757,7 @@
       <div class="card">
         <div class="row">
           ${sprite('hero', '', '')}
-          <div class="grow"><h2 class="display">${esc(P.name)}</h2><div class="small muted">${c.name} · Cấp ${P.level}</div></div>
+          <div class="grow">${P.title ? `<span class="title-tag">${esc(achTitle(P.title))}</span>` : ''}<h2 class="display">${esc(P.name)}</h2><div class="small muted">${c.name} · Cấp ${P.level}</div></div>
         </div>
         <div class="stat-grid">
           <div class="stat"><span class="small muted">Tấn công</span><b>${d.atk}</b></div>
@@ -417,47 +784,79 @@
         <h3>Trang bị</h3>
         <div class="list">
           ${[['weapon', 'Vũ khí'], ['armor', 'Giáp'], ['shield', 'Khiên']].map(([slot, label]) => {
-            const id = P.equip[slot], it = id ? ITEMS[id] : null;
+            const id = P.equip[slot], it = id ? itemOf(id) : null;
             return `<div class="item">
               ${it ? icon(it.icon, 'lg') : `<span class="ic lg"></span>`}
-              <div class="grow"><div class="small muted">${label}</div><div class="name">${it ? it.name : 'Trống'}</div>${it ? `<div class="small muted">${itemStat(it)}</div>` : ''}</div>
+              <div class="grow"><div class="small muted">${label}</div><div class="name">${it ? itemName(id) : 'Trống'}</div>${it ? `<div class="small muted">${itemStat(it, id)}</div>` : ''}</div>
               ${slot === 'shield' && it ? `<button class="btn" data-act="unequip" data-slot="shield">Tháo</button>` : ''}
             </div>`;
           }).join('')}
         </div>
       </div>
 
-      <div class="card">
-        <div class="row">${icon(c.skill.icon, 'lg')}<div class="grow"><h3>${c.skill.name}</h3><p class="small muted">${c.skill.desc} Hồi chiêu ${c.skill.cooldown} lượt.</p></div></div>
-      </div>`;
+      <div class="card"><h3>Kỹ năng</h3><div class="list">
+        ${c.skills.map((k) => `<div class="item ${k.level > P.level ? 'locked' : ''}">${icon(k.icon, 'lg')}<div class="grow">
+          <div class="name">${k.name}${k.level > P.level ? ` <span class="small" style="color:var(--bad)">· mở ở cấp ${k.level}</span>` : ''}</div>
+          <div class="small muted">${k.desc} Hồi chiêu ${k.cooldown} lượt.</div></div></div>`).join('')}
+      </div></div>
+
+      ${viewAchievements()}`;
+  }
+
+  // ---------- Thành tựu, danh hiệu ----------
+  const achTitle = (id) => { const a = ACHIEVEMENTS.find((x) => x.id === id); return a ? a.title : ''; };
+
+  function viewAchievements() {
+    const prog = Object.fromEntries((P.view.achievements || []).map((a) => [a.id, a]));
+    const done = ACHIEVEMENTS.filter((a) => prog[a.id] && prog[a.id].done);
+    const titles = done.filter((a) => a.title);
+    const titleCard = `<div class="card">
+      <div class="row">${icon('laurels', 'lg')}<div class="grow"><h3>Danh hiệu</h3>
+        <p class="small muted">Hiện cạnh tên bạn trong chat và bảng xếp hạng.</p></div></div>
+      ${titles.length ? `<div class="chips">${titles.map((a) => `<button class="chip ${P.title === a.id ? 'on' : ''}" data-act="title_set" data-id="${P.title === a.id ? '' : a.id}" aria-pressed="${P.title === a.id}">${esc(a.title)}</button>`).join('')}</div>`
+        : '<p class="small muted">Chưa có danh hiệu nào. Đạt thành tựu để nhận.</p>'}
+    </div>`;
+    const list = ACHIEVEMENTS.map((a) => {
+      const pr = prog[a.id] || { done: false, have: 0 };
+      const pct = Math.min(100, Math.round((pr.have / a.goal) * 100));
+      return `<div class="item ach ${pr.done ? 'done' : ''}">${icon('medal', 'lg')}
+        <div class="grow"><div class="name">${esc(a.name)}${a.title ? ` <span class="small" style="color:var(--gold)">· danh hiệu “${esc(a.title)}”</span>` : ''}</div>
+          <div class="small muted">${esc(a.desc)}</div>
+          ${pr.done ? '' : a.goal > 1 ? `<div class="mini-bar"><i style="width:${pct}%"></i></div><div class="small muted num">${fmt(pr.have)} / ${fmt(a.goal)}</div>` : ''}
+        </div>${pr.done ? '<span class="tag good">Đã đạt</span>' : ''}</div>`;
+    }).join('');
+    return `${titleCard}
+      <div class="card"><div class="row"><h3 class="grow">Thành tựu</h3><span class="tag gold num">${done.length}/${ACHIEVEMENTS.length}</span></div>
+        <div class="list">${list}</div></div>`;
   }
 
   // ---------- Túi đồ ----------
-  function compare(it) {
-    const cur = P.equip[it.slot] ? ITEMS[P.equip[it.slot]] : null;
-    const v = (x) => (x ? (x.atk || 0) + (x.def || 0) : 0);
-    const diff = v(it) - v(cur);
+  function compare(it, id) {
+    const curId = P.equip[it.slot];
+    // như bot mô phỏng: mỗi điểm chỉ số cộng thêm tính bằng 2 tấn công/phòng thủ
+    const v = (x) => { const t = x && itemOf(x); return t ? (t.atk || 0) + (t.def || 0) + (P.view.bonus[x] || 0) + 2 * Object.values(t.bonus || {}).reduce((a, b) => a + b, 0) : 0; };
+    const diff = v(id) - v(curId);
     return diff > 0 ? `<span class="up">▲ ${diff}</span>` : '';
   }
 
   function viewBag() {
     const ids = Object.keys(P.inv).filter((id) => P.inv[id] > 0);
-    const gear = ids.filter((id) => !['potion', 'material'].includes(ITEMS[id].slot));
+    const gear = ids.filter((id) => !['potion', 'material'].includes(ITEMS[id].slot)).concat(bagGear());
     const pots = ids.filter((id) => ITEMS[id].slot === 'potion');
     const mats = ids.filter((id) => ITEMS[id].slot === 'material');
     const d = P.view.derived;
     const rowFor = (id) => {
-      const it = ITEMS[id], n = P.inv[id];
+      const it = itemOf(id), n = isGear(id) ? 1 : P.inv[id];
       const low = it.level && P.level < it.level;
       const main = it.slot === 'potion'
         ? `<button class="btn" data-act="use" data-id="${id}" ${P.hp >= d.maxHp ? 'disabled' : ''}>Dùng</button>`
         : it.slot === 'material' ? ''
         : `<button class="btn primary" data-act="equip" data-id="${id}" ${low ? 'disabled' : ''}>Trang bị</button>`;
       return `<div class="item">
-        ${itemIcon(it)}
+        ${itemIcon(it, it.rarity)}
         <div class="grow">
-          <div class="name">${it.name}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div>
-          <div class="small muted">${it.slot === 'material' ? it.desc : itemStat(it)} ${['potion', 'material'].includes(it.slot) ? '' : compare(it)}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}</div>
+          <div class="name">${itemName(id)}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div>
+          <div class="small muted">${it.slot === 'material' ? it.desc : itemStat(it, id)} ${['potion', 'material'].includes(it.slot) ? '' : compare(it, id)}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}</div>
         </div>
         ${main}
       </div>`;
@@ -472,7 +871,7 @@
         ${mats.length ? `<div class="list">${mats.map(rowFor).join('')}</div>` : `<p class="small muted">Bước vào bụi cây để hái Thảo Dược, vào mỏ đá để đào quặng. Mang cho Bà Lang pha thuốc hoặc bán cho Thợ Rèn.</p>`}
       </div>
       <div class="card">
-        <h3>Trang bị trong túi</h3>
+        <div class="row"><h3 class="grow">Trang bị trong túi</h3>${bagGear().length ? `<span class="small muted num">Đồ hiếm ${bagGear().length}/${RULES.gearBag}</span>` : ''}</div>
         ${gear.length ? `<div class="list">${gear.map(rowFor).join('')}</div>` : `<p class="small muted">Đồ bạn mua hoặc nhặt được sẽ nằm ở đây. Đồ đang mặc xem ở tab Nhân vật.</p>`}
       </div>
       <p class="small muted">Muốn bán đồ thì gặp Thợ Rèn hoặc Bà Lang trong Làng.</p>`;
@@ -491,22 +890,59 @@
       ${itemIcon(it)}
       <div class="grow">
         <div class="name">${it.name}</div>
-        <div class="small muted">${itemStat(it)} ${slot !== 'potion' ? compare(it) : ''}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}${worn ? ' · <span style="color:var(--good)">Đang dùng</span>' : ''}${owned ? ` · có ${owned}` : ''}</div>
+        <div class="small muted">${itemStat(it)} ${slot !== 'potion' ? compare(it, id) : ''}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}${worn ? ' · <span style="color:var(--good)">Đang dùng</span>' : ''}${owned ? ` · có ${owned}` : ''}</div>
       </div>
       ${slot === 'potion' ? `<button class="btn" data-act="buy5" data-id="${id}" ${P.gold < it.price * 5 ? 'disabled' : ''}>×5</button>` : ''}
       <button class="btn ${!low && !poor ? 'primary' : ''}" data-act="buy" data-id="${id}" ${low || poor ? 'disabled' : ''}>${icon('two-coins')}${fmt(it.price)}</button>
     </div>`;
   }
 
+  // đồ chỉ số ngẫu nhiên trong túi (không đang mặc), hiếm trước
+  const bagGear = () => Object.values(P.view.gear).filter((g) => !Object.values(P.equip).includes(g.uid))
+    .sort((a, b) => b.rarity - a.rarity || (b.level || 0) - (a.level || 0)).map((g) => g.uid);
+
   function sellCard() {
-    const ids = Object.keys(P.inv).filter((id) => P.inv[id] > 0);
+    const ids = Object.keys(P.inv).filter((id) => P.inv[id] > 0).concat(bagGear());
     return `<div class="card"><h3>Bán đồ</h3>
       ${ids.length ? `<div class="list">${ids.map((id) => {
-        const it = ITEMS[id], n = P.inv[id];
-        return `<div class="item">${itemIcon(it)}<div class="grow"><div class="name">${it.name}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div></div>
+        const it = itemOf(id), n = isGear(id) ? 1 : P.inv[id];
+        return `<div class="item">${itemIcon(it, it.rarity)}<div class="grow"><div class="name">${itemName(id)}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div></div>
           <button class="btn" data-act="sell" data-id="${id}" aria-label="Bán ${it.name}">Bán ${fmt(it.sell)}</button></div>`;
       }).join('')}</div>` : '<p class="small muted">Túi trống. Đồ đang mặc không bán được.</p>'}
     </div>`;
+  }
+
+  function forgeCard() {
+    const rows = [['weapon', 'Vũ khí'], ['armor', 'Giáp'], ['shield', 'Khiên']].map(([slot, label]) => {
+      const f = P.view.forge[slot];
+      if (!f) return '';
+      const it = itemOf(f.id), c = f.cost;
+      const need = c ? Object.entries(c.items) : [];
+      const ok = c && P.gold >= c.gold && need.every(([id, n]) => (P.inv[id] || 0) >= n);
+      const step = it.atk || it.def ? Math.max(1, Math.round((it.atk || it.def) * 0.08)) : 0;
+      return `<div class="item">${icon(it.icon, 'lg')}<div class="grow">
+          <div class="small muted">${label}</div><div class="name">${itemName(f.id)}</div>
+          ${c ? `<div class="small muted">Lên +${f.level + 1}: ${it.atk ? 'tấn công' : 'phòng thủ'} +${step} · ${need.map(([id, n]) => `<span style="${(P.inv[id] || 0) >= n ? '' : 'color:var(--bad)'}">${ITEMS[id].name} ${Math.min(P.inv[id] || 0, n)}/${n}</span>`).join(' · ')}</div>`
+            : '<div class="small" style="color:var(--gold)">Đã nâng tối đa</div>'}
+        </div>
+        ${c ? `<button class="btn ${ok ? 'primary' : ''}" data-act="upgrade" data-slot="${slot}" ${ok ? '' : 'disabled'}>${icon('anvil')}${fmt(c.gold)}</button>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="card"><h3>Rèn đồ đang mặc</h3>
+      <p class="small muted">Mỗi cấp thêm 8% chỉ số của món đồ, tối đa +5. Đồ dưới cấp 17 dùng Quặng Sắt, đồ cao hơn dùng Mithril. Cấp nâng giữ theo món đồ khi tháo ra.</p>
+      <div class="list">${rows}</div></div>`;
+  }
+
+  function chestCard() {
+    const full = bagGear().length >= RULES.gearBag;
+    const odds = (o) => [[3, 'Sử Thi'], [2, 'Hiếm'], [1, 'Tốt']].filter(([r]) => o[r]).map(([r, n]) => `<span class="rar-${r}">${n} ${o[r]}%</span>`).join(' · ');
+    return `<div class="card"><h3>Rương Báu</h3>
+      <p class="small muted">Mở ra một món đồ chỉ số ngẫu nhiên hợp cấp của bạn.${full ? ' <span style="color:var(--bad)">Túi đồ hiếm đầy, bán bớt đã.</span>' : ''}</p>
+      <div class="list">${P.view.chests.map((c) => `<div class="item">
+        <img class="ic lg px" src="${asset('items/chest_' + c.id + '.png')}" alt="">
+        <div class="grow"><div class="name">${c.name}</div><div class="small">${odds(c.odds)}</div></div>
+        <button class="btn ${P.gold >= c.price && !full ? 'primary' : ''}" data-act="chest_buy" data-tier="${c.id}" ${P.gold >= c.price && !full ? '' : 'disabled'}>${icon('two-coins')}${fmt(c.price)}</button>
+      </div>`).join('')}</div></div>`;
   }
 
   function craftCard() {
@@ -577,10 +1013,22 @@
     if (n.role === 'quests') {
       const act = activeQuests(), avail = availableQuests();
       sections.push(`<div class="card"><h3>Nhiệm vụ đang làm</h3>${act.length ? `<div class="list">${act.map((q) => questRow(q, 'turnin')).join('')}</div>` : '<p class="small muted">Chưa nhận nhiệm vụ nào.</p>'}</div>`);
+      if (P.level >= RULES.maxLevel || P.rebirths) {
+        const pts = ((P.rebirths || 0) + 1) * RULES.rebirthPoints, max = P.rebirths >= RULES.maxRebirths;
+        sections.push(`<div class="card"><div class="row">${icon('star-cycle', 'lg')}<div class="grow"><h3>Chuyển sinh</h3>
+          <p class="small muted">Đạt cấp ${RULES.maxLevel} thì có thể trở về cấp 1 để luyện lại từ đầu, giữ nguyên vàng, đồ đạc, vùng đã mở, nhiệm vụ và thành tựu. Mỗi lần chuyển sinh cho thêm ${RULES.rebirthPoints} điểm tiềm năng vĩnh viễn.</p>
+          ${P.rebirths ? `<p class="small">Đã chuyển sinh ${P.rebirths}/${RULES.maxRebirths} lần.</p>` : ''}</div></div>
+          ${max ? '' : P.level < RULES.maxLevel ? `<p class="small muted">Cần cấp ${RULES.maxLevel} để chuyển sinh lần tiếp theo.</p>`
+            : confirmRebirth ? `<p class="small" style="color:var(--bad)">Về cấp 1 với ${pts} điểm tiềm năng? Không thể hoàn tác.</p>
+              <div class="btn-row"><button class="btn" data-act="rebirth-cancel">Thôi</button><button class="btn primary" data-act="rebirth">Chuyển sinh</button></div>`
+            : `<button class="btn primary block" data-act="rebirth-ask">${icon('star-cycle')} Chuyển sinh</button>`}
+        </div>`);
+      }
       sections.push(`<div class="card"><h3>Việc cần người giúp</h3>${avail.length ? `<div class="list">${avail.map((q) => questRow(q, 'accept')).join('')}</div>` : '<p class="small muted">Hiện chưa có việc mới. Mở thêm vùng đất để nhận thêm nhiệm vụ.</p>'}</div>`);
     }
     if (n.role === 'shop' || n.role === 'herbalist') {
       if (n.role === 'herbalist') sections.push(craftCard());
+      if (n.role === 'shop') sections.push(forgeCard(), chestCard());
       sections.push(`<div class="card"><h3>Mua</h3><div class="list">${n.stock.map(shopRow).join('')}</div></div>`);
       sections.push(sellCard());
     }
@@ -602,6 +1050,10 @@
     }
     if (n.role === 'daily') {
       sections.push(`<div class="card"><div class="row"><h3 class="grow">Việc hôm nay</h3><span class="small muted">Việc mới sau ${dailyLeft()}</span></div>${dailyList(true)}</div>`);
+    }
+    if (n.role === 'chest') {
+      sections.push(`<div class="card"><p>“${esc(n.lines[0])}”</p>
+        <button class="btn ${P.view.chestReady ? 'primary' : ''} block" data-act="chest_open" ${P.view.chestReady ? '' : 'disabled'}>${P.view.chestReady ? 'Mở rương' : 'Hôm nay đã mở, mai quay lại'}</button></div>`);
     }
     if (n.role === 'talk') {
       sections.push(`<div class="card">${n.lines.map((l) => `<p>“${esc(l)}”</p>`).join('')}</div>`);
@@ -629,9 +1081,28 @@
   }
 
   // ---------- Trận đấu ----------
+  const mySkills = () => CLASSES[P.cls].skills.filter((k) => k.level <= P.level);
+
+  // Hiệu ứng trạng thái đang có (độc, choáng, cuồng nộ...).
+  const EFFECTS = {
+    poison: ['☠', 'Trúng độc', 'bad'], burn: ['🔥', 'Bỏng', 'bad'], bleed: ['🩸', 'Chảy máu', 'bad'],
+    stun: ['💫', 'Choáng', 'bad'], weaken: ['⬇', 'Suy yếu', 'bad'],
+    rage: ['⬆', 'Cuồng nộ', 'good'], guard: ['🛡', 'Thủ thế', 'good'], evade: ['💨', 'Ảnh bộ', 'good'],
+  };
+  function effectTags(list) {
+    if (!list || !list.length) return '';
+    return `<div class="fx-tags">${list.map((e) => {
+      const [ic, name, kind] = EFFECTS[e.id] || ['•', e.id, ''];
+      const dot = ['poison', 'burn', 'bleed'].includes(e.id) ? ` -${e.power}` : '';
+      return `<span class="fx-tag ${kind}" title="${name}">${ic} ${name}${dot}${e.id === 'stun' ? '' : ` · ${e.turns}`}</span>`;
+    }).join('')}</div>`;
+  }
   function viewBattle() {
     const b = P.battle, m = b.monster, d = P.view.derived, z = ZONES[b.zone];
-    const skill = CLASSES[P.cls].skill;
+    const skills = mySkills();
+    const cd = (id) => { const c = (b.cds || []).find((x) => x.id === id); return c ? c.turns : 0; };
+    const fxs = (!b.over && b.effects) || { player: [], monster: [] };
+    const dotted = fxs.player.some((e) => ['poison', 'burn', 'bleed'].includes(e.id));
     const pots = ['potion_s', 'potion_m', 'potion_l'].reduce((s, id) => s + (P.inv[id] || 0), 0);
     const floatHtml = fx && fx.mDmg != null
       ? `<span class="float ${fx.crit ? 'crit' : ''} ${fx.mDmg === 0 ? 'miss' : ''}">${fx.mDmg === 0 ? 'Trượt' : '-' + fmt(fx.mDmg)}</span>` : '';
@@ -640,8 +1111,8 @@
       bottom = `
         <div class="actions">
           <button class="btn primary" data-act="attack">${icon('broadsword')} Tấn công</button>
-          <button class="btn" data-act="skill" ${b.skillCd ? 'disabled' : ''}>${icon(skill.icon)} ${skill.name}${b.skillCd ? ` (${b.skillCd})` : ''}</button>
-          <button class="btn" data-act="potion" ${pots && P.hp < d.maxHp ? '' : 'disabled'}>${icon('health-potion')} Uống máu (${pots})</button>
+          ${skills.map((k) => `<button class="btn" data-act="skill" data-skill="${k.id}" ${cd(k.id) ? 'disabled' : ''}>${icon(k.icon)} ${k.name}${cd(k.id) ? ` (${cd(k.id)})` : ''}</button>`).join('')}
+          <button class="btn" data-act="potion" ${pots && (P.hp < d.maxHp || dotted) ? '' : 'disabled'}>${icon('health-potion')} Uống máu (${pots})</button>
           <button class="btn" data-act="flee">${icon('walk')} Bỏ chạy</button>
         </div>`;
     } else {
@@ -651,6 +1122,7 @@
         <div class="card result ${r}">
           <h2>${title}</h2>
           ${rw ? `<p class="num">+${fmt(rw.xp)} kinh nghiệm · +${fmt(rw.gold)} vàng${rw.items.length ? ' · ' + rw.items.map((id) => ITEMS[id].name).join(', ') : ''}</p>` : ''}
+          ${rw && rw.gear ? `<p class="gear-drop">🎁 ${rw.gear.map(esc).join(', ')}</p>` : ''}
           ${rw && rw.levels ? `<p style="color:var(--gold);font-weight:600">Lên cấp ${P.level}! Vào tab Nhân vật để cộng điểm.</p>` : ''}
           <div class="btn-row">
             <button class="btn primary" data-act="leave">${r === 'lose' ? `${icon('village')} Về nhà` : `${icon('walk')} Tiếp tục`}</button>
@@ -666,10 +1138,11 @@
         <h2>${m.name}</h2>
         <span class="small muted">Cấp ${m.level} · Tấn công ${m.atk} · Phòng thủ ${m.def}${m.special ? ` · ${m.special.name} mỗi ${m.special.every} lượt` : ''}</span>
         ${bar(m.boss || m.world || m.elite ? 'boss' : 'hp', m.hp, m.maxHp)}
+        ${effectTags(fxs.monster)}
       </div>
       <div class="me ${fx && fx.pDmg ? 'hurt' : ''}">
         ${sprite('hero', '', '')}
-        <div class="grow" style="flex:1;min-width:0">${bar('hp', P.hp, d.maxHp, `${esc(P.name)} · ${fmt(P.hp)} / ${fmt(d.maxHp)}`)}</div>
+        <div class="grow" style="flex:1;min-width:0">${bar('hp', P.hp, d.maxHp, `${esc(P.name)} · ${fmt(P.hp)} / ${fmt(d.maxHp)}`)}${effectTags(fxs.player)}</div>
       </div>
       <div class="log" aria-live="polite">${b.log.map((l) => `<div class="${l.kind}">${esc(l.text)}</div>`).join('')}</div>
       ${bottom}`;
@@ -702,14 +1175,36 @@
       case 'buy': return { act, id: d.id, n: 1 };
       case 'buy5': return { act: 'buy', id: d.id, n: 5 };
       case 'equip': case 'use': case 'sell': return { act, id: d.id };
-      case 'unequip': return { act, slot: d.slot };
+      case 'unequip': case 'upgrade': return { act, slot: d.slot };
       case 'reset-yes': return { act: 'reset' };
       case 'teleport': return { act, to: d.to };
       case 'craft': case 'quest_accept': case 'quest_turnin': return { act, id: d.id };
       case 'daily_claim': return { act, i: +d.i };
       case 'tower_enter': return { act, floor: +d.floor };
+      case 'skill': return { act, skill: d.skill };
+      case 'mail_claim': return { act, id: +d.id };
+      case 'chest_buy': return { act, tier: d.tier };
+      case 'title_set': return { act, id: d.id || null };
       default: return { act };
     }
+  }
+
+  // Âm thanh cho kết quả một lệnh.
+  const CMD_SOUND = { chest_buy: 'rare', chest_open: 'rare', rebirth: 'levelup', buy: 'coin', sell: 'coin', mail_claim: 'coin', craft: 'brew', upgrade: 'forge', quest_turnin: 'quest', daily_claim: 'quest', quest_accept: 'notice', rest: 'potion', use: 'potion', tower_enter: 'portal', potion: 'potion' };
+
+  function commandSound(cmd, r, old) {
+    if (!r.ok) { Sound.play('error'); return; }
+    if (fx) {
+      if (cmd.act === 'skill') Sound.play('skill');
+      if (cmd.act === 'potion') Sound.play('potion');
+      if (fx.mDmg === 0) Sound.play('miss'); else if (fx.mDmg) Sound.play(fx.crit ? 'crit' : 'hit');
+      if (fx.pDmg) setTimeout(() => Sound.play('hurt'), 180);
+    } else if (CMD_SOUND[cmd.act]) Sound.play(CMD_SOUND[cmd.act]);
+    if (cmd.act === 'flee' && P.battle && P.battle.over && P.battle.result === 'fled') Sound.play('flee');
+    const ended = old && old.battle && !old.battle.over && P && P.battle && P.battle.over;
+    if (ended && P.battle.result === 'win') setTimeout(() => Sound.play('win'), 250);
+    if (ended && P.battle.result === 'lose') setTimeout(() => Sound.play('lose'), 250);
+    if (old && P && P.level > old.level) setTimeout(() => Sound.play('levelup'), ended ? 700 : 100);
   }
 
   async function sendCommand(cmd) {
@@ -718,16 +1213,21 @@
     const battle = ['attack', 'skill', 'potion', 'flee'].includes(cmd.act) && P && P.battle;
     const before = battle ? snapBattle() : null;
     const scroll = $('#view').scrollTop;
+    const old = P;
     try {
       const r = await Net.send(cmd);
       P = r.player;
       result(r);
+      if (r.ok && before) battleFx(before, cmd.act);
+      commandSound(cmd, r, old);
       if (r.ok) {
-        if (before) battleFx(before, cmd.act);
         if (cmd.act === 'leave' || cmd.act === 'create') tab = 'map';
         if (cmd.act === 'reset') tab = 'map';
         if (cmd.act === 'tower_enter') { tab = 'map'; npc = null; }
+        if (cmd.act === 'rebirth' || cmd.act === 'guild_create' || cmd.act === 'guild_donate') board.at = 0;
+        if (cmd.act === 'mail_claim' && mail.list) { const m = mail.list.find((x) => x.id === cmd.id); if (m) m.claimed = true; }
         confirmReset = false;
+        confirmRebirth = false;
         dialog = null;
       }
     } catch (e) {
@@ -743,6 +1243,7 @@
   // Một bước: gửi lên server, server kiểm tra rồi trả vị trí mới (hoặc bắt đầu trận).
   async function step(dir, confirm) {
     if (busy || !P || P.battle) return false;
+    if (fishing) { stopFishing(); toast('Bạn đã thu cần.'); }
     busy = true;
     const mapBefore = P.pos.map, hadDialog = !!dialog;
     dialog = null;
@@ -751,6 +1252,10 @@
       const r = await Net.send(confirm ? { act: 'move', dir, confirm: true } : { act: 'move', dir });
       P = r.player;
       if (r.msg) result(r);
+      if (r.gather) Sound.play('gather');
+      else if (P.battle) Sound.play('encounter');
+      else if (P.pos.map !== mapBefore) Sound.play('portal');
+      else if (r.msg && r.ok) Sound.play('notice');
       if (r.confirm === 'boss') dialog = { type: 'boss', dir, boss: r.boss };
       if (r.waystone) dialog = { type: 'waystone' };
       if (r.npc) {
@@ -805,7 +1310,7 @@
 
   function enter(r) {
     P = r ? r.player : null;
-    if (r) { Map_.setUser(r.user_id); Net.userId = r.user_id; }
+    if (r) { Map_.setUser(r.user_id); Net.userId = r.user_id; Net.isAdmin = r.admin; blocked = r.blocked || []; mail = { unread: r.mail || 0, list: null, open: false }; }
     tab = 'map';
     loading = false;
     render();
@@ -823,21 +1328,47 @@
     const t = e.target.closest('button');
     if (!t) return;
     if (t.dataset.cls) { pickCls = t.dataset.cls; document.querySelectorAll('.class-opt').forEach((b) => b.setAttribute('aria-pressed', b.dataset.cls === pickCls)); return; }
-    if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; render(); $('#view').scrollTop = 0; return; }
+    if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; mail.open = false; guildUi.open = false; stopFishing(); render(); $('#view').scrollTop = 0; return; }
     if (t.dataset.auth) { authMode = t.dataset.auth; render(); return; }
     if (t.dataset.board) { board.kind = t.dataset.board; const el = $('#board'); if (el) el.outerHTML = viewBoard(); loadBoard(); return; }
     if (t.dataset.move) { walk = null; step(t.dataset.move); return; }
     const act = t.dataset.act;
     if (act === 'logout') return logout();
     if (act === 'pw-toggle') { pwForm = !pwForm; render(); return; }
+    if (t.dataset.adm) { onAdmin(t); return; }
+    if (t.dataset.chat) { chatMenu = chatMenu === +t.dataset.chat ? null : +t.dataset.chat; const log = $('#chat-log'); if (log) log.innerHTML = chats.map(chatLine).join(''); return; }
+    if (act === 'chat-report') { Net.report(+t.dataset.id).then(() => toast('Đã gửi báo cáo. Cảm ơn bạn.')).catch((e) => toast(e.msg, true)); chatMenu = null; return; }
+    if (act === 'chat-block' || act === 'unblock') {
+      const uid = +t.dataset.uid;
+      (act === 'unblock' ? Net.unblock(uid) : Net.block(uid)).then((r) => {
+        blocked = r.blocked;
+        if (act === 'chat-block') { chats = chats.filter((m) => m.uid !== uid); toast('Đã chặn. Bạn sẽ không thấy chat của người này.'); }
+        chatMenu = null;
+        render();
+      }).catch((e) => toast(e.msg, true));
+      return;
+    }
     if (act === 'logout-all') {
       Net.logoutAll().then(() => { P = null; render(); toast('Đã đăng xuất mọi thiết bị.'); }).catch((err) => toast(err.msg, true));
       return;
     }
     if (!act || !P) return;
     if (act === 'reset-ask' || act === 'reset-cancel') { confirmReset = act === 'reset-ask'; render(); return; }
+    if (act === 'rebirth-ask' || act === 'rebirth-cancel') { confirmRebirth = act === 'rebirth-ask'; render(); return; }
     if (act === 'dialog-close') { dialog = null; render(); return; }
     if (act === 'npc-close') { npc = null; render(); return; }
+    if (act === 'mail-open') { mail.open = !mail.open; walk = null; render(); $('#view').scrollTop = 0; if (mail.open) loadMail(); return; }
+    if (act === 'mail-close') { mail.open = false; render(); return; }
+    if (act === 'fish-cast') { walk = null; castLine(); return; }
+    if (act === 'sound-toggle') { Sound.toggle(); render(); return; }
+    if (act === 'bestiary-toggle') { bestiaryOpen = !bestiaryOpen; render(); return; }
+    if (act === 'guild-open') { guildUi.open = true; guildUi.list = null; guildUi.info = null; render(); $('#view').scrollTop = 0; loadGuild(); return; }
+    if (act === 'guild-close') { guildUi.open = false; guildUi.confirm = null; render(); return; }
+    if (act === 'guild-ask') { guildUi.confirm = { op: t.dataset.op, uid: t.dataset.uid ? +t.dataset.uid : null, label: t.dataset.label }; render(); return; }
+    if (act === 'guild-confirm-no') { guildUi.confirm = null; render(); return; }
+    if (act === 'guild-op') { const d = t.dataset; guildOp(d.op, Object.assign({}, d.id ? { id: +d.id } : {}, d.uid ? { uid: +d.uid } : {})); return; }
+    if (act === 'chat-to') { chatTo = chatTo === 'guild' ? 'world' : 'guild'; const f = $('#chat-form'); if (f) f.outerHTML = viewChat().match(/<form id="chat-form"[\s\S]*<\/form>/)[0]; return; }
+    if (act === 'fish-reel') { reelIn(); return; }
     if (act === 'boss-yes') { const d = dialog; if (d) step(d.dir, true); return; }
     sendCommand(command(act, t));
   }
@@ -875,6 +1406,36 @@
     if (e.target.id === 'auth') { e.preventDefault(); onAuth(); return; }
     if (e.target.id === 'pw-form') { e.preventDefault(); onPassword(); return; }
     if (e.target.id === 'chat-form') { e.preventDefault(); onChatSubmit(); return; }
+    if (e.target.id === 'adm-lookup') {
+      e.preventDefault();
+      Net.admin('lookup', { name: $('#adm-name').value }).then((r) => { adm.user = r.user; render(); }).catch((err) => toast(err.msg, true));
+      return;
+    }
+    if (e.target.id === 'adm-gift' || e.target.id === 'adm-gift-all') { e.preventDefault(); onGift(e.target); return; }
+    if (e.target.id === 'guild-create') {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      sendCommand({ act: 'guild_create', name: f.get('name'), tag: f.get('tag') }).then(() => { if (P && P.guild) loadGuild(); });
+      return;
+    }
+    if (e.target.id === 'guild-donate') {
+      e.preventDefault();
+      const amount = parseInt($('#donate-amount').value, 10);
+      sendCommand({ act: 'guild_donate', amount: amount || 0 }).then(loadGuild);
+      return;
+    }
+    if (e.target.id === 'guild-search') { e.preventDefault(); guildUi.q = $('#guild-q').value.trim(); loadGuild(); return; }
+    if (e.target.id === 'guild-settings') {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      guildOp('settings', { notice: f.get('notice') || '', open: f.get('open') === 'on' });
+      return;
+    }
+    if (e.target.id === 'adm-announce') {
+      e.preventDefault();
+      Net.admin('announce', { text: $('#adm-text').value }).then(() => { toast('Đã gửi thông báo.'); $('#adm-text').value = ''; }).catch((err) => toast(err.msg, true));
+      return;
+    }
     if (e.target.id !== 'create') return;
     e.preventDefault();
     const name = $('#hero-name').value.trim();
@@ -892,10 +1453,26 @@
     Net.onMap((snap) => Map_.setWorld(snap));
     Net.onChat(onChatMessage);
     Net.onWorldBoss(onWorldBoss);
-    Net.onNotice((msg) => toast(msg));
+    Net.onNotice((msg) => { toast(msg); Sound.play(/Thành tựu/.test(msg) ? 'achieve' : 'notice'); });
+    Net.onGuild((g) => {
+      if (!P) return;
+      const before = P.guild;
+      P.guild = g;
+      if (!g) chatTo = 'world';
+      if (!before && g) toast(`Bạn đã vào bang ${g.name}.`);
+      if (before && !g) toast('Bạn không còn ở trong bang.');
+      if (guildUi.open) loadGuild(); else if (tab === 'town') render();
+    });
+    Net.onMail((n) => {
+      const more = n > mail.unread;
+      mail.unread = n;
+      if (more) { toast('Bạn có thư mới.'); Sound.play('mail'); if (mail.open) loadMail(); }
+      if (P && !P.battle) $('#hud').innerHTML = viewHud();
+    });
     setInterval(() => { const el = $('#wb-left'); if (el && wb.alive) el.textContent = clock(wb.endsAt - wb.skew - Date.now()); }, 1000);
     Net.onChatHistory((msgs) => { chats = msgs; const log = $('#chat-log'); if (log) { log.innerHTML = chats.map(chatLine).join(''); log.scrollTop = log.scrollHeight; } });
     document.addEventListener('input', (e) => { if (e.target.id === 'chat-input') chatDraft = e.target.value; });
+    document.addEventListener('change', (e) => { if (e.target.id === 'volume') { Sound.setVolume(e.target.value / 100); Sound.play('coin'); } });
     Net.onStatus((st) => {
       const bar = $('#netbar');
       bar.hidden = st === 'online';
