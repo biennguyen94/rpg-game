@@ -7,28 +7,20 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 
 Ước lượng công sức: nhỏ (vài giờ), vừa (khoảng một ngày), lớn (nhiều ngày).
 
-1. **CI chạy `mix test` trên GitHub Actions** (nhỏ). Repo chưa có kiểm tra tự động nào.
-2. **Hướng dẫn người mới** (nhỏ): không có nó, người mới vào không biết làm gì và bỏ đi.
-3. **Công cụ quản trị** (vừa) và **chặn/báo cáo người chat xấu** (nhỏ–vừa): cần có trước khi
-   mở game cho người lạ.
-4. **Mô phỏng cân bằng có nhiệm vụ** (vừa): cho bot làm nhiệm vụ, việc hằng ngày, tháp, trùm
-   thế giới để đo các nguồn thưởng mới trước khi thêm tính năng cho thêm thưởng.
-5. **Đọc `X-Forwarded-For` khi chạy sau proxy** (nhỏ). Không có thì giới hạn đăng nhập theo IP
-   tính chung mọi người thành IP của proxy.
-6. **Hộp thư** (vừa): báo thưởng nhận lúc vắng mặt; nền cho chợ và quà quản trị.
-7. **Âm thanh** (nhỏ), **câu cá** (nhỏ–vừa), **danh hiệu và thành tựu** (nhỏ–vừa): rẻ mà làm
+1. **Hộp thư** (vừa): báo thưởng nhận lúc vắng mặt; nền cho chợ và quà quản trị.
+2. **Âm thanh** (nhỏ), **câu cá** (nhỏ–vừa), **danh hiệu và thành tựu** (nhỏ–vừa): rẻ mà làm
    game vui hơn hẳn.
-8. **Đồ có chỉ số ngẫu nhiên** (vừa), **công dụng cho quặng** (nhỏ–vừa, Thợ Rèn nâng cấp đồ
+3. **Đồ có chỉ số ngẫu nhiên** (vừa), **công dụng cho quặng** (nhỏ–vừa, Thợ Rèn nâng cấp đồ
    bằng quặng) và **thêm kỹ năng theo cấp** (vừa): trận đánh hiện gần như chỉ là bấm kỹ năng
    rồi tấn công, và đồ đạc chỉ là mua món tốt hơn.
-9. **Hiệu ứng trạng thái** (vừa), **chuyển sinh** (nhỏ–vừa), **sổ tay quái vật** (nhỏ),
+4. **Hiệu ứng trạng thái** (vừa), **chuyển sinh** (nhỏ–vừa), **sổ tay quái vật** (nhỏ),
    **ngày và đêm** (nhỏ).
-10. **Bang hội** (lớn), **tổ đội** (vừa–lớn): giữ người chơi lâu dài.
-11. **Rương** (nhỏ), **trang trí nhà** (vừa–lớn), **nhân vật mặc đúng đồ** (vừa),
-    **thú cưng** (vừa).
-12. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
-    **chợ giữa người chơi** (lớn).
-13. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
+5. **Bang hội** (lớn), **tổ đội** (vừa–lớn): giữ người chơi lâu dài.
+6. **Rương** (nhỏ), **trang trí nhà** (vừa–lớn), **nhân vật mặc đúng đồ** (vừa),
+   **thú cưng** (vừa).
+7. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
+   **chợ giữa người chơi** (lớn).
+8. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
 
 ---
 
@@ -44,15 +36,19 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   thì lấy trạng thái mới nhất; token bị thu hồi thì về màn đăng nhập.
 - [x] **Tên nhân vật duy nhất** (không phân biệt hoa thường; 2–16 ký tự chữ có dấu, số,
   khoảng trắng, `-`, `_`), để không mạo danh trong chat và bảng xếp hạng.
-- [ ] **Chạy sau proxy** (nginx, load balancer): thêm plug đọc `X-Forwarded-For` để giới hạn
-  theo IP thật.
-- [ ] **CI**: chạy `mix test` trên GitHub Actions.
-- [ ] **Hướng dẫn người mới**: chuỗi việc tân thủ ngắn ("Ra khỏi nhà" → "Gặp Trưởng Làng" →
-  "Hạ 3 Dơi Hang"), mũi tên chỉ đường trên bản đồ. Hiện nhân vật mới đứng ở Nhà mà không biết
-  chạm vào quái để đánh hay gặp NPC để nhận việc.
-- [ ] **Công cụ quản trị**: trang chỉ tài khoản admin vào được: khóa tài khoản, cấm chat có
-  thời hạn, xem và xử lý báo cáo, gọi trùm thế giới, gửi thông báo cho cả server, gửi quà
-  (qua hộp thư). Hiện muốn làm những việc này phải sửa thẳng database.
+- [x] **Chạy sau proxy** (`HacLongWeb.RemoteIp`): đọc `X-Forwarded-For` chỉ khi kết nối đến
+  từ proxy tin cậy (biến `TRUSTED_PROXIES`, nhận cả dải CIDR), lấy IP ngoài cùng bên phải
+  không phải proxy, nên người chơi không giả IP được.
+- [x] **CI**: GitHub Actions chạy `mix format --check-formatted`, biên dịch không cảnh báo và
+  `mix test` (có Postgres) cho mỗi PR và mỗi lần đẩy lên `main`.
+- [x] **Hướng dẫn người mới** (`HacLong.Game.Tutorial`): 5 bước "Ra khỏi nhà" → "Gặp Trưởng
+  Làng" → "Ra Rừng Mê" → "Hạ 5 Dơi Hang" → "Về trả việc", thẻ hướng dẫn trên bản đồ, vòng
+  sáng và mũi tên chỉ tới NPC hoặc cổng cần đi; xong được quà tân thủ, bỏ qua được.
+- [x] **Công cụ quản trị** (`HacLong.Moderation`, tab Quản trị chỉ hiện với admin; cấp quyền
+  bằng `mix hac_long.admin TÊN`): xử lý báo cáo, tra cứu người chơi, cấm chat có thời hạn,
+  khóa tài khoản (thu hồi token, ngắt kết nối, lúc đăng nhập báo lý do và thời hạn), gửi
+  thông báo cho cả server, gọi trùm thế giới. Mọi thao tác ghi log.
+  - [ ] Gửi quà cho người chơi (cần hộp thư).
 
 ## B. Giữ người chơi quay lại
 
@@ -92,7 +88,9 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [x] **Trùm thế giới** (`HacLong.WorldBoss`): Cổ Long Ba Đầu xuất hiện định kỳ ở Tế Đàn, cả
   server đánh chung một thanh máu, chia thưởng theo phần sát thương, top 3 được Vảy Cổ Long,
   người ra đòn cuối thêm vàng; hết giờ thì bay đi.
-- [ ] **Chặn/báo cáo người chat xấu.**
+- [x] **Chặn/báo cáo người chat xấu**: bấm tên trong khung chat để báo cáo tin đó (quản trị
+  viên xử lý ở tab Quản trị) hoặc chặn người đó (không thấy chat của họ nữa; bỏ chặn trong thẻ
+  Dữ liệu ở tab Làng).
 - [ ] **PvP bất đồng bộ**: đánh với bản sao chỉ số của người chơi khác (đấu trường).
 - [ ] **Chợ giữa người chơi**: rao bán đồ; phải dùng transaction trong database để không bị
   nhân đôi đồ.
@@ -136,8 +134,11 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 ## G. Khác
 
 - [ ] **Đóng gói app Android** (PWA hoặc Capacitor).
-- [ ] **Mô phỏng cân bằng có nhiệm vụ**: bot `mix hac_long.simulate` chưa làm nhiệm vụ, việc
-  hằng ngày, tháp hay trùm thế giới, nên chưa đo được các nguồn thưởng này ảnh hưởng thế nào.
+- [x] **Mô phỏng cân bằng có nhiệm vụ**: `mix hac_long.simulate` so ba cách chơi (chỉ đánh,
+  +nhiệm vụ, +việc hằng ngày với 60 trận một ngày, hái nguyên liệu mỗi 3 trận). Kết quả: nhiệm
+  vụ rút khoảng 15% số trận tới Hắc Long (~430 → ~370), hằng ngày thêm ~7% (~340); cấp lúc hạ
+  từng trùm không đổi. Phần thưởng hợp lý, chưa cần chỉnh.
+  - [ ] Cho bot leo tháp và đánh trùm thế giới (cần giả lập nhiều người chơi).
 
 ---
 

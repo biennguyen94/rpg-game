@@ -36,15 +36,20 @@ mix test           # chạy test (cần PostgreSQL)
 - 18 nhiệm vụ: mỗi vùng một việc diệt quái, một việc thu thập, một việc hạ trùm
 - Việc hằng ngày ở Bảng Tin: 3 việc mới mỗi ngày cho mỗi người, theo các vùng đã mở
 - Tên nhân vật không trùng nhau (không phân biệt hoa thường)
+- Hướng dẫn người mới 5 bước (có vòng sáng chỉ đường trên bản đồ), xong được quà tân thủ
 - Chat thế giới (bong bóng lời nói trên đầu người cùng bản đồ) và bảng xếp hạng: cấp cao nhất,
-  săn nhiều nhất, ai hạ Hắc Long trước
+  săn nhiều nhất, ai hạ Hắc Long trước. Bấm tên người khác trong khung chat để báo cáo tin
+  nhắn hoặc chặn người đó
 - Trùm thế giới: Cổ Long Ba Đầu xuất hiện định kỳ ở Tế Đàn, cả server đánh chung một thanh máu,
   chia thưởng theo sát thương
 - Tháp Vô Tận: leo từng tầng sinh ngẫu nhiên, quái mạnh dần không có trần, bảng kỷ lục
 - Gục ngã mất 10% vàng và tỉnh dậy ở Nhà; giếng nước ở Nhà hồi máu miễn phí
 - Mỗi tài khoản một nhân vật, lưu sau mỗi thao tác, chơi tiếp được trên thiết bị khác
 
-Một lượt chơi từ đầu đến khi hạ Hắc Long mất khoảng 430 trận (theo mô phỏng).
+- Quản trị viên: xử lý báo cáo, cấm chat, khóa tài khoản, thông báo cả server, gọi trùm thế giới
+
+Một lượt chơi từ đầu đến khi hạ Hắc Long mất khoảng 430 trận nếu chỉ đánh quái, khoảng 340
+trận nếu làm cả nhiệm vụ và việc hằng ngày (theo mô phỏng).
 
 ## Cách hoạt động
 
@@ -93,6 +98,7 @@ lib/hac_long/game/characters.ex     Đọc/ghi bảng characters
 lib/hac_long/game/quests.ex         Nhiệm vụ: nhận, tiến độ, trả và nhận thưởng
 lib/hac_long/game/daily.ex          Việc hằng ngày
 lib/hac_long/game/tower.ex          Tháp Vô Tận: sinh tầng, quái, lên tầng, thưởng
+lib/hac_long/game/tutorial.ex       Hướng dẫn người mới
 lib/hac_long/game/names.ex          Kiểm tra và chuẩn hóa tên nhân vật
 lib/hac_long/game/simulator.ex      Bot chơi thử để kiểm tra cân bằng
 lib/hac_long/world.ex               Đi lại trên bản đồ, qua cổng, chạm quái, kết thúc trận
@@ -101,10 +107,14 @@ lib/hac_long/world/map_server.ex    Tiến trình giữ quái và người chơi
 lib/hac_long/accounts.ex            Đăng ký, đăng nhập, token
 lib/hac_long/chat.ex                Chat thế giới (giữ 50 tin gần nhất)
 lib/hac_long/leaderboard.ex         Bảng xếp hạng
+lib/hac_long/moderation.ex          Chặn, báo cáo, cấm chat, khóa tài khoản, quyền quản trị
 lib/hac_long/rate_limit.ex          Giới hạn tần suất (đăng nhập, chat...)
 lib/hac_long/world_boss.ex          Trùm thế giới: lịch xuất hiện, máu chung, chia thưởng
 lib/hac_long_web/channels/          UserSocket, GameChannel
 lib/hac_long_web/controllers/       API đăng nhập; trang chủ (chèn dữ liệu game cho client)
+lib/hac_long_web/remote_ip.ex       Lấy IP thật từ X-Forwarded-For khi chạy sau proxy tin cậy
+lib/mix/tasks/                      mix hac_long.simulate, mix hac_long.admin
+.github/workflows/ci.yml            CI: format, biên dịch không cảnh báo, mix test
 ```
 
 ## Chỉnh sửa game
@@ -124,7 +134,9 @@ lib/hac_long_web/controllers/       API đăng nhập; trang chủ (chèn dữ l
 mix hac_long.simulate 10
 ```
 
-Kết quả in ra số trận trung bình để thắng, số lần chết và cấp độ lúc hạ từng trùm.
+Kết quả in ra, cho mỗi lớp và ba cách chơi (chỉ đánh, +nhiệm vụ, +việc hằng ngày), số trận
+trung bình để thắng, số lần chết, vàng/kinh nghiệm từ nhiệm vụ và việc hằng ngày, và cấp độ
+lúc hạ từng trùm.
 
 ## Giao thức
 
@@ -132,14 +144,18 @@ Kết quả in ra số trận trung bình để thắng, số lần chết và c
 | --- | --- |
 | `POST /api/register`, `POST /api/login` | `{username, password}` → `{token, username}` |
 | `GET /api/me` | Header `Authorization: Bearer <token>` → `{username}` hoặc 401 |
+| | Tài khoản bị khóa: đăng nhập trả 403 kèm lý do và thời hạn; token cũ hết hiệu lực |
 | `POST /api/logout`, `POST /api/logout_all` | (có token) đăng xuất thiết bị này / mọi thiết bị |
 | `POST /api/password` | (có token) `{current, password}` → `{token, username}`; thiết bị khác bị đăng xuất |
 | | Quá giới hạn thì trả 429 kèm `retry-after` |
-| join `"game"` | → `{username, player}` (`player` là `null` nếu chưa tạo nhân vật) |
+| join `"game"` | → `{username, user_id, admin, blocked, player}` (`player` là `null` nếu chưa tạo nhân vật; `blocked` là `[{id, name}]` người đã chặn) |
 | push `"cmd"` | `{act, ...}` → `{ok, msg?, result?, player}` |
 | server push `"player"` | `{player}` khi nhân vật đổi từ tab khác |
 | server push `"map"` | `{map, monsters, nodes, players}` của bản đồ đang đứng, mỗi khi có thay đổi |
-| push `"chat"` | `{text}` → ok hoặc `{msg}` lỗi; server đẩy `"chat"` `{uid, name, map, text, at}` cho mọi người, `"chat_history"` lúc mới vào |
+| push `"chat"` | `{text}` → ok hoặc `{msg}` lỗi (cả khi bị cấm chat); server đẩy `"chat"` `{id, uid, name, map, text, at}` cho mọi người (trừ người đã chặn `uid`), `"chat_history"` lúc mới vào |
+| push `"block"`, `"unblock"` | `{uid}` → `{blocked}`: chặn/bỏ chặn chat của một người |
+| push `"report"` | `{id}` (id tin chat) → ok hoặc `{msg}` lỗi; tối đa 10 lần/10 phút |
+| push `"admin"` | Chỉ admin. `{op, ...}`: `reports`, `lookup {name}`, `resolve {id, action: dismiss/mute/ban, minutes}`, `mute`/`ban {uid, minutes?, reason?}` (không có `minutes` là vĩnh viễn), `unmute`/`unban {uid}`, `announce {text}`, `world_boss` |
 | server push `"world_boss"` | `{alive, name, hp, maxHp, endsAt, nextAt, now, fighters, top}` khi trùm thế giới thay đổi |
 | server push `"notice"` | `{msg}`: thông báo riêng (vd. nhận thưởng trùm thế giới) |
 | push `"leaderboard"` | → `{level, kills, dragon, tower, me}` (mỗi bảng 10 người, `me` là hạng theo cấp) |
@@ -154,7 +170,9 @@ bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: tr
 (Bảng Tin), `tower_enter {floor}` (Người Gác Tháp).
 
 Trạng thái nhân vật có `pos: {map, x, y}`, `waystones` (các đá đã ghi nhớ),
-`quests: {active: {id: số_đã_hạ}, done: [id]}`, `daily: {date, tasks}`, `tower` (tầng tháp
+`quests: {active: {id: số_đã_hạ}, done: [id]}`, `daily: {date, tasks}`, `tutorial` (bước
+hướng dẫn đang làm, `null` khi xong; `view.tutorial` là `{step, total, text, hint, target}`
+với `target` là ô cần tới trên bản đồ đang đứng), `tower` (tầng tháp
 đang leo: `floor, tiles, stairs, exit, monsters`, khi `pos.map` là `"tower"`), `tower_best`; khi đang đánh, `battle.encounter` cho biết con quái
 nào trên bản đồ.
 
@@ -172,8 +190,19 @@ Trùm thế giới chỉnh bằng `config :hac_long, :world_boss` hoặc biến 
 `WORLD_BOSS_FIRST_MINUTES`, `WORLD_BOSS_EVERY_MINUTES`, `WORLD_BOSS_DURATION_MINUTES`,
 `WORLD_BOSS_HP` (vd. `WORLD_BOSS_FIRST_MINUTES=0.5 WORLD_BOSS_HP=5000 mix phx.server` để thử).
 
-Nếu chạy sau proxy (nginx, load balancer), giới hạn đăng nhập theo IP sẽ thấy IP của proxy;
-cần thêm plug đọc `X-Forwarded-For` (ví dụ thư viện `remote_ip`).
+Nếu chạy sau proxy (nginx, load balancer), khai báo IP của proxy để giới hạn theo IP thấy IP
+thật của người chơi (lấy từ `X-Forwarded-For`; header từ kết nối khác bị bỏ qua):
+
+```bash
+export TRUSTED_PROXIES="127.0.0.1,10.0.0.0/8"
+```
+
+Cấp hoặc thu hồi quyền quản trị (tab Quản trị hiện sau khi tải lại trang):
+
+```bash
+mix hac_long.admin TÊN_ĐĂNG_NHẬP            # MIX_ENV=prod khi chạy trên server
+mix hac_long.admin TÊN_ĐĂNG_NHẬP --revoke
+```
 
 ## Hướng phát triển tiếp
 
