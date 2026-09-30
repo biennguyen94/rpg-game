@@ -67,7 +67,20 @@
   }
 
   // ---------- Khung ----------
+  // Không khí nhạc nền theo nơi đang đứng, giờ trong ngày và trận đánh.
+  function musicMood() {
+    if (!P || loading || !Net.username) return null;
+    const b = P.battle;
+    if (b && !b.over) return b.monster.boss || b.monster.world ? 'boss' : 'battle';
+    const map = P.pos.map, phase = Map_.world().phase;
+    if (map === 'home') return 'home';
+    if (map === 'tower') return 'tower';
+    if (phase === 'night') return 'night';
+    return map === 'village' ? 'village' : 'wild';
+  }
+
   function render() {
+    Sound.music(musicMood());
     const hud = $('#hud'), tabs = $('#tabs'), view = $('#view');
     if (loading || !Net.username) {
       hud.hidden = true; tabs.hidden = true;
@@ -591,15 +604,16 @@
   }
 
   function viewBoard() {
-    const kinds = [['level', 'Cấp cao'], ['kills', 'Săn nhiều'], ['tower', 'Tháp'], ['dragon', 'Diệt rồng'], ['guild', 'Bang'], ['arena', 'Đấu trường']];
+    const kinds = [['level', 'Cấp cao'], ['kills', 'Săn nhiều'], ['tower', 'Tháp'], ['dragon', 'Diệt rồng'], ['guild', 'Bang'], ['guild_boss', 'Bang diệt Cổ Long'], ['arena', 'Đấu trường']];
     const rows = board.data ? board.data[board.kind] : null;
     const value = (r) => (board.kind === 'level' ? `${r.rebirths ? `CS${r.rebirths} · ` : ''}Cấp ${r.level}` : board.kind === 'kills' ? `${fmt(r.kills)} quái` : board.kind === 'tower' ? `Tầng ${r.tower_best}` : new Date(r.victory_at).toLocaleDateString('vi-VN'));
     return `<div class="card" id="board">
       <div class="row"><h3 class="grow">Bảng xếp hạng</h3>${board.data && board.data.me ? `<span class="tag gold num">Bạn hạng ${board.data.me}</span>` : ''}</div>
       <div class="seg">${kinds.map(([k, label]) => `<button class="btn ${board.kind === k ? 'primary' : ''}" data-board="${k}">${label}</button>`).join('')}</div>
       ${rows == null ? '<p class="small muted">Đang tải…</p>'
-        : rows.length === 0 ? `<p class="small muted">${board.kind === 'arena' ? 'Chưa ai đấu. Chạm vào người khác trên bản đồ để thách đấu.' : board.kind === 'guild' ? 'Chưa có bang nào. Lập bang ở thẻ Bang hội.' : board.kind === 'dragon' ? 'Chưa ai hạ được Hắc Long. Bạn sẽ là người đầu tiên?' : board.kind === 'tower' ? 'Chưa ai leo Tháp Vô Tận. Gặp Người Gác Tháp ở Làng.' : 'Chưa có ai.'}</p>`
+        : rows.length === 0 ? `<p class="small muted">${board.kind === 'arena' ? 'Chưa ai đấu. Chạm vào người khác trên bản đồ để thách đấu.' : board.kind === 'guild' ? 'Chưa có bang nào. Lập bang ở thẻ Bang hội.' : board.kind === 'guild_boss' ? 'Chưa bang nào đánh trùm thế giới. Cổ Long xuất hiện ở Tế Đàn.' : board.kind === 'dragon' ? 'Chưa ai hạ được Hắc Long. Bạn sẽ là người đầu tiên?' : board.kind === 'tower' ? 'Chưa ai leo Tháp Vô Tận. Gặp Người Gác Tháp ở Làng.' : 'Chưa có ai.'}</p>`
         : board.kind === 'arena' ? `<ol class="board">${rows.map((r) => `<li class="${r.user_id === Net.userId ? 'me' : ''}"><span class="num rank">${r.rank}</span><span class="grow">${esc(r.name)} <span class="small muted">${r.wins}T/${r.losses}B</span></span><span class="num">${r.rating}</span></li>`).join('')}</ol>`
+        : board.kind === 'guild_boss' ? `<ol class="board">${rows.map((g) => `<li class="${P.guild && P.guild.id === g.id ? 'me' : ''}"><span class="num rank">${g.rank}</span><span class="grow"><span class="guild-tag">[${esc(g.tag)}]</span> ${esc(g.name)} <span class="small muted">${g.members} người</span></span><span class="num">${fmt(g.boss_damage)}</span></li>`).join('')}</ol>`
         : board.kind === 'guild' ? `<ol class="board">${rows.map((g) => `<li class="${P.guild && P.guild.id === g.id ? 'me' : ''}"><span class="num rank">${g.rank}</span><span class="grow"><span class="guild-tag">[${esc(g.tag)}]</span> ${esc(g.name)} <span class="small muted">${g.members} người</span></span><span class="num">Cấp ${g.level}</span></li>`).join('')}</ol>`
         : `<ol class="board">${rows.map((r) => `<li class="${r.user_id === Net.userId ? 'me' : ''}"><span class="num rank">${r.rank}</span><span class="grow">${r.title ? `<span class="title-tag">${esc(r.title)}</span> ` : ''}${esc(r.name)} <span class="small muted">${CLASSES[r.cls] ? CLASSES[r.cls].name : ''}</span></span><span class="num">${value(r)}</span></li>`).join('')}</ol>`}
     </div>`;
@@ -607,6 +621,7 @@
 
   // Cập nhật nhẹ khi đang xem bản đồ (không dựng lại cả trang, tránh nháy).
   function refresh() {
+    Sound.music(musicMood());
     if (P && !P.battle && tab === 'map' && !npc && Map_.mountedMap() === P.pos.map && $('#map-canvas')) {
       $('#hud').innerHTML = viewHud();
       const head = $('.map-top');
@@ -779,6 +794,9 @@
         <div class="row">${icon(Sound.on ? 'speaker' : 'speaker-off', 'lg')}<h3 class="grow">Âm thanh</h3>
           <button class="btn" data-act="sound-toggle" aria-pressed="${Sound.on}">${Sound.on ? 'Đang bật' : 'Đang tắt'}</button></div>
         <label class="small volume">Âm lượng <input type="range" id="volume" min="0" max="100" value="${Math.round(Sound.volume * 100)}" ${Sound.on ? '' : 'disabled'}></label>
+        <div class="row" style="margin-top:10px"><span class="grow">🎵 Nhạc nền <span class="small muted">(đổi theo nơi đang đứng, ngày đêm, trận đánh)</span></span>
+          <button class="btn" data-act="music-toggle" aria-pressed="${Sound.musicOn}">${Sound.musicOn ? 'Đang bật' : 'Đang tắt'}</button></div>
+        <label class="small volume">Âm lượng nhạc <input type="range" id="music-volume" min="0" max="100" value="${Math.round(Sound.musicVolume * 100)}" ${Sound.musicOn ? '' : 'disabled'}></label>
       </div>
 
       <div class="card">
@@ -881,7 +899,9 @@
         ${bar('xp', g.fund, g.next_fund || g.fund, g.next_fund ? `Quỹ ${fmt(g.fund)} / ${fmt(g.next_fund)}` : `Quỹ ${fmt(g.fund)} · cấp tối đa`)}
         <p class="small muted">${g.members.length}/${g.capacity} thành viên · +${Math.round(g.xp_bonus * 100)}% kinh nghiệm mỗi trận · ${g.open ? 'ai cũng vào được' : 'phải xin vào'}</p>
         <form id="guild-donate" class="chat-form"><input type="number" id="donate-amount" min="${RULES.guildMinDonate}" step="100" placeholder="Số vàng góp quỹ"><button class="btn primary" type="submit">Góp</button></form>
+        ${g.boss_damage ? `<p class="small muted">🐉 Cả bang đã gây ${fmt(g.boss_damage)} sát thương lên trùm thế giới.</p>` : ''}
       </div>
+      ${viewGuildQuest(g.quest)}
       ${staff ? `<div class="card"><h3>Quản lý</h3>
         <form id="guild-settings" class="gift-form">
           <input type="text" name="notice" maxlength="120" placeholder="Thông báo cho cả bang" value="${esc(g.notice || '')}">
@@ -1271,6 +1291,18 @@
     && P.view.unlocked[q.zone] && q.requires.every((r) => P.quests.done.includes(r)));
 
   // ---------- Việc hằng ngày ----------
+  // Nhiệm vụ bang trong tuần (HacLong.GuildQuests)
+  function viewGuildQuest(q) {
+    if (!q) return '';
+    const d = Math.floor(q.left / 86400), h = Math.floor((q.left % 86400) / 3600);
+    const left = d > 0 ? `${d} ngày ${h} giờ` : `${h} giờ ${Math.floor((q.left % 3600) / 60)} phút`;
+    return `<div class="card"><div class="row"><h3 class="grow">📜 Nhiệm vụ bang tuần này</h3>${q.done ? '<span class="tag good">Đã xong</span>' : `<span class="small muted">còn ${left}</span>`}</div>
+      <p><b>${esc(q.name)}</b>: cả bang cùng làm ${fmt(q.goal)} ${esc(q.unit)}.</p>
+      ${bar('xp', Math.min(q.progress, q.goal), q.goal, `${fmt(Math.min(q.progress, q.goal))} / ${fmt(q.goal)}`)}
+      <p class="small muted">Thưởng khi xong: quỹ bang +${fmt(q.reward.fund)}; mỗi thành viên ${fmt(q.reward.gold)} vàng, ${fmt(q.reward.xp)} kinh nghiệm qua hộp thư. Việc mới mỗi thứ Hai.</p>
+    </div>`;
+  }
+
   function dailyLeft() {
     const s = P.view.dailyLeft, h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
     return h ? `${h} giờ ${m} phút` : `${m} phút`;
@@ -1707,6 +1739,7 @@
     if (act === 'mail-close') { mail.open = false; render(); return; }
     if (act === 'fish-cast') { walk = null; castLine(); return; }
     if (act === 'sound-toggle') { Sound.toggle(); render(); return; }
+    if (act === 'music-toggle') { Sound.toggleMusic(); render(); return; }
     if (act === 'decor-on' || act === 'decor-off') { decor = { on: act === 'decor-on', pick: null }; walk = null; Map_.setDecorating(decor.on); render(); return; }
     if (act === 'decor-pick') { decor.pick = decor.pick === t.dataset.id ? null : t.dataset.id; render(); return; }
     if (act === 'bestiary-toggle') { bestiaryOpen = !bestiaryOpen; render(); return; }
@@ -1815,7 +1848,7 @@
     document.addEventListener('pointerdown', onMapTap);
     window.addEventListener('resize', () => Map_.resize());
     Net.onPlayer((p) => { if (!busy) { P = p; refresh(); } });
-    Net.onMap((snap) => Map_.setWorld(snap));
+    Net.onMap((snap) => { Map_.setWorld(snap); Sound.music(musicMood()); });
     Net.onChat(onChatMessage);
     Net.onWorldBoss(onWorldBoss);
     Net.onNotice((msg) => { toast(msg); Sound.play(/Thành tựu/.test(msg) ? 'achieve' : 'notice'); });
@@ -1869,7 +1902,10 @@
     setInterval(() => { const el = $('#wb-left'); if (el && wb.alive) el.textContent = clock(wb.endsAt - wb.skew - Date.now()); }, 1000);
     Net.onChatHistory((msgs) => { chats = msgs; const log = $('#chat-log'); if (log) { log.innerHTML = chats.map(chatLine).join(''); log.scrollTop = log.scrollHeight; } });
     document.addEventListener('input', (e) => { if (e.target.id === 'chat-input') chatDraft = e.target.value; });
-    document.addEventListener('change', (e) => { if (e.target.id === 'volume') { Sound.setVolume(e.target.value / 100); Sound.play('coin'); } });
+    document.addEventListener('change', (e) => {
+      if (e.target.id === 'volume') { Sound.setVolume(e.target.value / 100); Sound.play('coin'); }
+      if (e.target.id === 'music-volume') Sound.setMusicVolume(e.target.value / 100);
+    });
     Net.onStatus((st) => {
       const bar = $('#netbar');
       bar.hidden = st === 'online';

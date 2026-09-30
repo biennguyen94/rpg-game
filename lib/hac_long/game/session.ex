@@ -30,7 +30,7 @@ defmodule HacLong.Game.Session do
     Tutorial
   }
 
-  alias HacLong.{Arena, Guilds, Mailbox, Market, Party, World, WorldBoss}
+  alias HacLong.{Arena, GuildQuests, Guilds, Mailbox, Market, Party, World, WorldBoss}
 
   @idle_timeout :timer.minutes(10)
   @flush_ms 5_000
@@ -197,6 +197,7 @@ defmodule HacLong.Game.Session do
       p = battle_over(s, old, p)
       s = save(s, p)
       broadcast(s, p, nil)
+      track_guild(old, p, nil)
       reply(:ok, s)
     else
       reply(:ok, s)
@@ -415,7 +416,32 @@ defmodule HacLong.Game.Session do
       end
 
     Enum.each(notes, &notify(s, &1))
+    track_guild(old, player, result)
     reply({result, player}, s)
+  end
+
+  # Góp tiến độ nhiệm vụ bang (không chờ: ghi database ngoài tiến trình này).
+  defp track_guild(old, %{guild: %{id: gid}} = new, result) when old != nil do
+    events =
+      %{
+        "kill" => new.kills - old.kills,
+        "fish" => (Map.get(new, :fish_caught) || 0) - (Map.get(old, :fish_caught) || 0),
+        "gather" => if(is_map(result) and result[:gather], do: 1, else: 0),
+        "boss" => if(zone_boss_win?(old, new), do: 1, else: 0)
+      }
+      |> Map.filter(fn {_, n} -> n > 0 end)
+
+    if events != %{}, do: Task.start(fn -> GuildQuests.progress(gid, events) end)
+    :ok
+  end
+
+  defp track_guild(_old, _new, _result), do: :ok
+
+  defp zone_boss_win?(old, new) do
+    b = new.battle
+
+    b && b.over && b.result == "win" && b.monster.boss && !b.monster[:world] &&
+      !b.monster[:pvp] && !(old.battle && old.battle.over)
   end
 
   # Hướng dẫn người mới và thành tựu: tính lại sau mỗi thay đổi, trả về các thông báo mới.

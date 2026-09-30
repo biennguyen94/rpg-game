@@ -883,6 +883,49 @@ defmodule HacLongWeb.GameChannelTest do
       {status, reply}
     end
 
+    test "hạ quái thì góp vào nhiệm vụ bang; xem nhiệm vụ và bảng xếp hạng bang" do
+      MapServer.clear_monsters("forest_1")
+      u = create_user()
+
+      player_at(u, %{map: "forest_1", x: 13, y: 16}, %{
+        gold: 20_000,
+        level: 30,
+        stats: %{str: 200, vit: 150, agi: 0, def: 100}
+      })
+
+      {_, s} = join_game(u)
+      tag = "Q#{rem(System.unique_integer([:positive]), 1000)}"
+      r = cmd(s, %{"act" => "guild_create", "name" => "Bang #{tag}", "tag" => tag})
+      gid = r.player.guild.id
+
+      assert {:ok, %{guild: %{quest: %{progress: 0, goal: goal, left: left}}}} = gop(s, "info")
+      assert goal > 0 and left > 0
+
+      # đặt việc tuần này là hạ 1 con quái để thử
+      import Ecto.Query
+
+      HacLong.Repo.update_all(from(g in "guilds", where: g.id == ^gid),
+        set: [quest_kind: "kill", quest_goal: 1]
+      )
+
+      MapServer.put_monster("forest_1", "bat", {13, 15})
+      r = cmd(s, %{"act" => "move", "dir" => "up"})
+      assert r.player.battle
+
+      Enum.reduce_while(1..50, r, fn _, _ ->
+        r = cmd(s, %{"act" => "attack"})
+        if r.player.battle.over, do: {:halt, r}, else: {:cont, r}
+      end)
+
+      wait_for(fn -> HacLong.GuildQuests.current(gid) end, & &1.done)
+      assert [%{subject: "Nhiệm vụ bang hoàn thành"}] = HacLong.Mailbox.list(u.id)
+
+      HacLong.GuildQuests.add_boss_damage(%{u.id => 1234})
+      ref = push(s, "leaderboard", %{})
+      assert_reply ref, :ok, %{guild_boss: rows}
+      assert %{boss_damage: 1234, rank: _} = Enum.find(rows, &(&1.id == gid))
+    end
+
     test "lập bang, vào bang, chat bang, góp quỹ lên cấp" do
       {ua, pa, sa} = member()
       tag = "T#{rem(System.unique_integer([:positive]), 1000)}"

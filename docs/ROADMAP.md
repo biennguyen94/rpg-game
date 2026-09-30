@@ -8,7 +8,7 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 Ước lượng công sức: nhỏ (vài giờ), vừa (khoảng một ngày), lớn (nhiều ngày).
 
 1. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
-2. Các việc còn mở trong từng mục dưới đây (nhạc nền, nhiệm vụ bang...).
+2. Các việc còn mở trong từng mục dưới đây (bot mô phỏng tháp và trùm thế giới).
 
 ---
 
@@ -105,7 +105,11 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   vào ngay, bang đóng thì xin vào; bang chủ / phó bang / thành viên (phong, nhường, mời ra, rời,
   giải tán); góp quỹ lên cấp (tối đa 5: thêm chỗ, +2% kinh nghiệm mỗi cấp từ cấp 2); kênh chat
   bang; ký hiệu bang cạnh tên trong chat; bảng xếp hạng bang theo quỹ.
-  - [ ] Bảng xếp hạng bang theo sát thương lên trùm thế giới; nhiệm vụ bang.
+  - [x] Bảng xếp hạng bang theo sát thương lên trùm thế giới (`HacLong.GuildQuests`, cột
+    `boss_damage`; cộng cả khi trùm bay đi).
+  - [x] Nhiệm vụ bang mỗi tuần (thứ Hai 0 giờ giờ Việt Nam): hạ quái, hái/đào, câu cá hoặc hạ
+    trùm vùng, mục tiêu theo số thành viên. Cả bang góp tiến độ; xong thì quỹ bang +3.000, mỗi
+    thành viên 800 vàng và 1.500 kinh nghiệm qua hộp thư, báo trong chat bang.
 - [x] **Tổ đội** (`HacLong.Party`, giữ trong bộ nhớ): mời người đang online (tối đa 3), kênh chat
   tổ đội, thẻ tổ đội có máu từng người. Đồng đội chạm vào con quái mình đang đánh thì vào cùng
   trận, máu quái chung; quái gục thì mọi người cùng thắng, được tính nhiệm vụ/việc hằng
@@ -153,7 +157,9 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   file: đánh, chí mạng, trượt, bị đánh, kỹ năng, thắng/thua, lên cấp, mua bán, hái/đào, qua
   cổng, rèn, pha thuốc, nhiệm vụ, thư mới, câu cá, thành tựu. Bật/tắt và âm lượng ở tab Hành
   trình.
-  - [ ] Nhạc nền nhẹ (cần bộ nhạc CC0 hoặc tự tổng hợp).
+  - [x] Nhạc nền tự tổng hợp (không cần file): hợp âm nền, bè trầm, giai điệu ngũ cung đi dạo
+    ngẫu nhiên, có tiếng vang nhẹ. Bảy không khí: Làng, Nhà, vùng hoang, đêm, tháp, trận đánh,
+    trùm (có trống); đổi ở đầu ô nhịp sau. Bật/tắt và âm lượng riêng; ẩn tab thì tạm dừng.
 - [x] **Nhân vật mặc đúng đồ đang trang bị** (`priv/static/js/doll.js`): ghép thân, quần, giày,
   tóc theo lớp nhân vật, giáp, vũ khí, khiên (`doll` trong dữ liệu đồ, lớp hình từ `player/`
   của Dungeon Crawl, đã đối chiếu danh sách chưa rõ giấy phép). Hiện ở HUD, tab Nhân vật, trận

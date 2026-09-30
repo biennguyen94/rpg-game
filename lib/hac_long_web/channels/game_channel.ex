@@ -132,7 +132,13 @@ defmodule HacLongWeb.GameChannel do
     case RateLimit.hit({:leaderboard, uid}, 20, :timer.minutes(1)) do
       :ok ->
         boards = Map.new(Leaderboard.kinds(), &{&1, Leaderboard.top(&1)})
-        boards = boards |> Map.put(:guild, Guilds.top()) |> Map.put(:arena, Arena.top())
+
+        boards =
+          boards
+          |> Map.put(:guild, Guilds.top())
+          |> Map.put(:guild_boss, HacLong.GuildQuests.boss_top())
+          |> Map.put(:arena, Arena.top())
+
         {:reply, {:ok, Map.put(boards, :me, Leaderboard.level_rank(uid))}, socket}
 
       {:error, _} ->

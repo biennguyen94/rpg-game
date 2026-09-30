@@ -35,7 +35,8 @@ mix test           # chạy test (cần PostgreSQL)
 - Chuyển sinh ở cấp 50: về cấp 1 với điểm tiềm năng cộng thêm
 - Ngày và đêm theo giờ Việt Nam; ban đêm có quái Bóng Đêm
 - Rương Báu ở Thợ Rèn (ra đồ ngẫu nhiên), Rương Gia Truyền ở Nhà mở mỗi ngày
-- Bang hội: lập/vào bang, chat bang, quỹ bang lên cấp, bảng xếp hạng bang
+- Bang hội: lập/vào bang, chat bang, quỹ bang lên cấp, nhiệm vụ bang mỗi tuần, bảng xếp hạng bang
+  (theo quỹ và theo sát thương lên trùm thế giới)
 - Nhân vật mặc đúng đồ đang trang bị (người khác cũng thấy); thú cưng đi theo sau, thỉnh thoảng
   cắn thêm một đòn trong trận, lên cấp theo số trận thắng (cấp 5 học kỹ năng riêng); hạ đủ 100
   con một loài quái thường thì thuần phục được loài đó
@@ -59,7 +60,7 @@ mix test           # chạy test (cần PostgreSQL)
 - Hướng dẫn người mới 5 bước (có vòng sáng chỉ đường trên bản đồ), xong được quà tân thủ
 - 33 thành tựu, 25 danh hiệu hiện cạnh tên trong chat và bảng xếp hạng
 - Hộp thư: thưởng nhận lúc vắng mặt, quà của quản trị viên
-- Âm thanh tự tổng hợp (Web Audio), bật/tắt được
+- Âm thanh và nhạc nền tự tổng hợp (Web Audio): nhạc đổi theo nơi đang đứng, ngày đêm, trận đánh; bật/tắt riêng
 - Chat thế giới (bong bóng lời nói trên đầu người cùng bản đồ) và bảng xếp hạng: cấp cao nhất,
   săn nhiều nhất, ai hạ Hắc Long trước. Bấm tên người khác trong khung chat để báo cáo tin
   nhắn hoặc chặn người đó
@@ -132,6 +133,7 @@ lib/hac_long/game/pets.ex           Thú cưng
 lib/hac_long/game/home.ex           Trang trí nhà
 lib/hac_long/world/clock.ex         Ngày và đêm
 lib/hac_long/guilds.ex              Bang hội
+lib/hac_long/guild_quests.ex        Nhiệm vụ bang mỗi tuần, sát thương trùm thế giới theo bang
 lib/hac_long/party.ex               Tổ đội, trận đánh chung
 lib/hac_long/arena.ex               Đấu trường (PvP bất đồng bộ, điểm Elo)
 lib/hac_long/market.ex              Chợ giữa người chơi
@@ -208,7 +210,7 @@ lúc hạ từng trùm.
 | push `"admin"` | Chỉ admin. `{op, ...}`: `reports`, `lookup {name}`, `resolve {id, action: dismiss/mute/ban, minutes}`, `mute`/`ban {uid, minutes?, reason?}` (không có `minutes` là vĩnh viễn), `unmute`/`unban {uid}`, `announce {text}`, `gift {uid | all: true, subject, body?, gold?, xp?, items?}`, `world_boss` |
 | server push `"world_boss"` | `{alive, name, hp, maxHp, endsAt, nextAt, now, fighters, top}` khi trùm thế giới thay đổi |
 | server push `"notice"` | `{msg}`: thông báo riêng (vd. nhận thưởng trùm thế giới) |
-| push `"leaderboard"` | → `{level, kills, dragon, tower, guild, arena, me}` (mỗi bảng 10 người kèm `title`, `me` là hạng theo cấp) |
+| push `"leaderboard"` | → `{level, kills, dragon, tower, guild, guild_boss, arena, me}` (mỗi bảng 10 người kèm `title`, `me` là hạng theo cấp) |
 
 Các `act`: `create {name, cls}`, `reset`, `move {dir, confirm?}` (`up`/`down`/`left`/`right`;
 bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: true` để đấu),

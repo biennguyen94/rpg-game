@@ -180,6 +180,10 @@ defmodule HacLong.WorldBoss do
       Task.start(fn -> Session.world_boss_end(uid, info) end)
     end
 
+    # sát thương cộng vào bang (bảng xếp hạng bang), kể cả khi trùm bay đi
+    dmg = Map.new(b.damage, fn {uid, d} -> {uid, d.dmg} end)
+    Task.start(fn -> HacLong.GuildQuests.add_boss_damage(dmg) end)
+
     case outcome do
       {:killed, killer} ->
         who = b.damage[killer].name
