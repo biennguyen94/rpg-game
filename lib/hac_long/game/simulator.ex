@@ -2,9 +2,16 @@ defmodule HacLong.Game.Simulator do
   @moduledoc """
   Mô phỏng một người chơi "hợp lý" từ đầu tới khi hạ Hắc Long, để kiểm tra cân bằng
   sau khi đổi số liệu. Chạy: `mix hac_long.simulate [số lần]`.
+
+  Tùy chọn của `run/2`:
+
+  - `quests: true` — nhận mọi nhiệm vụ Trưởng Làng đang có, trả ngay khi xong.
+  - `daily: true` — làm việc hằng ngày; cứ `day_fights` trận (mặc định 60) tính là một ngày.
+  - `gather_every: n` — cứ n trận thì hái/đào được một nguyên liệu của vùng đang đánh
+    (mặc định 3, `nil` là không hái). Nguyên liệu không cần cho nhiệm vụ thì bán luôn.
   """
 
-  alias HacLong.Game.{Data, Engine}
+  alias HacLong.Game.{Daily, Data, Engine, Quests}
 
   @alloc %{
     "warrior" => ~w(str str vit),
@@ -14,15 +21,38 @@ defmodule HacLong.Game.Simulator do
   @max_fights 5000
 
   @doc "Chơi một ván. Trả về số trận, cấp, số lần chết, vàng và các mốc hạ trùm."
-  def run(cls) do
-    {:ok, p} = Engine.new_player("Bot", cls)
-    loop(p, %{fights: 0, rest_gold: 0, cooldown: 0, milestones: [], boss_losses: []})
+  def run(cls, opts \\ []) do
+    opts =
+      Map.merge(%{quests: false, daily: false, day_fights: 60, gather_every: 3}, Map.new(opts))
+
+    {:ok, p} = Engine.new_player("Bot#{System.unique_integer([:positive])}", cls)
+    p = Map.put(p, :quests, Quests.empty())
+
+    loop(p, %{
+      opts: opts,
+      fights: 0,
+      rest_gold: 0,
+      cooldown: 0,
+      milestones: [],
+      boss_losses: [],
+      quest_gold: 0,
+      quest_xp: 0,
+      quests_done: 0,
+      daily_gold: 0,
+      daily_xp: 0,
+      daily_done: 0
+    })
   end
 
   defp loop(%{victory: true} = p, st), do: result(p, st)
   defp loop(p, %{fights: f} = st) when f >= @max_fights, do: result(p, st)
 
   defp loop(p, st) do
+    p =
+      if st.opts.daily, do: Daily.ensure(p, "ngay-#{div(st.fights, st.opts.day_fights)}"), else: p
+
+    {p, st} = p |> accept_quests(st) |> turn_in(st)
+    {p, st} = claim_daily(p, st)
     p = p |> allocate_all() |> shop_up()
 
     {p, st} =
@@ -58,8 +88,87 @@ defmodule HacLong.Game.Simulator do
           st
       end
 
+    p =
+      if won?,
+        do: p |> Quests.on_kill(p.battle.monster.id) |> Daily.on_kill(p.battle.monster.id, zi),
+        else: p
+
+    p = gather(p, zi, st)
     {_, p} = Engine.leave_battle(p)
     loop(p, st)
+  end
+
+  # ---------- Nhiệm vụ, việc hằng ngày, thu thập ----------
+
+  defp accept_quests(p, %{opts: %{quests: false}}), do: p
+
+  defp accept_quests(p, _st) do
+    Enum.reduce(Quests.available(p), p, fn q, p -> elem(Quests.accept(p, q.id), 1) end)
+  end
+
+  defp turn_in(p, %{opts: %{quests: false}} = st), do: {p, st}
+
+  defp turn_in(p, st) do
+    Enum.reduce(Map.keys(p.quests.active), {p, st}, fn id, {p, st} ->
+      quest = Data.quest(id)
+
+      if Quests.complete?(p, quest) do
+        {_, p} = Quests.turn_in(p, id)
+
+        {p,
+         %{
+           st
+           | quest_gold: st.quest_gold + quest.reward.gold,
+             quest_xp: st.quest_xp + quest.reward.xp,
+             quests_done: st.quests_done + 1
+         }}
+      else
+        {p, st}
+      end
+    end)
+  end
+
+  defp claim_daily(p, %{opts: %{daily: false}} = st), do: {p, st}
+
+  defp claim_daily(p, st) do
+    p.daily.tasks
+    |> Enum.with_index()
+    |> Enum.reduce({p, st}, fn {t, i}, {p, st} ->
+      if t.progress >= t.count and not t.claimed do
+        {_, p} = Daily.claim(p, i)
+
+        {p,
+         %{
+           st
+           | daily_gold: st.daily_gold + t.reward.gold,
+             daily_xp: st.daily_xp + t.reward.xp,
+             daily_done: st.daily_done + 1
+         }}
+      else
+        {p, st}
+      end
+    end)
+  end
+
+  defp gather(p, _zi, %{opts: %{gather_every: nil}}), do: p
+
+  defp gather(p, zi, %{fights: f, opts: %{gather_every: n}}) when rem(f, n) == 0 do
+    kinds = if zi < 3, do: ~w(herb ore), else: ~w(herb_rare ore_rare)
+    item = Enum.at(kinds, rem(div(f, n), 2))
+    p = p |> Engine.add_item(item) |> Daily.on_gather(item)
+    if Map.get(p.inv, item) > needed(p, item), do: elem(Engine.sell(p, item), 1), else: p
+  end
+
+  defp gather(p, _zi, _st), do: p
+
+  # số nguyên liệu `item` cần giữ cho các nhiệm vụ thu thập đang làm
+  defp needed(p, item) do
+    p.quests.active
+    |> Map.keys()
+    |> Enum.map(&Data.quest/1)
+    |> Enum.filter(&(&1.type == "collect" and &1.target == item))
+    |> Enum.map(& &1.count)
+    |> Enum.sum()
   end
 
   defp fight(%{battle: %{over: true}} = p), do: p
@@ -153,7 +262,13 @@ defmodule HacLong.Game.Simulator do
       gold: p.gold,
       rest_gold: st.rest_gold,
       milestones: st.milestones,
-      boss_losses: st.boss_losses
+      boss_losses: st.boss_losses,
+      quest_gold: st.quest_gold,
+      quest_xp: st.quest_xp,
+      quests_done: st.quests_done,
+      daily_gold: st.daily_gold,
+      daily_xp: st.daily_xp,
+      daily_done: st.daily_done
     }
   end
 end
