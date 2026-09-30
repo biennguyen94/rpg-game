@@ -96,7 +96,8 @@ p { margin: 0; }
 /* ---------- Tabs ---------- */
 #tabs {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   border-top: 1px solid var(--line);
   background: #18131e;
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -104,8 +105,9 @@ p { margin: 0; }
 #tabs button {
   background: none; border: 0; padding: 8px 2px 7px;
   display: grid; justify-items: center; gap: 2px;
-  font-size: 0.72rem; color: var(--dim); cursor: pointer;
+  font-size: 0.72rem; color: var(--dim); cursor: pointer; min-width: 0;
 }
+#tabs button > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #tabs button .ic { opacity: 0.55; }
 #tabs button[aria-current="page"] { color: var(--gold); }
 #tabs button[aria-current="page"] .ic { opacity: 1; }
@@ -150,7 +152,7 @@ p { margin: 0; }
 .intro h1 { font-family: var(--display); font-size: 3rem; line-height: 1; color: var(--gold); font-weight: 800; letter-spacing: 0.02em; }
 .intro p { max-width: 34ch; color: var(--dim); }
 label.field { display: grid; gap: 6px; font-weight: 600; }
-input[type="text"], input[type="password"] {
+input[type="text"], input[type="password"], input[type="number"], select {
   font: inherit; color: var(--parch); background: #0f0c13; border: 1px solid var(--line);
   border-radius: 8px; padding: 10px 12px; width: 100%;
 }
@@ -309,3 +311,15 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 /* Chặn/báo cáo trong chat */
 .chat-name { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: #b9d7ff; cursor: pointer; text-decoration: underline dotted; }
 .chat-menu { display: flex; gap: 6px; margin: 4px 0 2px; flex-wrap: wrap; }
+
+/* Hộp thư */
+.hud-btn { position: relative; background: none; border: 1px solid var(--line); border-radius: 8px; padding: 6px; display: grid; place-items: center; cursor: pointer; min-width: 40px; min-height: 40px; }
+.hud-btn .points-dot { position: absolute; top: -6px; right: -6px; margin: 0; }
+.card.mail { display: grid; gap: 6px; }
+.card.mail.read { opacity: 0.7; }
+.card.mail > .btn, .card.mail > .tag { justify-self: start; }
+.gift-form { display: grid; gap: 8px; margin-top: 8px; }
+.gift-form label { display: flex; align-items: center; gap: 6px; flex: 1; }
+.gift-form input[type="number"] { width: 100%; min-width: 0; }
+.gift-form select { flex: 1; min-width: 0; }
+.gift-form .btn-row > input[type="number"] { width: 70px; flex: none; }

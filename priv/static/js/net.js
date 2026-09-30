@@ -6,7 +6,7 @@
  * (đăng xuất mọi thiết bị, đổi mật khẩu ở nơi khác) thì báo onExpired để về màn đăng nhập. */
 (function () {
   const TOKEN_KEY = 'hac-long-token';
-  const cb = { player: null, map: null, status: null, rejoin: null, expired: null, chat: null, history: null, boss: null, notice: null };
+  const cb = { player: null, map: null, status: null, rejoin: null, expired: null, chat: null, history: null, boss: null, notice: null, mail: null };
   let socket = null, channel = null, checkTimer = null;
 
   const store = {
@@ -70,6 +70,7 @@
       channel.on('chat_history', (m) => cb.history && cb.history(m.messages));
       channel.on('world_boss', (m) => cb.boss && cb.boss(m));
       channel.on('notice', (m) => cb.notice && cb.notice(m.msg));
+      channel.on('mail', (m) => cb.mail && cb.mail(m.unread));
       channel.join()
         .receive('ok', (r) => {
           if (!joined) { joined = true; resolve(r); } else if (cb.rejoin) cb.rejoin(r);
@@ -150,6 +151,9 @@
     unblock(uid) { return push('unblock', { uid }); },
     report(id) { return push('report', { id }); },
 
+    // Hộp thư: { mails, unread }. Mở thư/nhận quà là lệnh { act: 'mail_claim', id }.
+    mail() { return push('mail', {}); },
+
     // Lệnh quản trị (chỉ tài khoản quản trị).
     admin(op, payload) { return push('admin', Object.assign({ op }, payload || {})); },
     // Nhân vật thay đổi từ tab/thiết bị khác.
@@ -168,6 +172,8 @@
     // Trạng thái trùm thế giới; thông báo riêng (vd. nhận thưởng).
     onWorldBoss(f) { cb.boss = f; },
     onNotice(f) { cb.notice = f; },
+    // Số thư chưa mở thay đổi (có thư mới, vừa mở thư).
+    onMail(f) { cb.mail = f; },
   };
 
   window.Net = Net;

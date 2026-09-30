@@ -18,7 +18,7 @@ defmodule HacLong.Game.Session do
   use GenServer, restart: :transient
 
   alias HacLong.Game.{Characters, Commands, Daily, Engine, Names, Quests, Tower, Tutorial}
-  alias HacLong.{World, WorldBoss}
+  alias HacLong.{Mailbox, World, WorldBoss}
 
   @idle_timeout :timer.minutes(10)
   @flush_ms 5_000
@@ -159,6 +159,20 @@ defmodule HacLong.Game.Session do
         nil ->
           {p, if(info.result == "win", do: nil, else: "#{WorldBoss.name()} đã bay đi.")}
 
+        # không online: gửi thưởng qua hộp thư, lần sau vào game thấy ngay
+        r when map_size(s.tabs) == 0 ->
+          xp = min(r.xp, 3 * Engine.xp_to_next(p.level))
+
+          Mailbox.send(s.user_id, %{
+            subject: "Thưởng trùm thế giới",
+            body: "#{WorldBoss.name()} đã gục ngã. Bạn gây #{r.share}% sát thương.",
+            gold: r.gold,
+            xp: xp,
+            items: r.items
+          })
+
+          {p, nil}
+
         r ->
           # không cho người cấp thấp nhảy vọt quá nhiều cấp nhờ một trận
           xp = min(r.xp, 3 * Engine.xp_to_next(p.level))
@@ -207,6 +221,20 @@ defmodule HacLong.Game.Session do
   rescue
     # hai người cùng lấy một tên đúng lúc: ràng buộc duy nhất trong database chặn người sau
     Ecto.ConstraintError -> reply({%{ok: false, msg: "Tên này đã có người dùng."}, nil}, s)
+  end
+
+  # Mở thư: đánh dấu thư đã nhận và ghi nhân vật trong cùng một transaction.
+  defp run_command(%{player: p} = s, %{"act" => "mail_claim", "id" => id}, origin)
+       when p != nil do
+    case Mailbox.claim(s.user_id, id, p, &Characters.save!(s.user_id, &1)) do
+      {:ok, msg, player} ->
+        s = cancel_flush(%{s | player: player, dirty: false})
+        broadcast(s, player, origin)
+        reply({%{ok: true, msg: msg}, player}, s)
+
+      {:error, msg} ->
+        reply({%{ok: false, msg: msg}, p}, s)
+    end
   end
 
   defp run_command(s, cmd, origin), do: run_command_(s, cmd, origin)

@@ -459,6 +459,85 @@ defmodule HacLongWeb.GameChannelTest do
     end
   end
 
+  describe "hộp thư" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    test "quản trị tặng quà; mở thư nhận quà đúng một lần" do
+      u = create_user()
+      p = player_at(u, %{map: "village", x: 12, y: 14})
+      {reply, socket} = join_game(u)
+      assert reply.mail == 0
+
+      admin = create_user()
+      {:ok, _} = HacLong.Moderation.set_admin(admin.username, true)
+      admin = HacLong.Accounts.get_user(admin.id)
+      player_at(admin, %{map: "village", x: 11, y: 14})
+      {_, sadm} = join_game(admin)
+
+      ref =
+        push(sadm, "admin", %{
+          "op" => "gift",
+          "uid" => u.id,
+          "subject" => "Đền bù bảo trì",
+          "gold" => 500,
+          "items" => %{"potion_m" => 2}
+        })
+
+      assert_reply ref, :ok, %{sent: 1}
+      assert_push "mail", %{unread: 1}
+
+      ref = push(socket, "mail", %{})
+
+      assert_reply ref, :ok, %{
+        unread: 1,
+        mails: [%{id: id, subject: "Đền bù bảo trì", claimed: false}]
+      }
+
+      r = cmd(socket, %{"act" => "mail_claim", "id" => id})
+      assert r.ok and r.msg =~ "+500 vàng"
+      assert r.player.gold == p.gold + 500
+      assert r.player.inv["potion_m"] == 2
+      assert_push "mail", %{unread: 0}
+      # đã lưu database
+      assert Characters.load(u.id).gold == p.gold + 500
+
+      assert %{ok: false, msg: "Thư đã mở rồi."} =
+               cmd(socket, %{"act" => "mail_claim", "id" => id})
+
+      assert Characters.load(u.id).gold == p.gold + 500
+
+      # vật phẩm không có thật thì không gửi
+      ref = push(sadm, "admin", %{"op" => "gift", "uid" => u.id, "items" => %{"xyz" => 1}})
+      assert_reply ref, :error, %{msg: "Vật phẩm không hợp lệ."}
+
+      ref = push(sadm, "admin", %{"op" => "gift", "all" => true, "gold" => 10})
+      assert_reply ref, :ok, %{sent: n}
+      assert n >= 2
+      assert_push "mail", %{unread: 1}
+    end
+
+    test "không online lúc hạ trùm thế giới thì nhận thưởng qua hộp thư" do
+      u = create_user()
+      p = player_at(u, %{map: "village", x: 12, y: 14})
+
+      :ok =
+        Session.world_boss_end(u.id, %{
+          result: "win",
+          reward: %{gold: 300, xp: 40, items: %{"dragon_scale" => 1}, share: 25}
+        })
+
+      assert Characters.load(u.id).gold == p.gold
+
+      assert [%{subject: "Thưởng trùm thế giới", gold: 300, body: body}] =
+               HacLong.Mailbox.list(u.id)
+
+      assert body =~ "25%"
+    end
+  end
+
   test "người chơi khác thấy nhau trên bản đồ, tab đóng thì rời bản đồ" do
     a = create_user()
     b = create_user()

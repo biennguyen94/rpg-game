@@ -15,13 +15,15 @@ defmodule HacLongWeb.GameChannel do
     khi thay đổi, và `"notice"` (`%{msg}`) khi có thông báo riêng (vd. nhận thưởng trùm).
   - `"block"` / `"unblock"` `%{"uid"}`: ẩn/hiện chat của một người; `"report"` `%{"id"}`: báo
     cáo một tin nhắn chat.
+  - `"mail"`: danh sách thư; server đẩy `"mail"` `%{unread}` khi có thư mới. Mở thư (nhận quà)
+    là lệnh `"cmd"` `%{"act" => "mail_claim", "id" => ...}`.
   - `"admin"` `%{"op" => ...}` (chỉ tài khoản quản trị): xem/xử lý báo cáo, tra cứu, cấm chat,
-    khóa tài khoản, thông báo, gọi trùm thế giới. Xem `admin/3`.
+    khóa tài khoản, thông báo, tặng quà qua hộp thư, gọi trùm thế giới. Xem `admin/3`.
   """
   require Logger
   use HacLongWeb, :channel
 
-  alias HacLong.{Accounts, Chat, Leaderboard, Moderation, RateLimit, WorldBoss}
+  alias HacLong.{Accounts, Chat, Leaderboard, Mailbox, Moderation, RateLimit, WorldBoss}
   alias HacLong.Game.{Daily, Data, Engine, Quests, Session, Tutorial}
   alias HacLong.World.{Maps, MapServer}
 
@@ -40,6 +42,7 @@ defmodule HacLongWeb.GameChannel do
       user_id: uid,
       admin: socket.assigns[:admin] == true,
       blocked: blocked,
+      mail: Mailbox.unread(uid),
       player: present(player)
     }
 
@@ -76,6 +79,16 @@ defmodule HacLongWeb.GameChannel do
 
       {:error, _} ->
         {:reply, {:error, %{msg: "Thao tác quá nhanh."}}, socket}
+    end
+  end
+
+  def handle_in("mail", _payload, socket) do
+    uid = socket.assigns.user_id
+
+    with :ok <- limit({:mail, uid}, 30, :timer.minutes(1)) do
+      {:reply, {:ok, %{mails: Mailbox.list(uid), unread: Mailbox.unread(uid)}}, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
     end
   end
 
@@ -167,6 +180,28 @@ defmodule HacLongWeb.GameChannel do
     :ok
   end
 
+  # Tặng quà qua hộp thư: cho một người (`uid`) hoặc mọi người (`all: true`).
+  defp admin("gift", p, _s) do
+    mail = %{
+      subject: p["subject"] || "Quà từ Ban Quản Trị",
+      body: p["body"] || "",
+      gold: p["gold"] || 0,
+      xp: p["xp"] || 0,
+      items: p["items"] || %{}
+    }
+
+    case p do
+      %{"all" => true} ->
+        with {:ok, n} <- Mailbox.send_all(mail), do: {:ok, %{sent: n}}
+
+      %{"uid" => id} when is_integer(id) ->
+        with :ok <- Mailbox.send(id, mail), do: {:ok, %{sent: 1}}
+
+      _ ->
+        {:error, "Chọn người nhận."}
+    end
+  end
+
   defp admin("world_boss", _p, _s), do: {:ok, %{status: WorldBoss.spawn_now()}}
 
   defp admin(_op, _p, _s), do: {:error, "Lệnh quản trị không hợp lệ."}
@@ -228,6 +263,11 @@ defmodule HacLongWeb.GameChannel do
 
   def handle_info({:world_boss, status}, socket) do
     push(socket, "world_boss", status)
+    {:noreply, socket}
+  end
+
+  def handle_info({:mail, unread}, socket) do
+    push(socket, "mail", %{unread: unread})
     {:noreply, socket}
   end
 

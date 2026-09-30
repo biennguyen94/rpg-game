@@ -23,6 +23,7 @@
   let chatMenu = null;   // id tin nhắn đang mở menu Báo cáo/Chặn
   let blocked = [];      // người mình đã chặn: [{ id, name }]
   let adm = { reports: null, user: null, loading: false }; // tab Quản trị
+  let mail = { unread: 0, list: null, open: false }; // hộp thư
   let wb = { alive: false }; // trùm thế giới; `skew`: lệch đồng hồ máy chủ - máy này
   const Map_ = window.MapView;
 
@@ -82,8 +83,8 @@
       ['bag', 'backpack', 'Túi đồ'],
       ['quests', 'scroll-unfurled', 'Nhiệm vụ'],
     ].concat(Net.isAdmin ? [['admin', 'crowned-skull', 'Quản trị']] : []).map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + Map_.html(P, viewDialog()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests, admin: viewAdmin }[tab])();
-    if (tab === 'map' && !npc) {
+    view.innerHTML = mail.open ? viewMail() : P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + Map_.html(P, viewDialog()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests, admin: viewAdmin }[tab])();
+    if (tab === 'map' && !npc && !mail.open) {
       Map_.mount(() => P);
       const log = $('#chat-log');
       if (log) log.scrollTop = log.scrollHeight;
@@ -128,6 +129,7 @@
           <button class="btn small-btn danger" data-adm="ban" data-uid="${u.id}">Khóa vĩnh viễn</button>
           <button class="btn small-btn" data-adm="unban" data-uid="${u.id}">Mở khóa</button>
         </div>
+        ${u.character ? giftForm('adm-gift', u.id) : ''}
       </div>`;
     return `<h2 class="display">Quản trị</h2>
       <div class="card"><div class="row"><h3 class="grow">Báo cáo chưa xử lý</h3><button class="btn small-btn" data-adm="reload">Tải lại</button></div>${reports}</div>
@@ -138,7 +140,29 @@
       <div class="card"><h3>Thông báo cho cả server</h3>
         <form id="adm-announce" class="chat-form"><input type="text" id="adm-text" maxlength="200" placeholder="Nội dung thông báo" autocomplete="off"><button class="btn" type="submit">Gửi</button></form>
       </div>
+      <div class="card"><h3>Quà cho mọi người</h3><p class="small muted">Gửi vào hộp thư của mọi nhân vật (vd. đền bù bảo trì).</p>${giftForm('adm-gift-all')}</div>
       <div class="card"><h3>Trùm thế giới</h3><button class="btn" data-adm="world_boss">Gọi Cổ Long xuất hiện ngay</button></div>`;
+  }
+
+  function giftForm(id, uid) {
+    const items = Object.entries(ITEMS).filter(([, it]) => it.slot !== 'material' || it.price);
+    return `<form id="${id}" class="gift-form" ${uid ? `data-uid="${uid}"` : ''}>
+      <input type="text" name="subject" maxlength="80" placeholder="Tiêu đề thư" required>
+      <input type="text" name="body" maxlength="300" placeholder="Lời nhắn (không bắt buộc)">
+      <div class="btn-row"><label class="small">Vàng <input type="number" name="gold" min="0" value="0"></label>
+        <label class="small">EXP <input type="number" name="xp" min="0" value="0"></label></div>
+      <div class="btn-row"><select name="item"><option value="">(không kèm đồ)</option>${items.map(([k, it]) => `<option value="${k}">${esc(it.name)}</option>`).join('')}</select>
+        <input type="number" name="n" min="1" value="1" aria-label="Số lượng"></div>
+      <button class="btn primary" type="submit">${icon('envelope')} Gửi quà</button>
+    </form>`;
+  }
+
+  function onGift(form) {
+    const f = new FormData(form);
+    const payload = { subject: f.get('subject'), body: f.get('body'), gold: +f.get('gold') || 0, xp: +f.get('xp') || 0, items: {} };
+    if (f.get('item')) payload.items[f.get('item')] = Math.max(1, +f.get('n') || 1);
+    if (form.id === 'adm-gift') payload.uid = +form.dataset.uid; else payload.all = true;
+    Net.admin('gift', payload).then((r) => { toast(`Đã gửi ${r.sent} thư.`); form.reset(); }).catch((err) => toast(err.msg, true));
   }
 
   async function onAdmin(t) {
@@ -325,11 +349,44 @@
           <div class="small muted">${CLASSES[P.cls].name} · Cấp ${P.level}</div>
         </div>
         <div class="gold">${icon('two-coins')}${fmt(P.gold)}</div>
+        <button class="hud-btn" data-act="mail-open" aria-label="Hộp thư${mail.unread ? `, ${mail.unread} thư mới` : ''}">${icon('envelope')}${mail.unread ? `<span class="points-dot">${mail.unread}</span>` : ''}</button>
       </div>
       <div class="bars">
         ${bar('hp', P.hp, d.maxHp, `❤ ${fmt(P.hp)} / ${fmt(d.maxHp)}`)}
         ${P.level >= RULES.maxLevel ? bar('xp', 1, 1, 'Cấp tối đa') : bar('xp', P.xp, need, `EXP ${Math.floor((P.xp / need) * 100)}%`)}
       </div>`;
+  }
+
+  // ---------- Hộp thư ----------
+  async function loadMail() {
+    try {
+      const r = await Net.mail();
+      mail.list = r.mails; mail.unread = r.unread;
+    } catch (e) { toast(e.msg, true); mail.list = mail.list || []; }
+    if (mail.open) render();
+  }
+
+  function mailGifts(m) {
+    return [m.gold ? `${fmt(m.gold)} vàng` : '', m.xp ? `${fmt(m.xp)} kinh nghiệm` : '']
+      .concat(Object.entries(m.items).map(([id, n]) => `${ITEMS[id] ? ITEMS[id].name : id}${n > 1 ? ` ×${n}` : ''}`))
+      .filter(Boolean).join(' · ');
+  }
+
+  function viewMail() {
+    const list = mail.list;
+    return `<div class="row"><h2 class="display grow">Hộp thư</h2><button class="btn" data-act="mail-close">Đóng</button></div>
+      ${list == null ? '<p class="small muted">Đang tải…</p>'
+        : list.length === 0 ? '<div class="card"><p class="small muted">Chưa có thư nào. Quà nhận lúc vắng mặt (trùm thế giới) và quà của Ban Quản Trị sẽ gửi vào đây.</p></div>'
+        : `<div class="list">${list.map((m) => {
+          const gifts = mailGifts(m);
+          return `<div class="card mail ${m.claimed ? 'read' : ''}">
+            <div class="row"><b class="grow">${esc(m.subject)}</b><span class="small muted">${new Date(m.at).toLocaleString('vi-VN')}</span></div>
+            ${m.body ? `<p class="small">${esc(m.body)}</p>` : ''}
+            ${gifts ? `<p class="small" style="color:var(--gold)">Quà: ${gifts}</p>` : ''}
+            ${m.claimed ? `<span class="tag good">${gifts ? 'Đã nhận' : 'Đã đọc'}</span>`
+              : `<button class="btn ${gifts ? 'primary' : ''}" data-act="mail_claim" data-id="${m.id}">${gifts ? 'Nhận quà' : 'Đánh dấu đã đọc'}</button>`}
+          </div>`;
+        }).join('')}</div>`}`;
   }
 
   // ---------- Tạo nhân vật ----------
@@ -795,6 +852,7 @@
       case 'craft': case 'quest_accept': case 'quest_turnin': return { act, id: d.id };
       case 'daily_claim': return { act, i: +d.i };
       case 'tower_enter': return { act, floor: +d.floor };
+      case 'mail_claim': return { act, id: +d.id };
       default: return { act };
     }
   }
@@ -814,6 +872,7 @@
         if (cmd.act === 'leave' || cmd.act === 'create') tab = 'map';
         if (cmd.act === 'reset') tab = 'map';
         if (cmd.act === 'tower_enter') { tab = 'map'; npc = null; }
+        if (cmd.act === 'mail_claim' && mail.list) { const m = mail.list.find((x) => x.id === cmd.id); if (m) m.claimed = true; }
         confirmReset = false;
         dialog = null;
       }
@@ -892,7 +951,7 @@
 
   function enter(r) {
     P = r ? r.player : null;
-    if (r) { Map_.setUser(r.user_id); Net.userId = r.user_id; Net.isAdmin = r.admin; blocked = r.blocked || []; }
+    if (r) { Map_.setUser(r.user_id); Net.userId = r.user_id; Net.isAdmin = r.admin; blocked = r.blocked || []; mail = { unread: r.mail || 0, list: null, open: false }; }
     tab = 'map';
     loading = false;
     render();
@@ -910,7 +969,7 @@
     const t = e.target.closest('button');
     if (!t) return;
     if (t.dataset.cls) { pickCls = t.dataset.cls; document.querySelectorAll('.class-opt').forEach((b) => b.setAttribute('aria-pressed', b.dataset.cls === pickCls)); return; }
-    if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; render(); $('#view').scrollTop = 0; return; }
+    if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; mail.open = false; render(); $('#view').scrollTop = 0; return; }
     if (t.dataset.auth) { authMode = t.dataset.auth; render(); return; }
     if (t.dataset.board) { board.kind = t.dataset.board; const el = $('#board'); if (el) el.outerHTML = viewBoard(); loadBoard(); return; }
     if (t.dataset.move) { walk = null; step(t.dataset.move); return; }
@@ -938,6 +997,8 @@
     if (act === 'reset-ask' || act === 'reset-cancel') { confirmReset = act === 'reset-ask'; render(); return; }
     if (act === 'dialog-close') { dialog = null; render(); return; }
     if (act === 'npc-close') { npc = null; render(); return; }
+    if (act === 'mail-open') { mail.open = !mail.open; walk = null; render(); $('#view').scrollTop = 0; if (mail.open) loadMail(); return; }
+    if (act === 'mail-close') { mail.open = false; render(); return; }
     if (act === 'boss-yes') { const d = dialog; if (d) step(d.dir, true); return; }
     sendCommand(command(act, t));
   }
@@ -980,6 +1041,7 @@
       Net.admin('lookup', { name: $('#adm-name').value }).then((r) => { adm.user = r.user; render(); }).catch((err) => toast(err.msg, true));
       return;
     }
+    if (e.target.id === 'adm-gift' || e.target.id === 'adm-gift-all') { e.preventDefault(); onGift(e.target); return; }
     if (e.target.id === 'adm-announce') {
       e.preventDefault();
       Net.admin('announce', { text: $('#adm-text').value }).then(() => { toast('Đã gửi thông báo.'); $('#adm-text').value = ''; }).catch((err) => toast(err.msg, true));
@@ -1003,6 +1065,12 @@
     Net.onChat(onChatMessage);
     Net.onWorldBoss(onWorldBoss);
     Net.onNotice((msg) => toast(msg));
+    Net.onMail((n) => {
+      const more = n > mail.unread;
+      mail.unread = n;
+      if (more) { toast('Bạn có thư mới.'); if (mail.open) loadMail(); }
+      if (P && !P.battle) $('#hud').innerHTML = viewHud();
+    });
     setInterval(() => { const el = $('#wb-left'); if (el && wb.alive) el.textContent = clock(wb.endsAt - wb.skew - Date.now()); }, 1000);
     Net.onChatHistory((msgs) => { chats = msgs; const log = $('#chat-log'); if (log) { log.innerHTML = chats.map(chatLine).join(''); log.scrollTop = log.scrollHeight; } });
     document.addEventListener('input', (e) => { if (e.target.id === 'chat-input') chatDraft = e.target.value; });
