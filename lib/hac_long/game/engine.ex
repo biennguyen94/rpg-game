@@ -448,7 +448,26 @@ defmodule HacLong.Game.Engine do
             |> on_hit.(dmg)
           end
 
+        p = pet_bite(p, d)
         if p.battle.monster.hp <= 0, do: win(p), else: monster_turn(p, d)
+    end
+  end
+
+  # Thú cưng đi theo thỉnh thoảng cắn thêm (khi quái còn sống)
+  defp pet_bite(p, d) do
+    m = p.battle.monster
+
+    bite =
+      if m.hp > 0 and Map.get(p, :pet),
+        do: Pets.bite(p, damage(d.atk, m.def), Rng.uniform()),
+        else: 0
+
+    if bite > 0 do
+      p
+      |> update_in([:battle, :monster, :hp], &max(0, &1 - bite))
+      |> log("🐾 #{Pets.name(p)} cắn thêm #{bite} sát thương.", "hit")
+    else
+      p
     end
   end
 

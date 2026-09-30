@@ -90,6 +90,9 @@ defmodule HacLong.Game.Commands do
       "pet_buy" ->
         at_npc(p, ["pets"], "Người Nuôi Thú ở Làng", fn _ -> Pets.buy(p, c["id"]) end)
 
+      "pet_tame" ->
+        at_npc(p, ["pets"], "Người Nuôi Thú ở Làng", fn _ -> Pets.tame(p, c["id"]) end)
+
       "pet_choose" ->
         Pets.choose(p, c["id"])
 

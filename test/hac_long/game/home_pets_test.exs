@@ -78,4 +78,44 @@ defmodule HacLong.Game.HomePetsTest do
     p = Map.put(p, :decor, for(x <- 1..8, do: %{id: "golden_statue", x: x, y: 2}))
     assert Home.xp_bonus(p) == 0.05
   end
+
+  test "thú đi theo cắn thêm một đòn trong trận" do
+    on_exit(&HacLong.Game.Rng.clear/0)
+    assert Pets.bite(player(), 100, 0.0) == 0
+    {_, p} = Pets.buy(player(), "hound")
+    assert Pets.bite(p, 100, 0.1) == 25
+    assert Pets.bite(p, 100, 0.9) == 0
+    assert Pets.bite(p, 1, 0.1) == 1
+
+    # quái trâu, không né; số ngẫu nhiên toàn 0 thì thú luôn cắn
+    {_, p} = Engine.start_battle(p, 0, false)
+    p = put_in(p.battle.monster.hp, 100_000) |> put_in([:battle, :monster, :dodge], 0)
+    HacLong.Game.Rng.put_sequence([0.0])
+    {_, p} = Engine.act(p, "attack")
+    assert Enum.any?(p.battle.log, &(&1.text =~ "🐾 Chó Săn cắn thêm"))
+  end
+
+  test "thuần phục quái đã hạ đủ 100 con" do
+    p = player()
+
+    assert {%{ok: false, msg: "Cần hạ ít nhất 100 con (mới 0)."}, _} = Pets.tame(p, "bat")
+    assert {%{ok: false}, _} = Pets.tame(p, "wolf")
+    assert {%{ok: false}, _} = Pets.tame(p, "nope")
+    assert {%{ok: false}, _} = Pets.tame(p, nil)
+
+    p = Map.put(p, :bestiary, %{"bat" => 100})
+    assert [%{id: "bat", price: 1100}] = Pets.tameable(p)
+    base = Engine.derived(p)
+
+    {%{ok: true}, p} = Pets.tame(p, "bat")
+    assert p.pet == "tame:bat" and p.pets == ["tame:bat"] and p.gold == 100_000 - 1100
+    assert Engine.derived(p).atk == round(base.atk * 1.03)
+    assert Pets.tameable(p) == []
+    assert {%{ok: false, msg: "Bạn đã thuần phục loài này rồi."}, _} = Pets.tame(p, "bat")
+    assert Pets.data("tame:bat").name == "Dơi Hang (thuần)"
+    assert {%{ok: true}, _} = Pets.choose(p, "tame:bat")
+
+    # thú thuần không tính vào thành tựu sưu tầm thú ở cửa hàng
+    assert HacLong.Game.Achievements.value(p, :pets) == 0
+  end
 end

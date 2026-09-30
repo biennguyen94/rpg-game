@@ -231,7 +231,7 @@ defmodule HacLong.Game.Achievements do
   def value(p, :gold), do: p.gold
   def value(p, :rebirths), do: Map.get(p, :rebirths) || 0
   def value(p, :comfort), do: HacLong.Game.Home.comfort(p)
-  def value(p, :pets), do: length(Map.get(p, :pets) || [])
+  def value(p, :pets), do: Enum.count(Map.get(p, :pets) || [], &Data.pet/1)
 
   def value(p, :species),
     do: Enum.count(Bestiary.species(), &(Bestiary.count(p, &1) > 0))

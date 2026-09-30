@@ -566,6 +566,52 @@ defmodule HacLongWeb.GameChannelTest do
     end
   end
 
+  describe "thăm nhà" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    test "xem nhà đã trang trí của người khác, khen nhà một lần, chủ nhà được báo" do
+      owner = create_user()
+
+      player_at(owner, %{map: "village", x: 12, y: 14}, %{
+        decor: [%{id: "plant", x: 3, y: 5}, %{id: "fountain", x: 7, y: 2}],
+        pet: "hound",
+        pets: ["hound"]
+      })
+
+      {_, so} = join_game(owner)
+      guest = create_user()
+      player_at(guest, %{map: "village", x: 13, y: 14})
+      {_, sg} = join_game(guest)
+
+      ref = push(sg, "visit", %{"uid" => owner.id})
+      assert_reply ref, :ok, v
+      assert v.id == owner.id and v.likes == 0 and not v.liked
+      assert [%{id: "plant", x: 3, y: 5}, %{id: "fountain"}] = v.decor
+      assert v.comfort > 0 and v.look.pet == "hound"
+
+      ref = push(sg, "home_like", %{"uid" => owner.id})
+      assert_reply ref, :ok, %{likes: 1}
+      assert_push "notice", %{msg: "🏡 " <> _}
+      ref = push(sg, "home_like", %{"uid" => owner.id})
+      assert_reply ref, :error, %{msg: "Bạn đã khen nhà này rồi."}
+
+      ref = push(sg, "visit", %{"uid" => owner.id})
+      assert_reply ref, :ok, %{likes: 1, liked: true}
+
+      # tự khen nhà mình thì không được; nhà của mình thì xem như đã khen
+      ref = push(so, "home_like", %{"uid" => owner.id})
+      assert_reply ref, :error, %{msg: "Không tự khen nhà mình được."}
+      ref = push(so, "visit", %{"uid" => owner.id})
+      assert_reply ref, :ok, %{liked: true}
+
+      ref = push(sg, "visit", %{"uid" => -1})
+      assert_reply ref, :error, %{msg: "Không tìm thấy người chơi."}
+    end
+  end
+
   describe "đấu trường" do
     setup do
       HacLong.RateLimit.reset()

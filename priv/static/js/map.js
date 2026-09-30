@@ -94,7 +94,7 @@
   function image(path) {
     if (!images[path]) {
       const im = new Image();
-      im.onload = () => draw();
+      im.onload = () => { draw(); if (visiting) drawHome(...visiting); };
       im.src = 'assets/' + path + '.png';
       images[path] = im;
     }
@@ -320,7 +320,7 @@
       if (!id) return;
       const [tx, ty] = petTile(key, x, y);
       const [qx, qy] = smooth('pet' + key, tx, ty, DUR.player * 1.4, now);
-      const im = image('pets/' + id);
+      const im = image(id.startsWith('tame:') ? 'monsters/' + id.slice(5) : 'pets/' + id);
       if (im.complete) ctx.drawImage(im, Math.round(qx * TILE - cx) + 4, Math.round(qy * TILE - cy) + 6, TILE - 8, TILE - 8);
     };
     for (const o of here ? world.players : []) {
@@ -427,7 +427,41 @@
     return null;
   }
 
+  // Nhà của người khác (chỉ xem): vẽ cả căn nhà vừa khung, đồ trang trí của họ, chủ nhà
+  // đứng trước cửa cùng thú cưng.
+  let visiting = null;
+  function drawHome(el, v) {
+    visiting = [el, v];
+    const m = mapOf('home');
+    const cols = m.tiles[0].length, rows = m.tiles.length;
+    const w = el.parentElement.clientWidth || cols * TILE;
+    const T = Math.max(12, Math.min(TILE, Math.floor(w / cols)));
+    const dpr = window.devicePixelRatio || 1;
+    el.style.width = cols * T + 'px'; el.style.height = rows * T + 'px';
+    el.width = Math.round(cols * T * dpr); el.height = Math.round(rows * T * dpr);
+    const c = el.getContext('2d');
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.imageSmoothingEnabled = false;
+    c.fillStyle = '#0c0910'; c.fillRect(0, 0, cols * T, rows * T);
+    const put = (im, x, y, pad) => { if (im && (im.complete === undefined || im.complete)) c.drawImage(im, x * T + (pad || 0), y * T + (pad || 0), T - 2 * (pad || 0), T - 2 * (pad || 0)); };
+    const floor = image(m.floor);
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const kind = WORLD.legend[m.tiles[y][x]];
+      put(floor, x, y);
+      if (kind !== 'floor') put(image('tiles/' + kind), x, y);
+    }
+    for (const d of v.decor || []) put(image('decor/' + d.id), d.x, d.y);
+    for (const n of m.npcs || []) put(image('npcs/' + n.sprite), n.at[0], n.at[1]);
+    const door = (m.portals[0] || { at: [Math.floor(cols / 2), rows - 1] }).at;
+    const [hx, hy] = [door[0], door[1] - 1];
+    const pet = v.look && v.look.pet;
+    if (pet) put(image(pet.startsWith('tame:') ? 'monsters/' + pet.slice(5) : 'pets/' + pet), hx + 1, hy, T / 8);
+    put(Doll.canvas(v.look) || image('monsters/hero'), hx, hy);
+  }
+
   window.MapView = {
+    drawHome,
+    stopVisit() { visiting = null; },
     html, top, mount, resize, draw, tileFromEvent, nextStep, monsterAt, monsterById,
     // người chơi khác đứng ở ô (x, y) trên bản đồ đang đứng
     playerAt: (x, y) => (world.map === (getPlayer() || {}).pos?.map ? world.players.find((o) => o.id !== userId && o.x === x && o.y === y) : null),

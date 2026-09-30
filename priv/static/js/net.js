@@ -155,6 +155,9 @@
     // Chợ: { listings, fee, max }. Rao bán/mua/rút về là lệnh market_sell/market_buy/market_cancel.
     market(q) { return push('market', { q: q || '' }); },
     inspect(uid) { return push('inspect', { uid }); },
+    // Thăm nhà: { id, name, look, decor, comfort, likes, liked }; khen nhà: { likes }.
+    visit(uid) { return push('visit', { uid }); },
+    homeLike(uid) { return push('home_like', { uid }); },
 
     // Bang hội: guild('list', { q }), guild('info'), guild('join', { id })... (xem GameChannel).
     guild(op, payload) { return push('guild', Object.assign({ op }, payload || {})); },

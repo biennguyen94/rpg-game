@@ -90,8 +90,8 @@ defmodule HacLong.Game.Characters do
       bestiary: c.bestiary || %{},
       rebirths: c.rebirths || 0,
       chest_day: c.chest_day,
-      pets: Enum.filter(c.pets || [], &HacLong.Game.Data.pet/1),
-      pet: if(c.pet && HacLong.Game.Data.pet(c.pet), do: c.pet),
+      pets: Enum.filter(c.pets || [], &HacLong.Game.Pets.data/1),
+      pet: if(c.pet && HacLong.Game.Pets.data(c.pet), do: c.pet),
       furniture:
         Map.filter(c.furniture || %{}, fn {id, _} -> HacLong.Game.Data.furniture(id) end),
       decor:

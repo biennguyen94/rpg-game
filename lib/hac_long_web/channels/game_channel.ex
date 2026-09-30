@@ -26,6 +26,8 @@ defmodule HacLongWeb.GameChannel do
     lệnh `"cmd"` `market_sell {id, count, price}`, `market_buy {listing}`,
     `market_cancel {listing}` (đứng cạnh Chủ Chợ).
   - `"inspect"` `%{"uid"}`: xem thông tin người chơi khác (chạm vào họ trên bản đồ).
+  - `"visit"` `%{"uid"}`: xem nhà đã trang trí của người khác; `"home_like"` `%{"uid"}`: khen nhà
+    (mỗi nhà một lần, chủ nhà nhận `"notice"`). Xem `HacLong.Homes`.
   - `"mail"`: danh sách thư; server đẩy `"mail"` `%{unread}` khi có thư mới. Mở thư (nhận quà)
     là lệnh `"cmd"` `%{"act" => "mail_claim", "id" => ...}`.
   - `"admin"` `%{"op" => ...}` (chỉ tài khoản quản trị): xem/xử lý báo cáo, tra cứu, cấm chat,
@@ -39,6 +41,7 @@ defmodule HacLongWeb.GameChannel do
     Arena,
     Chat,
     Guilds,
+    Homes,
     Leaderboard,
     Mailbox,
     Market,
@@ -212,6 +215,30 @@ defmodule HacLongWeb.GameChannel do
           blocked: target in socket.assigns.blocked,
           party: party && target in party.members
         }}, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("visit", %{"uid" => target}, socket) when is_integer(target) do
+    uid = socket.assigns.user_id
+
+    with :ok <- limit({:inspect, uid}, 60, :timer.minutes(1)),
+         %{} = p <- online_or_saved(target) || {:error, "Không tìm thấy người chơi."} do
+      {:reply, {:ok, Homes.view(p, target, uid)}, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("home_like", %{"uid" => target}, socket) when is_integer(target) do
+    uid = socket.assigns.user_id
+
+    with :ok <- limit({:home_like, uid}, 20, :timer.minutes(1)),
+         %{} <- online_or_saved(target) || {:error, "Không tìm thấy người chơi."},
+         %{name: name} <- Session.get(uid) || {:error, "Chưa có nhân vật."},
+         {:ok, n} <- Homes.like(target, uid, name) do
+      {:reply, {:ok, %{likes: n}}, socket}
     else
       {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
     end
