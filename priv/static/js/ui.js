@@ -829,6 +829,18 @@
       <div class="list">${rows}</div></div>`;
   }
 
+  function chestCard() {
+    const full = bagGear().length >= RULES.gearBag;
+    const odds = (o) => [[3, 'Sử Thi'], [2, 'Hiếm'], [1, 'Tốt']].filter(([r]) => o[r]).map(([r, n]) => `<span class="rar-${r}">${n} ${o[r]}%</span>`).join(' · ');
+    return `<div class="card"><h3>Rương Báu</h3>
+      <p class="small muted">Mở ra một món đồ chỉ số ngẫu nhiên hợp cấp của bạn.${full ? ' <span style="color:var(--bad)">Túi đồ hiếm đầy, bán bớt đã.</span>' : ''}</p>
+      <div class="list">${P.view.chests.map((c) => `<div class="item">
+        <img class="ic lg px" src="${asset('items/chest_' + c.id + '.png')}" alt="">
+        <div class="grow"><div class="name">${c.name}</div><div class="small">${odds(c.odds)}</div></div>
+        <button class="btn ${P.gold >= c.price && !full ? 'primary' : ''}" data-act="chest_buy" data-tier="${c.id}" ${P.gold >= c.price && !full ? '' : 'disabled'}>${icon('two-coins')}${fmt(c.price)}</button>
+      </div>`).join('')}</div></div>`;
+  }
+
   function craftCard() {
     return `<div class="card"><h3>Pha thuốc</h3><div class="list">${RECIPES.filter((r) => r.npc === 'herbalist').map((r) => {
       const out = ITEMS[r.out];
@@ -912,7 +924,7 @@
     }
     if (n.role === 'shop' || n.role === 'herbalist') {
       if (n.role === 'herbalist') sections.push(craftCard());
-      if (n.role === 'shop') sections.push(forgeCard());
+      if (n.role === 'shop') sections.push(forgeCard(), chestCard());
       sections.push(`<div class="card"><h3>Mua</h3><div class="list">${n.stock.map(shopRow).join('')}</div></div>`);
       sections.push(sellCard());
     }
@@ -934,6 +946,10 @@
     }
     if (n.role === 'daily') {
       sections.push(`<div class="card"><div class="row"><h3 class="grow">Việc hôm nay</h3><span class="small muted">Việc mới sau ${dailyLeft()}</span></div>${dailyList(true)}</div>`);
+    }
+    if (n.role === 'chest') {
+      sections.push(`<div class="card"><p>“${esc(n.lines[0])}”</p>
+        <button class="btn ${P.view.chestReady ? 'primary' : ''} block" data-act="chest_open" ${P.view.chestReady ? '' : 'disabled'}>${P.view.chestReady ? 'Mở rương' : 'Hôm nay đã mở, mai quay lại'}</button></div>`);
     }
     if (n.role === 'talk') {
       sections.push(`<div class="card">${n.lines.map((l) => `<p>“${esc(l)}”</p>`).join('')}</div>`);
@@ -1063,13 +1079,14 @@
       case 'tower_enter': return { act, floor: +d.floor };
       case 'skill': return { act, skill: d.skill };
       case 'mail_claim': return { act, id: +d.id };
+      case 'chest_buy': return { act, tier: d.tier };
       case 'title_set': return { act, id: d.id || null };
       default: return { act };
     }
   }
 
   // Âm thanh cho kết quả một lệnh.
-  const CMD_SOUND = { rebirth: 'levelup', buy: 'coin', sell: 'coin', mail_claim: 'coin', craft: 'brew', upgrade: 'forge', quest_turnin: 'quest', daily_claim: 'quest', quest_accept: 'notice', rest: 'potion', use: 'potion', tower_enter: 'portal', potion: 'potion' };
+  const CMD_SOUND = { chest_buy: 'rare', chest_open: 'rare', rebirth: 'levelup', buy: 'coin', sell: 'coin', mail_claim: 'coin', craft: 'brew', upgrade: 'forge', quest_turnin: 'quest', daily_claim: 'quest', quest_accept: 'notice', rest: 'potion', use: 'potion', tower_enter: 'portal', potion: 'potion' };
 
   function commandSound(cmd, r, old) {
     if (!r.ok) { Sound.play('error'); return; }

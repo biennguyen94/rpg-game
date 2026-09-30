@@ -88,7 +88,8 @@ defmodule HacLong.Game.Characters do
       title: c.title,
       gear: HacLong.Game.Gear.load(c.gear),
       bestiary: c.bestiary || %{},
-      rebirths: c.rebirths || 0
+      rebirths: c.rebirths || 0,
+      chest_day: c.chest_day
     }
   end
 

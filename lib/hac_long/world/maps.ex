@@ -17,7 +17,8 @@ defmodule HacLong.World.Maps do
   - `world_boss`: `{at}`: chỗ trùm thế giới đứng khi xuất hiện (xem `HacLong.WorldBoss`).
   - `npcs`: `{id, name, sprite, at, role, lines, stock?}`. NPC đứng yên, chặn đường; bước vào
     thì mở hội thoại. `role`: `quests` (Trưởng Làng), `shop` (bán `stock`, mua lại đồ),
-    `herbalist` (bán `stock`, mua lại đồ, pha thuốc), `inn` (nghỉ trọ), `talk` (chỉ nói chuyện).
+    `herbalist` (bán `stock`, mua lại đồ, pha thuốc), `inn` (nghỉ trọ), `talk` (chỉ nói chuyện),
+    `chest` (Rương Gia Truyền ở Nhà), `daily` (Bảng Tin), `tower` (Người Gác Tháp).
   - `gather`: `{item, max, respawn}`: điểm thu thập (bụi thảo dược, mỏ quặng) mọc ngẫu nhiên;
     bước vào thì nhận một `item`, điểm đó biến mất và mọc lại sau `respawn` giây.
   """

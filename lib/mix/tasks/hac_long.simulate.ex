@@ -6,7 +6,8 @@ defmodule Mix.Tasks.HacLong.Simulate do
   - `chỉ đánh`: chỉ đánh quái, hái nguyên liệu thì bán;
   - `+nhiệm vụ`: làm thêm nhiệm vụ Trưởng Làng;
   - `+hằng ngày`: làm thêm cả việc hằng ngày (60 trận tính là một ngày);
-  - `+nâng cấp`: giữ quặng để Thợ Rèn nâng cấp đồ.
+  - `+nâng cấp`: giữ quặng để Thợ Rèn nâng cấp đồ;
+  - `+rương`: dư vàng thì mua Rương Bạc.
 
   In số trận trung bình, cấp cuối, số lần chết, vàng, phần vàng/kinh nghiệm đến từ
   nhiệm vụ và việc hằng ngày, và cấp lúc hạ từng trùm (của ván đầu).
@@ -22,7 +23,8 @@ defmodule Mix.Tasks.HacLong.Simulate do
     {"chỉ đánh", []},
     {"+nhiệm vụ", [quests: true]},
     {"+hằng ngày", [quests: true, daily: true]},
-    {"+nâng cấp", [quests: true, daily: true, upgrade: true]}
+    {"+nâng cấp", [quests: true, daily: true, upgrade: true]},
+    {"+rương", [quests: true, daily: true, upgrade: true, chests: true]}
   ]
 
   @impl true
@@ -45,6 +47,10 @@ defmodule Mix.Tasks.HacLong.Simulate do
                 if(opts[:daily],
                   do:
                     " | hằng ngày #{avg.(:daily_done)}: +#{avg.(:daily_gold)}v +#{avg.(:daily_xp)}kn",
+                  else: ""
+                ) <>
+                if(opts[:chests],
+                  do: " | rương #{avg.(:chests)}: -#{avg.(:chest_gold)}v",
                   else: ""
                 ),
             else: ""

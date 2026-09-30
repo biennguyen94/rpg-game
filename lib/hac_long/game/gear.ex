@@ -69,7 +69,7 @@ defmodule HacLong.Game.Gear do
   @doc "Giá bán: giá đồ gốc tăng theo độ hiếm và số điểm cộng thêm."
   def price(g) do
     base = Data.item(g.base).price
-    round(base * 0.4 * (1 + 0.5 * g.rarity) + 5 * Enum.sum(Map.values(g.bonus)))
+    round(base * 0.4 * (1 + 0.25 * g.rarity) + 5 * Enum.sum(Map.values(g.bonus)))
   end
 
   @doc "Tổng điểm chỉ số cộng thêm từ các món đang mặc."
@@ -95,8 +95,11 @@ defmodule HacLong.Game.Gear do
     end
   end
 
-  @doc "Tạo một món ngẫu nhiên hợp với quái cấp `level` (nil nếu không có đồ gốc phù hợp)."
-  def roll(level) do
+  @doc """
+  Tạo một món ngẫu nhiên hợp với quái cấp `level` (nil nếu không có đồ gốc phù hợp).
+  `weights`: tỉ lệ các độ hiếm `[{độ_hiếm, tỉ_lệ}]` (mặc định 5% Sử Thi, 25% Hiếm, 70% Tốt).
+  """
+  def roll(level, weights \\ [{3, 5}, {2, 25}, {1, 70}]) do
     r = Rng.uniform()
 
     slot =
@@ -120,20 +123,21 @@ defmodule HacLong.Game.Gear do
 
       _ ->
         {base, _} = Enum.at(bases, floor(Rng.uniform() * length(bases)))
-        r = Rng.uniform()
-
-        rarity =
-          cond do
-            r < 0.05 -> 3
-            r < 0.30 -> 2
-            true -> 1
-          end
+        rarity = pick_weighted(weights)
 
         stats = shuffle(@stats) |> Enum.take(rarity)
         bonus = Map.new(stats, &{&1, 1 + floor(Rng.uniform() * (1 + level / 6))})
 
         %{uid: new_uid(), base: base, rarity: rarity, bonus: bonus}
     end
+  end
+
+  defp pick_weighted(weights) do
+    r = Rng.uniform() * (weights |> Enum.map(&elem(&1, 1)) |> Enum.sum())
+
+    Enum.reduce_while(weights, 0, fn {v, w}, acc ->
+      if r < acc + w, do: {:halt, v}, else: {:cont, acc + w}
+    end)
   end
 
   defp shuffle(list),

@@ -24,7 +24,7 @@ defmodule HacLongWeb.GameChannel do
   use HacLongWeb, :channel
 
   alias HacLong.{Accounts, Chat, Leaderboard, Mailbox, Moderation, RateLimit, WorldBoss}
-  alias HacLong.Game.{Achievements, Daily, Data, Engine, Quests, Session, Tutorial}
+  alias HacLong.Game.{Achievements, Chests, Daily, Data, Engine, Quests, Session, Tutorial}
   alias HacLong.World.{Maps, MapServer}
 
   @impl true
@@ -347,7 +347,17 @@ defmodule HacLongWeb.GameChannel do
         dailyReady: Daily.ready?(player),
         dailyLeft: Daily.seconds_left(),
         tutorial: Tutorial.view(player),
-        achievements: Achievements.view(player)
+        achievements: Achievements.view(player),
+        chestReady: player[:chest_day] != Daily.today(),
+        chests:
+          Enum.map(Chests.tiers(), fn t ->
+            %{
+              id: t.id,
+              name: t.name,
+              price: Chests.price(t, player.level),
+              odds: Map.new(t.weights, fn {r, w} -> {r, w} end)
+            }
+          end)
       })
 
     Map.put(player, :view, view)

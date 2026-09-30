@@ -11,9 +11,10 @@ defmodule HacLong.Game.Simulator do
     (mặc định 3, `nil` là không hái). Nguyên liệu không cần cho nhiệm vụ thì bán luôn.
   - `upgrade: true` — giữ quặng để Thợ Rèn nâng cấp đồ đang mặc (không tính cấp +5 vì cần
     Vảy Cổ Long của trùm thế giới).
+  - `chests: true` — dư vàng thì mua Rương Bạc ở Thợ Rèn; đồ hiếm kém hơn đồ đang mặc thì bán.
   """
 
-  alias HacLong.Game.{Daily, Data, Engine, Gear, Quests}
+  alias HacLong.Game.{Chests, Daily, Data, Engine, Gear, Quests}
 
   @alloc %{
     "warrior" => ~w(str str vit),
@@ -26,7 +27,14 @@ defmodule HacLong.Game.Simulator do
   def run(cls, opts \\ []) do
     opts =
       Map.merge(
-        %{quests: false, daily: false, upgrade: false, day_fights: 60, gather_every: 3},
+        %{
+          quests: false,
+          daily: false,
+          upgrade: false,
+          chests: false,
+          day_fights: 60,
+          gather_every: 3
+        },
         Map.new(opts)
       )
 
@@ -45,7 +53,9 @@ defmodule HacLong.Game.Simulator do
       quests_done: 0,
       daily_gold: 0,
       daily_xp: 0,
-      daily_done: 0
+      daily_done: 0,
+      chests: 0,
+      chest_gold: 0
     })
   end
 
@@ -59,6 +69,7 @@ defmodule HacLong.Game.Simulator do
     {p, st} = p |> accept_quests(st) |> turn_in(st)
     {p, st} = claim_daily(p, st)
     p = p |> allocate_all() |> shop_up() |> forge(st)
+    {p, st} = chests(p, st)
 
     {p, st} =
       if p.hp < Engine.derived(p).maxHp * 0.6 do
@@ -211,6 +222,27 @@ defmodule HacLong.Game.Simulator do
   defp value(id), do: (Data.item(id)[:atk] || 0) + (Data.item(id)[:def] || 0)
 
   # nâng cấp đồ đang mặc khi đủ quặng, còn dư vàng mua bình máu (tới +4)
+  # dư vàng (gấp rưỡi giá) thì mua Rương Bạc; đồ hiếm trong túi kém đồ đang mặc thì bán
+  defp chests(p, %{opts: %{chests: false}} = st), do: {p, st}
+
+  defp chests(p, st) do
+    p =
+      Enum.reduce(Gear.bag(p), p, fn g, p ->
+        it = Gear.resolve(g)
+
+        if worn(p, g.uid) <= worn(p, p.equip[String.to_existing_atom(it.slot)]),
+          do: elem(Engine.sell(p, g.uid), 1),
+          else: p
+      end)
+
+    cost = Chests.price(Chests.tier("silver"), p.level)
+
+    case p.gold >= 1.5 * cost && Chests.buy(p, "silver") do
+      {%{ok: true}, p} -> {p, %{st | chest_gold: st.chest_gold + cost, chests: st.chests + 1}}
+      _ -> {p, st}
+    end
+  end
+
   defp forge(p, %{opts: %{upgrade: false}}), do: p
 
   defp forge(p, st) do
@@ -315,7 +347,9 @@ defmodule HacLong.Game.Simulator do
       quests_done: st.quests_done,
       daily_gold: st.daily_gold,
       daily_xp: st.daily_xp,
-      daily_done: st.daily_done
+      daily_done: st.daily_done,
+      chests: st.chests,
+      chest_gold: st.chest_gold
     }
   end
 end

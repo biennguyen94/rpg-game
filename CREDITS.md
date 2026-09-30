@@ -28,11 +28,12 @@ Tác giả:
   village, walk, war-axe, wood-club
 - **Willdabeast** (http://wjbstories.blogspot.com): chain-mail, round-shield
 
-## Hình cá và đồ câu được (`priv/static/assets/items/`)
+## Hình cá, rương (`priv/static/assets/items/`)
 
 - `fish_gold.png` (giant_goldfish), `fish_eel.png` (electric_eel), `old_boot.png` (boots1_brown):
   từ bộ tile Dungeon Crawl Stone Soup ở trên (CC0).
-- `fish_small.png`, `fish_carp.png`: tự vẽ cho game này (CC0).
+- `fish_small.png`, `fish_carp.png`, `chest_wood.png`, `chest_silver.png`, `chest_gold.png`
+  (và `npcs/home_chest.png`): tự vẽ cho game này (CC0).
 
 ## Âm thanh
 

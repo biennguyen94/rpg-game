@@ -264,7 +264,7 @@
       const im = image('npcs/' + n.sprite);
       if (im.complete) ctx.drawImage(im, px, py, TILE, TILE);
       labels.push([n.name, px + TILE / 2, py - 14, n.role === 'quests' ? '#f0cf7a' : '#c8f0b0']);
-      if ((n.role === 'quests' && P.view.questReady) || (n.role === 'daily' && P.view.dailyReady)) label('!', px + TILE - 4, py - 2, '#f0cf7a');
+      if ((n.role === 'quests' && P.view.questReady) || (n.role === 'daily' && P.view.dailyReady) || (n.role === 'chest' && P.view.chestReady)) label('!', px + TILE - 4, py - 2, '#f0cf7a');
     }
 
     // trùm thế giới: vẽ to gấp đôi, có thanh máu chung

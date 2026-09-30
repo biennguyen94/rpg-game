@@ -27,5 +27,20 @@
       ]
     }
   ],
-  "spawns": []
+  "spawns": [],
+  "npcs": [
+    {
+      "id": "chest",
+      "name": "Rương Gia Truyền",
+      "sprite": "home_chest",
+      "at": [
+        1,
+        1
+      ],
+      "role": "chest",
+      "lines": [
+        "Rương gỗ cũ của nhà. Mỗi ngày mở ra lại thấy có thứ gì đó."
+      ]
+    }
+  ]
 }

@@ -61,6 +61,7 @@ defmodule HacLong.Game.Engine do
           gear: [],
           bestiary: %{},
           rebirths: 0,
+          chest_day: nil,
           fish_caught: 0,
           achievements: [],
           title: nil,
