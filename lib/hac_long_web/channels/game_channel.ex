@@ -17,6 +17,12 @@ defmodule HacLongWeb.GameChannel do
     cáo một tin nhắn chat.
   - `"guild"` `%{"op" => ...}`: bang hội (xem `guild/3`); chat bang là `"chat"` với
     `"to" => "guild"`, server đẩy `"chat"` kèm `guild: true`; đổi bang thì server đẩy `"guild"`.
+  - `"party"` `%{"op" => ...}`: tổ đội (`invite {uid}`, `accept`, `decline`, `leave`,
+    `kick {uid}`, `info`); server đẩy `"party"` (tổ đội đổi), `"party_invite"` (có lời mời),
+    `"shared"` (máu chung của trận đánh cùng). Chat tổ đội: `"chat"` với `"to" => "party"`.
+  - `"arena"`: điểm đấu trường của mình, đối thủ gợi ý, bảng xếp hạng; thách đấu là lệnh
+    `"cmd"` `%{"act" => "pvp_challenge", "uid" => ...}`.
+  - `"inspect"` `%{"uid"}`: xem thông tin người chơi khác (chạm vào họ trên bản đồ).
   - `"mail"`: danh sách thư; server đẩy `"mail"` `%{unread}` khi có thư mới. Mở thư (nhận quà)
     là lệnh `"cmd"` `%{"act" => "mail_claim", "id" => ...}`.
   - `"admin"` `%{"op" => ...}` (chỉ tài khoản quản trị): xem/xử lý báo cáo, tra cứu, cấm chat,
@@ -25,7 +31,19 @@ defmodule HacLongWeb.GameChannel do
   require Logger
   use HacLongWeb, :channel
 
-  alias HacLong.{Accounts, Chat, Guilds, Leaderboard, Mailbox, Moderation, RateLimit, WorldBoss}
+  alias HacLong.{
+    Accounts,
+    Arena,
+    Chat,
+    Guilds,
+    Leaderboard,
+    Mailbox,
+    Moderation,
+    Party,
+    RateLimit,
+    WorldBoss
+  }
+
   alias HacLong.Game.{Achievements, Chests, Daily, Data, Engine, Quests, Session, Tutorial}
   alias HacLong.World.{Maps, MapServer}
 
@@ -47,6 +65,7 @@ defmodule HacLongWeb.GameChannel do
       admin: socket.assigns[:admin] == true,
       blocked: blocked,
       mail: Mailbox.unread(uid),
+      party: party_view(uid),
       player: present(player)
     }
 
@@ -77,11 +96,7 @@ defmodule HacLongWeb.GameChannel do
            title: Achievements.title_name(p[:title]),
            tag: p[:guild] && p.guild.tag
          },
-         {:ok, _msg} <-
-           if(payload["to"] == "guild",
-             do: guild_chat(p, from, text),
-             else: Chat.post(from, text)
-           ) do
+         {:ok, _msg} <- post_chat(payload["to"], p, from, text) do
       {:reply, :ok, socket}
     else
       {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
@@ -94,7 +109,7 @@ defmodule HacLongWeb.GameChannel do
     case RateLimit.hit({:leaderboard, uid}, 20, :timer.minutes(1)) do
       :ok ->
         boards = Map.new(Leaderboard.kinds(), &{&1, Leaderboard.top(&1)})
-        boards = Map.put(boards, :guild, Guilds.top())
+        boards = boards |> Map.put(:guild, Guilds.top()) |> Map.put(:arena, Arena.top())
         {:reply, {:ok, Map.put(boards, :me, Leaderboard.level_rank(uid))}, socket}
 
       {:error, _} ->
@@ -108,6 +123,75 @@ defmodule HacLongWeb.GameChannel do
     with :ok <- limit({:guild, uid}, 40, :timer.minutes(1)),
          {:ok, data} <- guild(op, p, uid) do
       {:reply, {:ok, data}, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("party", %{"op" => op} = p, socket) do
+    uid = socket.assigns.user_id
+
+    target = p["uid"]
+
+    result =
+      case op do
+        "info" -> :ok
+        "invite" when is_integer(target) -> invite(uid, target)
+        "accept" -> Party.accept(uid)
+        "decline" -> Party.decline(uid)
+        "leave" -> Party.leave(uid)
+        "kick" when is_integer(target) -> Party.kick(uid, target)
+        _ -> {:error, "Thao tác không hợp lệ."}
+      end
+
+    with :ok <- limit({:party, uid}, 40, :timer.minutes(1)),
+         :ok <- result do
+      {:reply, {:ok, %{party: party_view(uid)}}, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("arena", _payload, socket) do
+    uid = socket.assigns.user_id
+
+    with :ok <- limit({:arena, uid}, 30, :timer.minutes(1)) do
+      me = Map.put(Arena.stats(uid), :per_day, Arena.per_day())
+      {:reply, {:ok, %{me: me, suggestions: Arena.suggestions(uid), top: Arena.top()}}, socket}
+    else
+      {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
+    end
+  end
+
+  def handle_in("inspect", %{"uid" => target}, socket) when is_integer(target) do
+    uid = socket.assigns.user_id
+
+    with :ok <- limit({:inspect, uid}, 60, :timer.minutes(1)),
+         %{} = p <- online_or_saved(target) || {:error, "Không tìm thấy người chơi."} do
+      name = fn id -> (it = HacLong.Game.Gear.item(p, id)) && it.name end
+      guild = Guilds.brief(target)
+      party = Party.of(uid)
+
+      {:reply,
+       {:ok,
+        %{
+          id: target,
+          name: p.name,
+          cls: p.cls,
+          level: p.level,
+          rebirths: Map.get(p, :rebirths, 0),
+          look: Engine.look(p),
+          title: Achievements.title_name(p[:title]),
+          guild: guild && %{name: guild.name, tag: guild.tag},
+          gear: %{
+            weapon: name.(p.equip.weapon),
+            armor: name.(p.equip.armor),
+            shield: name.(p.equip.shield)
+          },
+          arena: Arena.stats(target),
+          blocked: target in socket.assigns.blocked,
+          party: party && target in party.members
+        }}, socket}
     else
       {:error, msg} -> {:reply, {:error, %{msg: msg}}, socket}
     end
@@ -168,6 +252,79 @@ defmodule HacLongWeb.GameChannel do
   def handle_in("admin", _p, socket), do: {:reply, {:error, %{msg: "Không có quyền."}}, socket}
 
   def handle_in(_event, _payload, socket), do: {:reply, {:error, %{msg: "Sai cú pháp."}}, socket}
+
+  # người đang online thì lấy trạng thái mới nhất, không thì đọc database
+  defp online_or_saved(uid) do
+    case Registry.lookup(HacLong.Game.Registry, uid) do
+      [_] -> Session.get(uid)
+      [] -> HacLong.Game.Characters.load(uid)
+    end
+  end
+
+  # ---------- Tổ đội ----------
+
+  # chỉ mời được người đang online
+  defp invite(uid, target) do
+    case Registry.lookup(HacLong.Game.Registry, target) do
+      [_] -> Party.invite(uid, target)
+      [] -> {:error, "Người này không online."}
+    end
+  end
+
+  defp party_view(uid) do
+    case Party.of(uid) do
+      nil ->
+        nil
+
+      party ->
+        members =
+          for m <- party.members, p = Session.get(m) do
+            %{
+              id: m,
+              name: p.name,
+              cls: p.cls,
+              level: p.level,
+              hp: p.hp,
+              maxHp: Engine.derived(p).maxHp,
+              map: p.pos.map
+            }
+          end
+
+        %{id: party.id, leader: party.leader, members: members, max: Party.max()}
+    end
+  end
+
+  defp party_chat(from, text) do
+    case Party.of(from.uid) do
+      nil ->
+        {:error, "Bạn chưa ở trong tổ đội nào."}
+
+      party ->
+        text = text |> String.replace(~r/\s+/u, " ") |> String.trim() |> String.slice(0, 120)
+
+        if text == "" do
+          {:error, "Tin nhắn trống."}
+        else
+          msg =
+            Map.merge(from, %{
+              id: nil,
+              text: text,
+              party: true,
+              at: System.system_time(:millisecond)
+            })
+
+          for m <- party.members,
+              do: Phoenix.PubSub.broadcast(HacLong.PubSub, Session.topic(m), {:party_chat, msg})
+
+          {:ok, msg}
+        end
+    end
+  end
+
+  # Kênh chat: thế giới (mặc định), bang hội, tổ đội.
+  defp post_chat("guild", p, from, text), do: guild_chat(p, from, text)
+  defp post_chat("party", _p, from, text), do: party_chat(from, text)
+  defp post_chat(_, _p, from, text), do: Chat.post(from, text)
 
   # ---------- Bang hội ----------
 
@@ -373,6 +530,27 @@ defmodule HacLongWeb.GameChannel do
 
   def handle_info({:guild_chat, msg}, socket) do
     unless msg.uid in socket.assigns.blocked, do: push(socket, "chat", msg)
+    {:noreply, socket}
+  end
+
+  def handle_info({:party, _pid}, socket) do
+    push(socket, "party", %{party: party_view(socket.assigns.user_id)})
+    {:noreply, socket}
+  end
+
+  def handle_info({:party_invite, from}, socket) do
+    name = (p = Session.get(from)) && p.name
+    push(socket, "party_invite", %{from: from, name: name})
+    {:noreply, socket}
+  end
+
+  def handle_info({:party_chat, msg}, socket) do
+    unless msg.uid in socket.assigns.blocked, do: push(socket, "chat", msg)
+    {:noreply, socket}
+  end
+
+  def handle_info({:shared_hp, key, hp, n}, socket) do
+    push(socket, "shared", %{key: key, hp: hp, n: n})
     {:noreply, socket}
   end
 

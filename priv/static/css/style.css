@@ -397,3 +397,11 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 /* Trang trí nhà */
 .decor-panel .chip { display: inline-flex; align-items: center; gap: 4px; }
 .decor-panel .chip .ic { width: 22px; height: 22px; }
+
+/* Tổ đội */
+.card.party { gap: 6px; }
+.party-member { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; }
+.party-member .bar { grid-column: 1 / -1; height: 12px; }
+.party-member .bar > span { line-height: 10px; font-size: 0.65rem; }
+.party-mark { color: #f0b36b; font-weight: 700; font-size: 0.8em; }
+.chat-line.party { color: #f6dcc0; }

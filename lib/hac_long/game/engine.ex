@@ -659,6 +659,13 @@ defmodule HacLong.Game.Engine do
     end
   end
 
+  @doc "Kết thúc trận bằng chiến thắng dù quái chưa hết máu ở trận này (đồng đội hạ quái)."
+  def finish_win(%{battle: %{over: false}} = p) do
+    p |> put_in([:battle, :monster, :hp], 0) |> win()
+  end
+
+  def finish_win(p), do: {ok(), p}
+
   defp win(p) do
     m = p.battle.monster
     # thú cưng (vàng, kinh nghiệm) và nhà trang trí (kinh nghiệm) cộng thêm
@@ -673,7 +680,7 @@ defmodule HacLong.Game.Engine do
         else: log(p, "🏆 Bạn đã hạ #{m.name}! +#{xp} kinh nghiệm, +#{gold} vàng.", "win")
 
     {p, reward} =
-      if not m.boss and !m[:world] and chance(0.12) do
+      if not m.boss and !m[:world] and !m[:pvp] and chance(0.12) do
         id =
           cond do
             m.level >= 20 -> "potion_l"
@@ -693,7 +700,10 @@ defmodule HacLong.Game.Engine do
     {p, reward} = gear_drop(p, m, reward)
 
     {p, reward} =
-      case Bestiary.record(p, m) do
+      case !m[:pvp] && Bestiary.record(p, m) do
+        false ->
+          {p, reward}
+
         {p, nil} ->
           {p, reward}
 

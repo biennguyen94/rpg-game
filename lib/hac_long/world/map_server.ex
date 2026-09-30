@@ -62,6 +62,9 @@ defmodule HacLong.World.MapServer do
   @doc "Trận thắng: quái biến mất và hẹn giờ hồi lại."
   def defeat(map_id, uid, mid), do: GenServer.call(via(map_id), {:defeat, uid, mid})
 
+  @doc "Người giữ quái rời trận chung nhưng đồng đội vẫn đánh: chuyển quái cho `to`."
+  def reassign(map_id, from, mid, to), do: GenServer.call(via(map_id), {:reassign, from, mid, to})
+
   @doc "Trận thua hoặc bỏ chạy: nhả quái ra."
   def release(map_id, uid, mid), do: GenServer.call(via(map_id), {:release, uid, mid})
 
@@ -143,6 +146,13 @@ defmodule HacLong.World.MapServer do
     end
   end
 
+  def handle_call({:reassign, from, mid, to}, _from, s) do
+    case s.monsters[mid] do
+      %{busy: ^from} -> {:reply, :ok, changed(put_in(s.monsters[mid].busy, to))}
+      _ -> {:reply, :ok, s}
+    end
+  end
+
   def handle_call({:release, uid, mid}, _from, s) do
     case s.monsters[mid] do
       %{busy: ^uid} -> {:reply, :ok, changed(put_in(s.monsters[mid].busy, nil))}
@@ -219,7 +229,7 @@ defmodule HacLong.World.MapServer do
         {:reply, {:engage, public(m)}, s}
 
       %{} = m ->
-        {:reply, {:busy, public(m)}, s}
+        {:reply, {:busy, Map.put(public(m), :owner, m.busy)}, s}
 
       nil ->
         s = if s.players[uid], do: put_in(s.players[uid].pos, pos), else: s

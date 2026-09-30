@@ -110,7 +110,13 @@ defmodule HacLongWeb.GameChannelTest do
 
     r = cmd(socket, %{"act" => "move", "dir" => "up"})
     assert r.ok and r.player.battle.monster.id == "bat"
-    assert r.player.battle.encounter == %{map: "forest_1", mid: bat.id}
+
+    assert r.player.battle.encounter == %{
+             map: "forest_1",
+             mid: bat.id,
+             shared: "forest_1:#{bat.id}"
+           }
+
     # người đứng yên, quái bị khóa cho người này
     assert r.player.pos == %{map: "forest_1", x: 13, y: 16}
     assert [%{busy: true}] = MapServer.snapshot("forest_1").monsters
@@ -476,6 +482,158 @@ defmodule HacLongWeb.GameChannelTest do
       assert_reply ref, :ok
       assert_push "chat", %{uid: 0, text: "📢 Bảo trì lúc 22 giờ"}
       _ = ua
+    end
+  end
+
+  describe "tổ đội" do
+    setup do
+      HacLong.RateLimit.reset()
+      MapServer.clear_monsters("forest_1")
+      :ok
+    end
+
+    defp pop(socket, op, payload \\ %{}) do
+      ref = push(socket, "party", Map.put(payload, "op", op))
+      assert_reply ref, status, reply
+      {status, reply}
+    end
+
+    test "mời vào tổ đội, đánh chung một con quái, cùng thắng và chia thưởng" do
+      ua = create_user()
+      stats = %{str: 12, vit: 60, agi: 0, def: 30}
+      pa = player_at(ua, %{map: "forest_1", x: 12, y: 15}, %{level: 5, stats: stats})
+      {_, sa} = join_game(ua)
+      ub = create_user()
+      pb = player_at(ub, %{map: "forest_1", x: 14, y: 15}, %{level: 5, stats: stats})
+      {_, sb} = join_game(ub)
+
+      assert {:error, %{msg: "Người này không online."}} = pop(sa, "invite", %{"uid" => 999_999})
+      assert {:ok, %{party: %{members: [_]}}} = pop(sa, "invite", %{"uid" => ub.id})
+      assert_push "party_invite", %{from: from}
+      assert from == ua.id
+      assert {:ok, %{party: %{leader: leader, members: [_, _]}}} = pop(sb, "accept")
+      assert leader == ua.id
+
+      # chat tổ đội
+      ref = push(sb, "chat", %{"text" => "đánh con nhện nào", "to" => "party"})
+      assert_reply ref, :ok
+      assert_push "chat", %{text: "đánh con nhện nào", party: true}
+
+      # A chạm quái, B chạm vào cùng con quái thì vào đánh chung
+      spider = MapServer.put_monster("forest_1", "spider", {13, 15})
+      ra = cmd(sa, %{"act" => "move", "dir" => "right"})
+      key = "forest_1:#{spider.id}"
+      assert ra.player.battle.encounter.shared == key
+      full = ra.player.battle.monster.maxHp
+
+      # quái có thể né vài đòn: đánh tới khi trúng
+      ra =
+        Enum.reduce_while(1..20, nil, fn _, _ ->
+          r = cmd(sa, %{"act" => "attack"})
+          if r.player.battle.monster.hp < full, do: {:halt, r}, else: {:cont, r}
+        end)
+
+      left = ra.player.battle.monster.hp
+      assert left < full
+
+      rb = cmd(sb, %{"act" => "move", "dir" => "left"})
+      assert rb.ok and rb.msg =~ "Vào đánh cùng đồng đội (2 người)"
+      assert rb.player.battle.monster.hp == left
+      assert rb.player.battle.encounter.joined
+
+      # đánh luân phiên tới khi quái gục
+      Enum.reduce_while(1..200, nil, fn i, _ ->
+        s = if rem(i, 2) == 0, do: sa, else: sb
+        r = cmd(s, %{"act" => "attack"})
+        if r.player.battle && r.player.battle.over, do: {:halt, r}, else: {:cont, r}
+      end)
+
+      # cả hai cùng thắng (người không ra đòn cuối được báo qua Session)
+      a = wait_for(fn -> Session.get(ua.id) end, &(&1.battle && &1.battle.over))
+      b = wait_for(fn -> Session.get(ub.id) end, &(&1.battle && &1.battle.over))
+      assert a.battle.result == "win" and b.battle.result == "win"
+      # thưởng mỗi người = thưởng gốc × 1,2 / 2
+      base = HacLong.Game.Engine.make_monster(HacLong.Game.Data.monster("spider"), false).xp
+      assert a.battle.reward.xp == round(base * 0.6) and b.battle.reward.xp == round(base * 0.6)
+      assert a.kills == pa.kills + 1 and b.kills == pb.kills + 1
+      # con quái biến mất khỏi bản đồ sau khi cả hai rời trận
+      cmd(sa, %{"act" => "leave"})
+      cmd(sb, %{"act" => "leave"})
+      assert MapServer.snapshot("forest_1").monsters == []
+
+      assert {:ok, %{party: nil}} = pop(sb, "leave")
+      assert_push "party", %{party: nil}
+    end
+  end
+
+  describe "đấu trường" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    test "thách đấu bản sao người chơi khác: thắng thì lên điểm, thua không mất gì" do
+      strong = %{str: 200, vit: 150, agi: 0, def: 100}
+      weak = %{str: 5, vit: 30, agi: 0, def: 5}
+      ua = create_user()
+      pa = player_at(ua, %{map: "village", x: 12, y: 14}, %{level: 30, stats: strong, gold: 1000})
+      {_, sa} = join_game(ua)
+      # đối thủ không cần online
+      ub = create_user()
+      player_at(ub, %{map: "village", x: 13, y: 14}, %{level: 10, stats: weak})
+
+      ref = push(sa, "inspect", %{"uid" => ub.id})
+
+      assert_reply ref, :ok, %{
+        level: 10,
+        arena: %{rating: 1000},
+        look: %{weapon: "hand1/club_slant"}
+      }
+
+      assert %{ok: false, msg: "Không tự thách đấu mình được."} =
+               cmd(sa, %{"act" => "pvp_challenge", "uid" => ua.id})
+
+      r = cmd(sa, %{"act" => "pvp_challenge", "uid" => ub.id})
+      assert r.ok and r.player.battle.monster.pvp == ub.id
+
+      r =
+        Enum.reduce_while(1..50, r, fn _, _ ->
+          r = cmd(sa, %{"act" => "attack"})
+          if r.player.battle.over, do: {:halt, r}, else: {:cont, r}
+        end)
+
+      assert r.player.battle.result == "win"
+      assert r.player.battle.reward.gold > 0
+      assert r.player.gold == pa.gold + r.player.battle.reward.gold
+
+      assert HacLong.Arena.stats(ua.id).rating == 1016 and
+               HacLong.Arena.stats(ub.id).rating == 984
+
+      ref = push(sa, "arena", %{})
+      assert_reply ref, :ok, %{me: %{wins: 1, today: 1}, top: [_ | _]}
+
+      # thua: không mất vàng, không về Nhà, máu như trước trận
+      cmd(sa, %{"act" => "leave"})
+      uc = create_user()
+
+      player_at(uc, %{map: "village", x: 14, y: 14}, %{
+        level: 50,
+        stats: %{str: 900, vit: 900, agi: 0, def: 900}
+      })
+
+      before = Session.get(ua.id)
+      cmd(sa, %{"act" => "pvp_challenge", "uid" => uc.id})
+
+      r =
+        Enum.reduce_while(1..50, nil, fn _, _ ->
+          r = cmd(sa, %{"act" => "flee"})
+          if r.player.battle.over, do: {:halt, r}, else: {:cont, r}
+        end)
+
+      assert r.player.battle.result in ["lose", "fled"]
+      assert r.player.gold == before.gold and r.player.hp == before.hp
+      assert r.player.pos.map == "village"
+      assert HacLong.Arena.stats(ua.id).losses == 1
     end
   end
 

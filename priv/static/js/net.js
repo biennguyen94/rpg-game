@@ -6,7 +6,7 @@
  * (đăng xuất mọi thiết bị, đổi mật khẩu ở nơi khác) thì báo onExpired để về màn đăng nhập. */
 (function () {
   const TOKEN_KEY = 'hac-long-token';
-  const cb = { player: null, map: null, status: null, rejoin: null, expired: null, chat: null, history: null, boss: null, notice: null, mail: null, guild: null };
+  const cb = { player: null, map: null, status: null, rejoin: null, expired: null, chat: null, history: null, boss: null, notice: null, mail: null, guild: null, party: null, invite: null, shared: null };
   let socket = null, channel = null, checkTimer = null;
 
   const store = {
@@ -72,6 +72,9 @@
       channel.on('notice', (m) => cb.notice && cb.notice(m.msg));
       channel.on('mail', (m) => cb.mail && cb.mail(m.unread));
       channel.on('guild', (m) => cb.guild && cb.guild(m.guild));
+      channel.on('party', (m) => cb.party && cb.party(m.party));
+      channel.on('party_invite', (m) => cb.invite && cb.invite(m));
+      channel.on('shared', (m) => cb.shared && cb.shared(m));
       channel.join()
         .receive('ok', (r) => {
           if (!joined) { joined = true; resolve(r); } else if (cb.rejoin) cb.rejoin(r);
@@ -145,6 +148,12 @@
     // `to`: 'guild' để chat trong bang, bỏ trống là chat thế giới.
     chat(text, to) { return push('chat', to ? { text, to } : { text }); },
 
+    // Tổ đội: party('invite', { uid }), party('accept'), party('leave')...
+    party(op, payload) { return push('party', Object.assign({ op }, payload || {})); },
+    // Đấu trường: điểm của mình, đối thủ gợi ý, bảng xếp hạng. Xem thông tin người chơi khác.
+    arena() { return push('arena', {}); },
+    inspect(uid) { return push('inspect', { uid }); },
+
     // Bang hội: guild('list', { q }), guild('info'), guild('join', { id })... (xem GameChannel).
     guild(op, payload) { return push('guild', Object.assign({ op }, payload || {})); },
 
@@ -181,6 +190,10 @@
     onMail(f) { cb.mail = f; },
     // Bang của mình vừa đổi (vào, rời, bị đuổi, lên cấp): { id, name, tag, level, role } hoặc null.
     onGuild(f) { cb.guild = f; },
+    // Tổ đội đổi / có lời mời vào tổ đội / máu chung của trận đánh cùng đổi.
+    onParty(f) { cb.party = f; },
+    onPartyInvite(f) { cb.invite = f; },
+    onShared(f) { cb.shared = f; },
   };
 
   window.Net = Net;

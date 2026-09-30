@@ -169,7 +169,8 @@ defmodule HacLong.Game.Characters do
                  ~w(zone monster turn skillCd cds effects player turns power on_hit effect chance
                     log over result reward encounter map mid world world_boss tower elite
                     id name level boss final special maxHp atk def crit dodge xp gold hp
-                    every mult text kind items levels gear night)a,
+                    every mult text kind items levels gear night shared joined pvp look hair weapon armor
+                    shield pet deaths)a,
                  &{Atom.to_string(&1), &1}
                )
 

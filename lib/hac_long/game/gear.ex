@@ -87,7 +87,7 @@ defmodule HacLong.Game.Gear do
   @doc "Tỉ lệ rơi đồ ngẫu nhiên khi hạ quái `m`."
   def drop_chance(m) do
     cond do
-      m[:world] -> 0
+      m[:world] || m[:pvp] -> 0
       m[:elite] -> 0.5
       m[:night] -> 0.25
       m.boss -> 0.35

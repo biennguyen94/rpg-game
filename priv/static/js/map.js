@@ -429,6 +429,8 @@
 
   window.MapView = {
     html, top, mount, resize, draw, tileFromEvent, nextStep, monsterAt, monsterById,
+    // người chơi khác đứng ở ô (x, y) trên bản đồ đang đứng
+    playerAt: (x, y) => (world.map === (getPlayer() || {}).pos?.map ? world.players.find((o) => o.id !== userId && o.x === x && o.y === y) : null),
     mountedMap: () => mounted,
     setUser(id) { userId = id; },
     setBoss(st) { boss = st; draw(); },
