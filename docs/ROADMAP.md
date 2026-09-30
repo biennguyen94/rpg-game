@@ -1,188 +1,183 @@
 # Lộ trình phát triển
 
-Các tính năng dự định cho Hắc Long RPG, xếp theo thứ tự ưu tiên. Đánh dấu `[x]` khi làm xong.
+Các tính năng của Hắc Long RPG: đã làm gì, còn lại gì. Đánh dấu `[x]` khi làm xong.
+Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài liệu đầu mỗi module.
 
-## Thứ tự đề xuất
+## Còn lại (theo thứ tự đề xuất)
 
-1. Giới hạn tần suất và tự kết nối lại (mục A): bắt buộc, làm nhanh.
-2. Bảng xếp hạng và chat thế giới (mục B, D): rẻ, thấy ngay giá trị online.
-3. Bản đồ ô vuông, giai đoạn 1 (mục E).
-4. Nhiệm vụ hằng ngày và Tháp vô tận (mục B).
-5. Trùm thế giới (mục D).
+Ước lượng công sức: nhỏ (vài giờ), vừa (khoảng một ngày), lớn (nhiều ngày).
+
+1. **CI chạy `mix test` trên GitHub Actions** (nhỏ). Repo chưa có kiểm tra tự động nào.
+2. **Đọc `X-Forwarded-For` khi chạy sau proxy** (nhỏ). Không có thì giới hạn đăng nhập theo IP
+   tính chung mọi người thành IP của proxy.
+3. **Đồ có chỉ số ngẫu nhiên** (vừa) và **thêm kỹ năng theo cấp** (vừa): trận đánh hiện gần
+   như chỉ là bấm kỹ năng rồi tấn công, và đồ đạc chỉ là mua món tốt hơn.
+4. **Hiệu ứng trạng thái** (vừa), **chuyển sinh** (nhỏ–vừa).
+5. **Chặn/báo cáo người chat xấu** (nhỏ–vừa).
+6. **Rương** (nhỏ), **trang trí nhà** (vừa–lớn).
+7. **PvP bất đồng bộ** (vừa), **chợ giữa người chơi** (lớn).
+8. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
 
 ---
 
 ## A. Cần làm trước khi mở cho người khác chơi
 
-- [x] **Giới hạn tần suất (rate limit)**
-  - Đăng nhập: 10 lần/5 phút mỗi tên tài khoản, 30 lần/5 phút mỗi IP; đăng ký 5 tài
-    khoản/giờ mỗi IP; đổi mật khẩu 5 lần/5 phút (`HacLong.RateLimit`, bộ đếm trong ETS).
-  - Lệnh game: khoảng 12 lệnh/giây (bước đi khoảng 11 bước/giây) trong `Session`.
-- [x] **Đổi mật khẩu, đăng xuất khỏi mọi thiết bị.** Token lưu trong bảng `user_tokens`
-  (chỉ lưu mã băm), mỗi thiết bị một token; đăng xuất, đăng xuất mọi thiết bị, đổi mật
-  khẩu đều thu hồi token và ngắt kết nối game đang mở.
-- [x] **Tự kết nối lại khi mất mạng.** Thanh "Mất kết nối, đang kết nối lại…", tự vào lại
-  kênh và lấy trạng thái mới nhất; token bị thu hồi thì về màn đăng nhập.
-- [ ] Chạy sau proxy (nginx, load balancer): thêm plug đọc `X-Forwarded-For` để giới hạn
+- [x] **Giới hạn tần suất** (`HacLong.RateLimit`, bộ đếm trong ETS):
+  - đăng nhập 10 lần/5 phút mỗi tên tài khoản, 30 lần/5 phút mỗi IP;
+  - đăng ký 5 tài khoản/giờ mỗi IP; đổi mật khẩu 5 lần/5 phút; chat 5 tin/10 giây;
+  - trong game (`Session`): khoảng 12 lệnh/giây, bước đi khoảng 11 bước/giây.
+- [x] **Đăng xuất, đăng xuất mọi thiết bị, đổi mật khẩu**: token lưu trong bảng `user_tokens`
+  (chỉ lưu mã băm), mỗi thiết bị một token; thu hồi token thì ngắt luôn kết nối game đang mở.
+- [x] **Tự kết nối lại khi mất mạng**: thanh "Mất kết nối, đang kết nối lại…", vào lại kênh
+  thì lấy trạng thái mới nhất; token bị thu hồi thì về màn đăng nhập.
+- [x] **Tên nhân vật duy nhất** (không phân biệt hoa thường; 2–16 ký tự chữ có dấu, số,
+  khoảng trắng, `-`, `_`), để không mạo danh trong chat và bảng xếp hạng.
+- [ ] **Chạy sau proxy** (nginx, load balancer): thêm plug đọc `X-Forwarded-For` để giới hạn
   theo IP thật.
+- [ ] **CI**: chạy `mix test` trên GitHub Actions.
 
 ## B. Giữ người chơi quay lại
 
-- [x] **Bảng xếp hạng**: cấp cao nhất, săn nhiều quái nhất, và ai hạ Hắc Long trước (ghi
-  thời điểm `victory_at`); hiện hạng của mình. Ở tab Hành trình.
-- [x] **Nhiệm vụ hằng ngày** ở Bảng Tin trong Làng: mỗi ngày 3 việc riêng cho mỗi người (hạ
-  một loại quái, hạ quái ở một vùng, hái/đào nguyên liệu) ở hai vùng cao nhất đã mở, tự tính
-  tiến độ, làm mới lúc 0 giờ giờ Việt Nam.
-- [ ] **Nội dung sau khi phá đảo**
-  - [x] Tháp Vô Tận: gặp Người Gác Tháp ở Làng; mỗi tầng một bản đồ nhỏ sinh ngẫu nhiên riêng
-    cho mình, tầng N có quái cấp N (không có trần), hạ hết quái thì lên tầng và nhận thưởng,
-    5 tầng một trùm tầng, máu không tự hồi, gục ngã là hết lượt; vượt mỗi 10 tầng thì lần sau
-    vào thẳng được; bảng xếp hạng "Tháp".
-  - Chuyển sinh: về cấp 1, nhận chỉ số cộng thêm vĩnh viễn.
+- [x] **Bảng xếp hạng** (tab Hành trình): cấp cao nhất, săn nhiều quái nhất, Tháp Vô Tận,
+  ai hạ Hắc Long trước; hiện hạng của mình.
+- [x] **Nhiệm vụ** ở Trưởng Làng: 18 việc, mỗi vùng một việc diệt quái, một việc thu thập,
+  một việc hạ trùm; tab Nhiệm vụ theo dõi tiến độ.
+- [x] **Việc hằng ngày** ở Bảng Tin: mỗi ngày 3 việc riêng cho mỗi người (hạ một loại quái,
+  hạ quái ở một vùng, hái/đào nguyên liệu) ở hai vùng cao nhất đã mở; tự tính tiến độ; làm mới
+  lúc 0 giờ giờ Việt Nam.
+- [x] **Tháp Vô Tận** (gặp Người Gác Tháp ở Làng): mỗi tầng một bản đồ nhỏ sinh ngẫu nhiên riêng
+  cho mình; tầng N có quái cấp N, từ tầng 37 mạnh thêm 4% mỗi tầng (không có trần); 5 tầng một
+  trùm tầng; hạ hết quái thì lên tầng và nhận thưởng; máu không tự hồi, gục ngã là hết lượt;
+  vượt mỗi 10 tầng thì lần sau vào thẳng được.
+- [ ] **Chuyển sinh**: về cấp 1, nhận chỉ số cộng thêm vĩnh viễn.
 
 ## C. Làm game sâu hơn
 
-- [ ] **Đồ có chỉ số ngẫu nhiên** rơi từ quái (vd. "Kiếm Sắt +3, Chí mạng +2%"), cho người
-  chơi lý do đi săn thay vì chỉ mua món tốt hơn.
+- [x] **Thu thập và pha chế**: Thảo Dược, Linh Chi, Quặng Sắt, Quặng Mithril mọc trên bản đồ
+  vùng; Bà Lang pha bình máu từ thảo dược.
+- [ ] **Đồ có chỉ số ngẫu nhiên** rơi từ quái (vd. "Kiếm Sắt +3, Chí mạng +2%").
 - [ ] **Thêm kỹ năng theo cấp**: kỹ năng thứ 2 ở cấp 15, thứ 3 ở cấp 30 cho mỗi lớp.
 - [ ] **Hiệu ứng trạng thái**: độc, choáng, chảy máu (vd. quái Đầm Lầy gây độc). Mở rộng từ
   cơ chế `special` / `every` có sẵn trong engine.
+- [ ] **Công dụng cho quặng**: hiện quặng chỉ để bán và nộp nhiệm vụ; có thể cho Thợ Rèn
+  nâng cấp vũ khí/giáp bằng quặng.
 
-## D. Tính năng nhiều người chơi (Phoenix Channels / PubSub)
+## D. Nhiều người chơi (Phoenix Channels / PubSub)
 
-- [x] **Chat thế giới**: khung chat dưới bản đồ, bong bóng lời nói trên đầu người đang ở
-  cùng bản đồ, giữ 50 tin gần nhất trong bộ nhớ (không lưu database), 5 tin/10 giây mỗi người.
-- [x] Tên nhân vật duy nhất (không phân biệt hoa thường, 2–16 ký tự chữ/số/khoảng trắng/-/_),
-  để không mạo danh trong chat và bảng xếp hạng.
-- [ ] Chặn/báo cáo người chat xấu.
-- [x] **Trùm thế giới**: Cổ Long Ba Đầu xuất hiện định kỳ ở Tế Đàn (cổng mới trong Làng), cả
-  server đánh chung một thanh máu (`HacLong.WorldBoss`), chia thưởng theo phần sát thương,
-  top 3 được Vảy Cổ Long, người ra đòn cuối thêm vàng; hết giờ thì trùm bay đi. Thông báo
-  trong chat, băng báo và thanh máu trực tiếp trên màn hình.
-- [ ] **Chợ giữa người chơi**: rao bán đồ. Phải dùng transaction trong database để không
-  bị nhân đôi đồ.
+- [x] **Chat thế giới**: khung chat dưới bản đồ, bong bóng lời nói trên đầu người cùng bản đồ,
+  tin hệ thống màu riêng; giữ 50 tin gần nhất trong bộ nhớ (không lưu database).
+- [x] **Trùm thế giới** (`HacLong.WorldBoss`): Cổ Long Ba Đầu xuất hiện định kỳ ở Tế Đàn, cả
+  server đánh chung một thanh máu, chia thưởng theo phần sát thương, top 3 được Vảy Cổ Long,
+  người ra đòn cuối thêm vàng; hết giờ thì bay đi.
+- [ ] **Chặn/báo cáo người chat xấu.**
 - [ ] **PvP bất đồng bộ**: đánh với bản sao chỉ số của người chơi khác (đấu trường).
+- [ ] **Chợ giữa người chơi**: rao bán đồ; phải dùng transaction trong database để không bị
+  nhân đôi đồ.
+- [ ] **Chạm vào người chơi khác** để xem thông tin, mời PvP hoặc giao dịch (hiện người chơi
+  đi xuyên qua nhau, chạm vào không có gì).
 
-## E. Bản đồ ô vuông và di chuyển
+## E. Bản đồ ô vuông
 
-Thay tab "Săn quái" bằng thế giới gồm nhiều bản đồ ô vuông (kiểu Pokémon đời đầu).
-Nhân vật là 1 ô, đi từng bước. Quái là 1 ô trên bản đồ. Chạm vào quái thì vào màn đánh
-nhau hiện tại. Engine chiến đấu giữ nguyên, chỉ đổi cách bắt đầu trận.
+- [x] **Giai đoạn 1**: định dạng bản đồ; Nhà, Làng và 6 vùng; đi lại, qua cổng, chạm quái vào
+  trận; quái dùng chung, đi lang thang, hồi theo thời gian; thấy người chơi khác; bỏ tab
+  "Săn quái".
+- [x] **Giai đoạn 2**: mỗi vùng gồm 2 bản đồ quái (bản đồ 2 mạnh hơn) và một phòng trùm; di
+  chuyển mượt; đá dịch chuyển; hỏi xác nhận trước khi đấu trùm.
+- [x] **Giai đoạn 3**: NPC ở Làng thay tab Cửa hàng; điểm thu thập; nhiệm vụ.
+- [ ] **Giai đoạn 4**: trang trí nhà, rương mở mỗi ngày một lần. (Trùm thế giới trên bản đồ,
+  dự tính cho giai đoạn này, đã làm ở mục D.)
 
-### Hệ thống bản đồ
+## F. Khác
+
+- [ ] **Đóng gói app Android** (PWA hoặc Capacitor).
+- [ ] **Mô phỏng cân bằng có nhiệm vụ**: bot `mix hac_long.simulate` chưa làm nhiệm vụ, việc
+  hằng ngày, tháp hay trùm thế giới, nên chưa đo được các nguồn thưởng này ảnh hưởng thế nào.
+
+---
+
+## Thiết kế bản đồ (đã làm)
+
+### Các bản đồ
 
 ```
-[Nhà riêng] ──cửa──> [Làng] ──cổng Bắc──> [Rừng Mê 1] ──> [Rừng Mê 2] ──> [Hang Sói (trùm)]
-                        │
-                        └──cổng Đông──> [Trại Goblin 1] ──> ...
+                 [Rừng Mê 1] → [Rừng Mê 2] → [Hang Sói (trùm)]
+                 [Trại Goblin 1] → [Trại Goblin 2] → [Lều Tướng Orc]
+[Nhà riêng] ─── [Làng] ─ 6 cổng ─ ... (mỗi vùng: bản đồ 1 → bản đồ 2 → phòng trùm)
+                   │
+                   ├── cổng dưới trái → [Tế Đàn] (trùm thế giới)
+                   └── Người Gác Tháp → [Tháp Vô Tận] (tầng sinh ngẫu nhiên, riêng từng người)
 ```
 
-- **Nhà riêng**: mỗi người chơi một bản đồ riêng. Giường để nghỉ miễn phí, rương cất đồ,
-  sau này cho trang trí nhà.
-- **Làng**: bản đồ chung. NPC bán đồ (thay tab Cửa hàng), nhà trọ, bảng nhiệm vụ.
-- **Bản đồ quái**: mỗi vùng hiện tại (6 vùng) tách thành 2–3 bản đồ, bản đồ cuối là phòng trùm.
-- **Phòng trùm**: khóa bằng điều kiện có sẵn `zone_unlocked?`.
+- **Nhà riêng**: mỗi người một bản đồ riêng, có giếng nước hồi đầy máu miễn phí (bộ hình không
+  có giường). Gục ngã thì tỉnh dậy ở đây.
+- **Làng**: bản đồ chung; 6 cổng sang 6 vùng (cổng vào vùng chưa mở bị khóa), NPC, đá dịch
+  chuyển, cổng Tế Đàn.
+- **Mỗi vùng**: `<vùng>_1` (quái yếu hơn) → `<vùng>_2` (quái mạnh hơn, có đá dịch chuyển) →
+  `<vùng>_boss` (phòng trùm).
+- **Tháp Vô Tận**: không có file bản đồ; tầng được sinh từ `HacLong.Game.Tower` và nằm trong
+  trạng thái nhân vật.
 
-### Định dạng bản đồ
+### Định dạng file
 
-Mỗi bản đồ một file `priv/maps/<id>.json`, vẽ bằng ký tự để dễ sửa tay:
+Mỗi bản đồ một file `priv/maps/<id>.json`. Ý nghĩa các ký tự (dùng chung cho mọi bản đồ) và
+các trường nằm ở `lib/hac_long/world/maps.ex`. Ví dụ rút gọn:
 
 ```json
 {
-  "id": "forest_1", "name": "Rừng Mê", "zone": 0, "floor": "forest",
-  "tiles": [
-    "TTTTTTTTTTTTTTTT",
-    "T......TT.....>T",
-    "T..~~..T..R....T",
-    "T..~~.....R..h.T",
-    "T<.............T",
-    "TTTTTTTTTTTTTTTT"
-  ],
-  "legend": { "T": "tree", "R": "rock", "~": "water", ".": "grass", "h": "herb" },
+  "id": "forest_2", "name": "Rừng Mê 2", "zone": 0, "floor": "floors/forest",
+  "tiles": ["TTTTTTTTTTTTTATTTTTTTTTTTT", "T......*.....::*.....*T..T", "..."],
   "portals": [
-    { "at": [1, 4],  "to": "village",  "spawn": [14, 2] },
-    { "at": [14, 1], "to": "forest_2", "spawn": [1, 5] }
+    { "at": [13, 17], "to": "forest_1", "spawn": [13, 1] },
+    { "at": [13, 0], "to": "forest_boss", "spawn": [7, 9] }
   ],
-  "spawns": [
-    { "monster": "bat",    "max": 3, "respawn": 30 },
-    { "monster": "jackal", "max": 2, "respawn": 45 }
-  ]
+  "spawns": [{ "monster": "spider", "max": 3, "respawn": 25 }],
+  "gather": [{ "item": "herb", "max": 2, "respawn": 60 }],
+  "waystone": { "at": [16, 15], "spawn": [16, 16] }
 }
 ```
 
-- Ô không đi qua được: cây, đá, nước, tường.
-- Ô tương tác: cổng, cây thuốc, quặng, rương, NPC, bảng tin. (Đã có: cổng, NPC, cây thuốc,
-  quặng, giếng, đá dịch chuyển, bảng tin. Chưa có: rương.)
-- Hình ảnh: bộ tile Dungeon Crawl Stone Soup (CC0, 32×32) có sẵn cây, đá, nước, cửa, tường,
-  cùng phong cách với hình quái đang dùng.
-- Sau này có thể đọc file của Tiled Map Editor để vẽ bản đồ trực quan.
+Các trường khác: `boss` (chỗ trùm vùng đứng), `npcs` (NPC và vai trò), `world_boss` (chỗ trùm
+thế giới), `private` (bản đồ riêng từng người). Hình ô lấy từ Dungeon Crawl Stone Soup (CC0);
+hình bảng tin và cầu thang tự vẽ.
 
 ### Chạm vào ô
 
 | Chạm vào | Kết quả |
 | --- | --- |
-| Quái | Vào trận. Thắng: quái biến mất, hồi lại sau N giây. Chạy thoát: đứng yên tại chỗ, quái được nhả ra. Thua: tỉnh dậy ở nhà |
-| Trùm | Hỏi xác nhận trước khi đấu (có cảnh báo nếu cấp còn thấp) |
-| Đá dịch chuyển | Lần đầu chạm thì ghi nhớ; mở bảng chọn nơi đến (Làng và các đá đã ghi nhớ) |
-| Cổng | Chuyển bản đồ |
-| NPC | Cửa hàng, hội thoại, nhận nhiệm vụ |
-| Cây thuốc, quặng | Thu thập nguyên liệu (cho chế tạo sau này) |
-| Rương | Mở mỗi ngày một lần |
-| Giếng nước ở nhà | Hồi đầy máu (thay cho giường vì bộ tile không có giường) |
-| Người chơi khác | Xem thông tin; sau này mời PvP hoặc giao dịch |
+| Quái | Vào trận. Thắng: quái biến mất, hồi lại sau vài chục giây. Chạy thoát: đứng yên, quái được nhả ra. Thua: tỉnh dậy ở Nhà |
+| Trùm vùng, trùm thế giới | Hỏi xác nhận trước khi đấu (cảnh báo nếu cấp còn thấp) |
+| Cổng | Sang bản đồ khác (cổng vào vùng chưa mở bị khóa) |
+| Đá dịch chuyển | Lần đầu thì ghi nhớ; mở bảng chọn nơi đến (Làng và các đá đã ghi nhớ) |
+| NPC | Mở màn hình nói chuyện: nhiệm vụ, mua bán, pha thuốc, nghỉ trọ, việc hằng ngày, vào tháp |
+| Bụi thảo dược, mỏ quặng | Nhận nguyên liệu; điểm đó biến mất và mọc lại chỗ khác |
+| Giếng nước ở Nhà | Hồi đầy máu |
+| Cầu thang trong tháp | Lên tầng (khi đã hạ hết quái) hoặc về Làng |
+| Người chơi khác | Đi xuyên qua, chưa có tương tác |
 
 ### Kiến trúc server
 
-- **Mỗi bản đồ một tiến trình `MapServer`**: giữ vị trí quái, người chơi đang có mặt, thời gian
-  hồi quái. Nhà riêng tạo tiến trình theo người chơi khi cần.
-- **Server kiểm tra từng bước đi**: chỉ sang ô kề bên, không xuyên vật cản, tối đa khoảng 6–8
-  bước/giây. Chống dịch chuyển tức thời và đi xuyên tường.
-- **Client đi trước cho mượt**: di chuyển ngay trên màn hình, server sai thì kéo về đúng chỗ.
-- **Thấy người chơi khác**: Phoenix Presence và kênh `map:<id>`.
-- **Tranh quái**: người chạm trước khóa con quái; người khác thấy nó đang trong trận.
-- **Database**: bảng `characters` thêm `map_id`, `x`, `y`.
+- **Mỗi bản đồ dùng chung một tiến trình `MapServer`**: giữ quái, điểm thu thập, người chơi
+  đang có mặt; xử lý lần lượt nên người chạm quái trước được đánh, người sau thấy quái đang
+  giao chiến; phát trạng thái qua PubSub `map:<id>`. Nhà và tháp không có tiến trình riêng
+  (chỉ một người nên chỉ cần kiểm tra địa hình).
+- **Server kiểm tra từng bước đi**: chỉ sang ô kề bên, không xuyên vật cản, giới hạn tốc độ.
+  Client gửi từng bước, nhận vị trí mới rồi mới đi tiếp (khoảng 7–8 bước/giây), và trượt hình
+  giữa hai ô cho mượt.
+- **Thấy người chơi khác**: `MapServer` ghi ai đang ở bản đồ (theo tab đang mở của người đó)
+  và gửi kèm trong trạng thái bản đồ.
+- **Database**: bảng `characters` có `map_id`, `x`, `y`; vị trí được ghi theo lô, và ghi ngay
+  khi đổi bản đồ, vào trận hoặc đóng game.
 
 ### Giao diện điện thoại
 
-- Canvas 2D, ảnh giữ nét pixel (`image-rendering: pixelated`). Camera đi theo nhân vật,
-  màn hình điện thoại thấy khoảng 11×15 ô.
-- Điều khiển: chạm vào ô muốn đến (tự tìm đường A*), hoặc nút 4 hướng trên màn hình;
-  máy tính dùng phím mũi tên hoặc WASD.
-- Tab Nhân vật, Túi đồ giữ dạng menu. Màn đánh nhau giữ nguyên, hiện đè lên bản đồ.
-
-### Nối với các tính năng khác
-
-- Nhiệm vụ hằng ngày: "Hạ 10 Chó Rừng ở Rừng Mê 2", "Hái 5 cây thuốc".
-- Trùm thế giới xuất hiện ở một ô trên bản đồ.
-- Chat hiện bong bóng chữ trên đầu nhân vật.
-- PvP ở bản đồ đấu trường. Tháp vô tận: mỗi tầng là một bản đồ sinh ngẫu nhiên.
-
-### Giai đoạn
-
-- [x] **Giai đoạn 1**: định dạng bản đồ; Nhà, Làng và 6 vùng (mỗi vùng 1 bản đồ, trùm đứng trong
-  bản đồ); đi lại, qua cổng, chạm quái vào trận. Quái dùng chung, đi lang thang, hồi theo thời
-  gian; thấy người chơi khác. Bỏ tab "Săn quái". (Vì bỏ nút săn nhanh nên phải có đủ 6 vùng
-  ngay từ đầu; bản đồ chung và thấy người chơi khác gộp luôn vào đây.)
-- [x] **Giai đoạn 2**: mỗi vùng tách thành 2 bản đồ quái (bản đồ 2 có quái mạnh hơn) và một
-  phòng trùm riêng; di chuyển mượt (nội suy vị trí cho mình, người khác và quái); đá dịch
-  chuyển ở Làng và ở bản đồ 2 mỗi vùng (chạm lần đầu để ghi nhớ, đứng cạnh đá nào cũng
-  dịch chuyển được tới các đá đã ghi nhớ); hỏi xác nhận trước khi đấu trùm.
-- [x] **Giai đoạn 3**: NPC ở Làng (Trưởng Làng giao nhiệm vụ, Thợ Rèn bán vũ khí/giáp/khiên,
-  Bà Lang bán thuốc và pha thuốc từ thảo dược, Chủ Quán Trọ cho nghỉ, người dân chỉ đường) thay
-  cho tab Cửa hàng; mua/bán/nghỉ phải đứng cạnh NPC. Điểm thu thập dùng chung (Thảo Dược, Linh
-  Chi, Quặng Sắt, Quặng Mithril) mọc ngẫu nhiên và mọc lại. 18 nhiệm vụ (mỗi vùng: diệt quái,
-  thu thập, hạ trùm), tab Nhiệm vụ theo dõi tiến độ.
-- [ ] **Giai đoạn 4**: trang trí nhà, trùm thế giới trên bản đồ.
+- Canvas 2D, ảnh giữ nét pixel; camera đi theo nhân vật.
+- Điều khiển: chạm vào ô để tự tìm đường (tìm theo chiều rộng), nút 4 hướng, phím mũi tên
+  hoặc WASD. Đường đi tự động không đi ngang qua cổng và cầu thang.
+- Tab Nhân vật, Túi đồ, Nhiệm vụ, Hành trình giữ dạng menu; màn đánh nhau như cũ.
 
 ### Đã quyết định
 
-- **Quái dùng chung**: mọi người trong cùng bản đồ thấy cùng một bầy quái. Người chạm trước
-  khóa con quái, người khác thấy nó đang giao chiến. Trùm cũng dùng chung.
-- **Bỏ nút "Săn quái nhanh"**: chỉ gặp quái bằng cách đi trên bản đồ; tab "Săn quái" thay bằng "Bản đồ".
-- **Quái đi lang thang** chậm, chưa đuổi theo người chơi. Quái không tự bước vào người chơi;
-  trận chỉ bắt đầu khi người chơi bước vào ô có quái.
-
-## F. Khác
-
-- [ ] Đóng gói app Android (PWA hoặc Capacitor).
-- [ ] CI chạy `mix test` trên GitHub Actions (hiện repo chưa có CI).
+- **Quái dùng chung**: mọi người trong cùng bản đồ thấy cùng một bầy quái; trùm cũng dùng chung.
+- **Bỏ nút "Săn quái nhanh"**: chỉ gặp quái bằng cách đi trên bản đồ.
+- **Quái đi lang thang** chậm, không đuổi theo người chơi; trận chỉ bắt đầu khi người chơi
+  bước vào ô có quái.
