@@ -2,7 +2,7 @@
  * kênh "game". Mọi thao tác gửi qua kênh này và server trả về trạng thái mới. */
 (function () {
   const TOKEN_KEY = 'hac-long-token';
-  let socket = null, channel = null, onPlayer = null;
+  let socket = null, channel = null, onPlayer = null, onMap = null;
 
   const store = {
     get() { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } },
@@ -30,6 +30,7 @@
       socket.connect();
       channel = socket.channel('game', {});
       channel.on('player', (m) => onPlayer && onPlayer(m.player));
+      channel.on('map', (m) => onMap && onMap(m));
       channel.join()
         .receive('ok', resolve)
         .receive('error', () => reject({ msg: 'Không vào được game.' }))
@@ -83,6 +84,9 @@
 
     // Nhân vật thay đổi từ tab/thiết bị khác.
     onPlayer(cb) { onPlayer = cb; },
+
+    // Quái và người chơi trên bản đồ đang đứng thay đổi.
+    onMap(cb) { onMap = cb; },
   };
 
   window.Net = Net;

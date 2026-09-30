@@ -1,0 +1,63 @@
+{
+  "id": "lair",
+  "name": "Hang Hắc Long",
+  "zone": 5,
+  "floor": "floors/lair",
+  "tiles": [
+    "SSSSSSSSSSSSSSSSSSSSSSSSSS",
+    "S.......SS.......R...~~RSS",
+    "SS.....S~........RR..~~RRS",
+    "S.~......~........R....SSS",
+    "S.~~.....~..............SS",
+    "S..................RR....S",
+    "S................~.RR...RS",
+    "S...............SR~S...R.S",
+    "S.....~.........SSS.S....S",
+    "S.....~.........SS.......S",
+    "S.R~~.~................S.S",
+    "S..R..........RR........SS",
+    "S.........RS..RR.........S",
+    "S.....RRRRS....RR........S",
+    "S....RR..SR..............S",
+    "S...RR...RR..............S",
+    "S......R.........~~.....~S",
+    "SSSSSSSSSSSSSASSSSSSSSSSSS"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "village",
+      "spawn": [
+        23,
+        11
+      ]
+    }
+  ],
+  "boss": {
+    "at": [
+      13,
+      3
+    ],
+    "respawn": 30
+  },
+  "spawns": [
+    {
+      "monster": "ice_dragon",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "storm_dragon",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "bone_dragon",
+      "max": 3,
+      "respawn": 25
+    }
+  ]
+}

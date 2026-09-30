@@ -37,16 +37,10 @@ defmodule HacLong.Game.CommandsTest do
           %{"act" => "buy", "id" => %{"x" => 1}},
           %{"act" => "alloc", "stat" => "str", "n" => -5},
           %{"act" => "alloc", "stat" => "hp", "n" => 1},
-          %{"act" => "hunt", "zone" => 3},
-          %{"act" => "hunt", "zone" => 99},
-          %{"act" => "hunt", "zone" => -1},
-          %{"act" => "hunt", "zone" => "0; drop"},
-          %{"act" => "boss", "zone" => nil},
           %{"act" => "equip", "id" => "relic"},
           %{"act" => "sell", "id" => "relic"},
           %{"act" => "use", "id" => "club"},
           %{"act" => "attack"},
-          %{"act" => "again"},
           %{"act" => "hack"},
           %{"nothing" => true}
         ] do
@@ -72,8 +66,7 @@ defmodule HacLong.Game.CommandsTest do
 
   test "một trận đấu đầy đủ trên server" do
     Rng.put_sequence([0.5, 0.01, 0.99, 0.3])
-    p = player()
-    {%{ok: true}, p} = Commands.run(p, %{"act" => "hunt", "zone" => "0"})
+    {%{ok: true}, p} = Engine.start_battle(player(), 0, false)
     assert p.battle.monster.level <= 2
 
     p =
@@ -83,10 +76,25 @@ defmodule HacLong.Game.CommandsTest do
       end)
 
     assert p.battle.over
-    assert {%{ok: false}, _} = Commands.run(p, %{"act" => "hunt", "zone" => 0})
     {%{ok: true}, p2} = Commands.run(p, %{"act" => "leave"})
     assert p2.battle == nil
   after
     Rng.clear()
+  end
+
+  test "không còn săn quái bằng nút; chỉ nghỉ trọ ở Làng hoặc Nhà" do
+    p = %{player() | hp: 10}
+
+    for act <- ~w(hunt boss again),
+        do: assert({%{ok: false}, ^p} = Commands.run(p, %{"act" => act, "zone" => 0}))
+
+    assert p.pos.map == "home"
+    assert {%{ok: true}, _} = Commands.run(p, %{"act" => "rest"})
+
+    assert {%{ok: true}, _} =
+             Commands.run(%{p | pos: %{map: "village", x: 12, y: 15}}, %{"act" => "rest"})
+
+    assert {%{ok: false, msg: "Chỉ nghỉ được ở Làng hoặc ở Nhà."}, _} =
+             Commands.run(%{p | pos: %{map: "forest", x: 13, y: 16}}, %{"act" => "rest"})
   end
 end

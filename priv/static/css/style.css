@@ -236,3 +236,20 @@ input[type="text"], input[type="password"] {
 .btn.primary .ic { filter: brightness(0.3); }
 #tabs button { position: relative; }
 #tabs .points-dot { position: absolute; top: 4px; left: calc(50% + 6px); margin: 0; }
+
+/* Bản đồ */
+.map-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.map-top b { font-family: var(--display); font-size: 1.4rem; color: var(--gold); font-weight: 800; }
+.map-wrap { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: #0c0910; }
+#map-canvas { display: block; width: 100%; image-rendering: pixelated; touch-action: none; cursor: pointer; }
+.dpad {
+  display: grid; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(2, 48px);
+  gap: 6px; justify-content: center; margin: 10px 0 4px;
+  grid-template-areas: ". up ." "left down right";
+}
+.dpad .btn { padding: 0; font-size: 1.1rem; }
+.dpad [data-move="up"] { grid-area: up; }
+.dpad [data-move="left"] { grid-area: left; }
+.dpad [data-move="down"] { grid-area: down; }
+.dpad [data-move="right"] { grid-area: right; }
+.map-hint { text-align: center; }

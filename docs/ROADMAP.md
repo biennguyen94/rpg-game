@@ -106,13 +106,13 @@ Mỗi bản đồ một file `priv/maps/<id>.json`, vẽ bằng ký tự để d
 
 | Chạm vào | Kết quả |
 | --- | --- |
-| Quái | Vào trận. Thắng: quái biến mất, hồi lại sau N giây. Chạy thoát: bị đẩy lùi 1 ô. Thua: tỉnh dậy ở nhà |
-| Trùm | Hỏi xác nhận trước khi đấu |
+| Quái | Vào trận. Thắng: quái biến mất, hồi lại sau N giây. Chạy thoát: đứng yên tại chỗ, quái được nhả ra. Thua: tỉnh dậy ở nhà |
+| Trùm | Hỏi xác nhận trước khi đấu (chưa làm: hiện bước vào là đánh luôn) |
 | Cổng | Chuyển bản đồ |
 | NPC | Cửa hàng, hội thoại, nhận nhiệm vụ |
 | Cây thuốc, quặng | Thu thập nguyên liệu (cho chế tạo sau này) |
 | Rương | Mở mỗi ngày một lần |
-| Giường ở nhà | Hồi đầy máu |
+| Giếng nước ở nhà | Hồi đầy máu (thay cho giường vì bộ tile không có giường) |
 | Người chơi khác | Xem thông tin; sau này mời PvP hoặc giao dịch |
 
 ### Kiến trúc server
@@ -143,18 +143,22 @@ Mỗi bản đồ một file `priv/maps/<id>.json`, vẽ bằng ký tự để d
 
 ### Giai đoạn
 
-- [ ] **Giai đoạn 1**: định dạng bản đồ; Nhà, Làng, Rừng Mê 1–2; đi lại, qua cổng, chạm quái
-  vào trận. Chỉ mình mình trên bản đồ.
-- [ ] **Giai đoạn 2**: bản đồ chung, thấy người chơi khác, quái hồi theo thời gian; chuyển cả
-  6 vùng sang dạng bản đồ.
+- [x] **Giai đoạn 1**: định dạng bản đồ; Nhà, Làng và 6 vùng (mỗi vùng 1 bản đồ, trùm đứng trong
+  bản đồ); đi lại, qua cổng, chạm quái vào trận. Quái dùng chung, đi lang thang, hồi theo thời
+  gian; thấy người chơi khác. Bỏ tab "Săn quái". (Vì bỏ nút săn nhanh nên phải có đủ 6 vùng
+  ngay từ đầu; bản đồ chung và thấy người chơi khác gộp luôn vào đây.)
+- [ ] **Giai đoạn 2**: tách mỗi vùng thành 2–3 bản đồ, phòng trùm riêng; di chuyển mượt (nội suy
+  vị trí), đá dịch chuyển giữa các vùng đã mở.
 - [ ] **Giai đoạn 3**: NPC, cây thuốc và quặng, nhiệm vụ.
 - [ ] **Giai đoạn 4**: trang trí nhà, trùm thế giới trên bản đồ.
 
-### Chưa quyết định
+### Đã quyết định
 
-- **Quái dùng chung hay mỗi người một bộ?** Đề xuất: dùng chung (vui và "online" hơn, cần xử lý tranh quái).
-- **Giữ nút "Săn quái nhanh" bằng menu không?** Tiện cày nhanh, nhưng người chơi sẽ ít đi bộ.
-- **Quái đứng yên hay đi lang thang?** Đề xuất: đi lang thang chậm, chưa đuổi theo người chơi.
+- **Quái dùng chung**: mọi người trong cùng bản đồ thấy cùng một bầy quái. Người chạm trước
+  khóa con quái, người khác thấy nó đang giao chiến. Trùm cũng dùng chung.
+- **Bỏ nút "Săn quái nhanh"**: chỉ gặp quái bằng cách đi trên bản đồ; tab "Săn quái" thay bằng "Bản đồ".
+- **Quái đi lang thang** chậm, chưa đuổi theo người chơi. Quái không tự bước vào người chơi;
+  trận chỉ bắt đầu khi người chơi bước vào ô có quái.
 
 ## F. Khác
 

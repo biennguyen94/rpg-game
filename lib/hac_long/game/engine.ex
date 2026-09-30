@@ -135,27 +135,39 @@ defmodule HacLong.Game.Engine do
   def damage(atk, dfn), do: max(1, round(atk * atk / (atk + dfn) * rand(0.9, 1.1)))
 
   # ---------- Chiến đấu ----------
+  @doc "Trận với một con quái ngẫu nhiên của vùng (dùng cho bot mô phỏng)."
   def start_battle(p, zi, boss?) do
     z = if is_integer(zi), do: Data.zone(zi)
 
+    with :ok <- can_fight(p, zi, z) do
+      # Quái thường: ưu tiên con không quá cấp người chơi + 1 để người mới không bị đánh úp.
+      spec =
+        if boss? do
+          z.boss
+        else
+          fair = Enum.filter(z.monsters, &(&1.level <= p.level + 1))
+          pick(if fair == [], do: [hd(z.monsters)], else: fair)
+        end
+
+      do_start_battle(p, zi, spec, boss?)
+    end
+  end
+
+  @doc "Trận với đúng con quái `spec` (người chơi vừa chạm vào nó trên bản đồ)."
+  def start_encounter(p, zi, spec, boss?) do
+    with :ok <- can_fight(p, zi, Data.zone(zi)), do: do_start_battle(p, zi, spec, boss?)
+  end
+
+  defp can_fight(p, zi, z) do
     cond do
       p.battle -> {err("Đang trong trận đấu."), p}
       z == nil or not zone_unlocked?(p, zi) -> {err("Khu vực chưa mở."), p}
       p.hp <= 0 -> {err("Bạn cần hồi máu trước."), p}
-      true -> do_start_battle(p, zi, z, boss?)
+      true -> :ok
     end
   end
 
-  defp do_start_battle(p, zi, z, boss?) do
-    # Quái thường: ưu tiên con không quá cấp người chơi + 1 để người mới không bị đánh úp.
-    spec =
-      if boss? do
-        z.boss
-      else
-        fair = Enum.filter(z.monsters, &(&1.level <= p.level + 1))
-        pick(if fair == [], do: [hd(z.monsters)], else: fair)
-      end
-
+  defp do_start_battle(p, zi, spec, boss?) do
     m = make_monster(spec, boss?)
     m = Map.put(m, :hp, m.maxHp)
 

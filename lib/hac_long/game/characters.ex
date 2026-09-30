@@ -7,6 +7,7 @@ defmodule HacLong.Game.Characters do
   import Ecto.Query
   alias HacLong.Repo
   alias HacLong.Game.Character
+  alias HacLong.World
 
   @save_version 1
 
@@ -19,7 +20,11 @@ defmodule HacLong.Game.Characters do
 
   @doc "Ghi đè toàn bộ trạng thái nhân vật (tạo mới nếu chưa có)."
   def save!(user_id, player) do
-    attrs = Map.take(player, Character.fields())
+    attrs =
+      player
+      |> Map.merge(%{map_id: player.pos.map, x: player.pos.x, y: player.pos.y})
+      |> Map.take(Character.fields())
+
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     Repo.insert!(
@@ -54,13 +59,14 @@ defmodule HacLong.Game.Characters do
       kills: c.kills,
       deaths: c.deaths,
       victory: c.victory,
-      battle: c.battle && atomize(c.battle)
+      battle: c.battle && atomize(c.battle),
+      pos: World.valid_pos(%{map: c.map_id, x: c.x, y: c.y})
     }
   end
 
   # Tên các trường có trong trận đấu (trận, quái, nhật ký, phần thưởng).
   @battle_keys Map.new(
-                 ~w(zone monster turn skillCd log over result reward
+                 ~w(zone monster turn skillCd log over result reward encounter map mid
                     id name level boss final special maxHp atk def crit dodge xp gold hp
                     every mult text kind items levels)a,
                  &{Atom.to_string(&1), &1}

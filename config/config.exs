@@ -22,6 +22,9 @@ config :hac_long, HacLongWeb.Endpoint,
   pubsub_server: HacLong.PubSub,
   live_view: [signing_salt: "KdkHwWg+"]
 
+# Quái trên bản đồ thử bước một ô sau mỗi khoảng này (ms). nil: đứng yên.
+config :hac_long, :wander_ms, 1200
+
 # Configures Elixir's Logger
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",

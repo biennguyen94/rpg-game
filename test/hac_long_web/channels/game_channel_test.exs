@@ -2,7 +2,8 @@ defmodule HacLongWeb.GameChannelTest do
   use HacLongWeb.ChannelCase
 
   alias HacLong.Accounts
-  alias HacLong.Game.{Characters, Session}
+  alias HacLong.Game.{Characters, Commands, Session}
+  alias HacLong.World.MapServer
   alias HacLongWeb.UserSocket
 
   defp join_game(user) do
@@ -22,20 +23,49 @@ defmodule HacLongWeb.GameChannelTest do
     assert :error = connect(UserSocket, %{})
   end
 
-  test "tạo nhân vật, chiến đấu và lưu vào database" do
+  # Tạo nhân vật rồi đặt sẵn ở vị trí `pos` trong database, trước khi vào game.
+  defp player_at(user, pos, attrs \\ %{}) do
+    {_, p} = Commands.run(nil, %{"act" => "create", "name" => "Hiệp", "cls" => "knight"})
+    p = p |> Map.merge(attrs) |> Map.put(:pos, pos)
+    Characters.save!(user.id, p)
+    p
+  end
+
+  test "tạo nhân vật rồi ra khỏi nhà" do
     user = create_user()
     {reply, socket} = join_game(user)
     assert reply.player == nil
-    assert reply.username == user.username
+    assert reply.username == user.username and reply.user_id == user.id
 
     r = cmd(socket, %{"act" => "create", "name" => "Hiệp", "cls" => "knight"})
     assert r.ok and r.player.cls == "knight"
+    assert r.player.pos == %{map: "home", x: 5, y: 6}
+    assert_push "map", %{map: "home", monsters: []}
     assert Characters.load(user.id).name == "Hiệp"
 
-    r = cmd(socket, %{"act" => "hunt", "zone" => 0})
-    assert r.ok and r.player.battle.monster
+    # bước xuống cửa nhà thì ra Làng
+    r = cmd(socket, %{"act" => "move", "dir" => "down"})
+    assert r.ok and r.player.pos == %{map: "village", x: 12, y: 15}
+    assert_push "map", %{map: "village", players: players}
+    assert Enum.any?(players, &(&1.id == user.id))
+    assert Characters.load(user.id).pos.map == "village"
+  end
 
-    # đánh tới khi xong trận
+  test "chạm quái trên bản đồ, chiến đấu và lưu vào database" do
+    MapServer.clear_monsters("forest")
+    user = create_user()
+    player_at(user, %{map: "forest", x: 13, y: 16})
+    {_, socket} = join_game(user)
+    assert_push "map", %{map: "forest"}
+    bat = MapServer.put_monster("forest", "bat", {13, 15})
+
+    r = cmd(socket, %{"act" => "move", "dir" => "up"})
+    assert r.ok and r.player.battle.monster.id == "bat"
+    assert r.player.battle.encounter == %{map: "forest", mid: bat.id}
+    # người đứng yên, quái bị khóa cho người này
+    assert r.player.pos == %{map: "forest", x: 13, y: 16}
+    assert [%{busy: true}] = MapServer.snapshot("forest").monsters
+
     r =
       Enum.reduce_while(1..200, r, fn _, _ ->
         r = cmd(socket, %{"act" => "attack"})
@@ -48,16 +78,55 @@ defmodule HacLongWeb.GameChannelTest do
     assert Characters.load(user.id) == Map.delete(r.player, :view)
     assert r.player.view.derived.maxHp > 0
 
+    if r.player.battle.result == "win",
+      do: assert(MapServer.snapshot("forest").monsters == []),
+      else: assert(r.player.pos.map == "home")
+
     r = cmd(socket, %{"act" => "leave"})
     assert r.player.battle == nil
     assert Characters.load(user.id).battle == nil
+  end
+
+  test "người chơi khác thấy nhau trên bản đồ, tab đóng thì rời bản đồ" do
+    a = create_user()
+    b = create_user()
+    player_at(a, %{map: "village", x: 12, y: 14})
+    player_at(b, %{map: "village", x: 11, y: 14})
+    {_, sa} = join_game(a)
+    {_, _sb} = join_game(b)
+
+    cmd(sa, %{"act" => "move", "dir" => "up"})
+    snap = MapServer.snapshot("village")
+    assert %{x: 12, y: 13} = Enum.find(snap.players, &(&1.id == a.id))
+    assert Enum.find(snap.players, &(&1.id == b.id))
+
+    Process.unlink(sa.channel_pid)
+    ref = Process.monitor(sa.channel_pid)
+    close(sa)
+    assert_receive {:DOWN, ^ref, _, _, _}
+    # Session xử lý tin DOWN của tab rồi mới trả lời lệnh này
+    Session.get(a.id)
+    refute Enum.find(MapServer.snapshot("village").players, &(&1.id == a.id))
+    # vị trí đã đi được ghi lại khi rời game
+    assert Characters.load(a.id).pos == %{map: "village", x: 12, y: 13}
+  end
+
+  test "bước đi quá nhanh bị từ chối" do
+    user = create_user()
+    player_at(user, %{map: "village", x: 12, y: 14})
+    {_, socket} = join_game(user)
+
+    results =
+      for _ <- 1..10, do: cmd(socket, %{"act" => "move", "dir" => Enum.random(~w(left right))})
+
+    assert Enum.count(results, & &1.ok) < 10
   end
 
   test "trạng thái sống sót khi tiến trình session tắt và nạp lại từ database" do
     user = create_user()
     {_, socket} = join_game(user)
     cmd(socket, %{"act" => "create", "name" => "Bền", "cls" => "rogue"})
-    r = cmd(socket, %{"act" => "hunt", "zone" => 0})
+    r = cmd(socket, %{"act" => "move", "dir" => "left"})
 
     [{pid, _}] = Registry.lookup(HacLong.Game.Registry, user.id)
     DynamicSupervisor.terminate_child(HacLong.Game.SessionSupervisor, pid)

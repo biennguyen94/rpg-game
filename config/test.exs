@@ -28,3 +28,6 @@ config :phoenix, :plug_init_mode, :runtime
 
 # Băm mật khẩu nhanh trong test
 config :pbkdf2_elixir, :rounds, 1
+
+# Quái đứng yên trong test để kết quả không phụ thuộc thời gian
+config :hac_long, :wander_ms, nil

@@ -6,13 +6,15 @@
   const Net = window.Net;
 
   let P = null;          // trạng thái người chơi
-  let tab = 'town';      // tab đang mở
+  let tab = 'map';       // tab đang mở
   let pickCls = 'warrior';
   let confirmReset = false;
   let fx = null;         // hiệu ứng trận đấu của lượt vừa rồi
   let authMode = 'login'; // 'login' | 'register'
   let loading = true;    // đang kết nối server
   let busy = false;      // đang chờ server trả lời
+  let walk = null;       // đích đang đi tới trên bản đồ: { x, y, monster, id }
+  const Map_ = window.MapView;
 
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -62,13 +64,24 @@
     }
     tabs.hidden = false;
     tabs.innerHTML = [
-      ['town', 'village', 'Làng'],
-      ['hunt', 'crossed-swords', 'Săn quái'],
+      ['map', 'walk', 'Bản đồ'],
+      ['town', 'scroll-unfurled', 'Hành trình'],
       ['hero', 'person', 'Nhân vật'],
       ['bag', 'backpack', 'Túi đồ'],
       ['shop', 'shop', 'Cửa hàng'],
     ].map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ town: viewTown, hunt: viewHunt, hero: viewHero, bag: viewBag, shop: viewShop }[tab])();
+    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => Map_.html(P), town: viewTown, hero: viewHero, bag: viewBag, shop: viewShop }[tab])();
+    if (tab === 'map') Map_.mount(() => P);
+  }
+
+  // Cập nhật nhẹ khi đang xem bản đồ (không dựng lại cả trang, tránh nháy).
+  function refresh() {
+    if (P && !P.battle && tab === 'map' && Map_.mountedMap() === P.pos.map && $('#map-canvas')) {
+      $('#hud').innerHTML = viewHud();
+      Map_.draw();
+    } else {
+      render();
+    }
   }
 
   function bar(kind, cur, max, label) {
@@ -157,12 +170,13 @@
 
   function viewTown() {
     const d = P.view.derived, cost = P.view.restCost, full = P.hp >= d.maxHp;
+    const canRest = P.pos.map === 'village' || P.pos.map === 'home';
     const ni = nextBossIndex();
     const pots = ['potion_s', 'potion_m', 'potion_l'].reduce((s, id) => s + (P.inv[id] || 0), 0);
     return `
       <div class="card">
-        <div class="row">${icon('campfire', 'lg')}<div class="grow"><h3>Nhà trọ</h3><p class="small muted">Ngủ một đêm để hồi đầy máu.</p></div></div>
-        <button class="btn ${full ? '' : 'primary'} block" data-act="rest" ${full ? 'disabled' : ''}>${full ? 'Máu đang đầy' : cost ? `Nghỉ trọ · ${fmt(cost)} vàng` : 'Nghỉ trọ · miễn phí'}</button>
+        <div class="row">${icon('campfire', 'lg')}<div class="grow"><h3>Nhà trọ</h3><p class="small muted">${canRest ? 'Ngủ một đêm để hồi đầy máu.' : 'Chỉ nghỉ được khi ở Làng hoặc ở Nhà. Giếng nước ở Nhà hồi máu miễn phí.'}</p></div></div>
+        <button class="btn ${full || !canRest ? '' : 'primary'} block" data-act="rest" ${full || !canRest ? 'disabled' : ''}>${full ? 'Máu đang đầy' : cost ? `Nghỉ trọ · ${fmt(cost)} vàng` : 'Nghỉ trọ · miễn phí'}</button>
       </div>
 
       <div class="card">
@@ -171,7 +185,7 @@
           ${ZONES.map((z, i) => `<div class="step ${P.bosses.includes(z.boss.id) ? 'done' : i === ni ? 'next' : ''}">${sprite(z.boss.id, '', z.boss.name)}<span>${z.boss.name}</span></div>`).join('')}
         </div>
         ${ni >= 0 ? `<p class="small muted">Mục tiêu kế tiếp: hạ <b style="color:var(--parch)">${ZONES[ni].boss.name}</b> (cấp ${ZONES[ni].boss.level}) ở ${ZONES[ni].name}.</p>` : '<p class="small" style="color:var(--gold)">Bạn đã hạ tất cả trùm. Vùng đất đã bình yên.</p>'}
-        <button class="btn block" data-tab="hunt">${icon('crossed-swords')} Đi săn quái</button>
+        <button class="btn block" data-tab="map">${icon('walk')} Ra bản đồ</button>
       </div>
 
       ${pots === 0 ? `<div class="card"><div class="row">${icon('health-potion', 'lg')}<div class="grow"><h3>Hết bình máu</h3><p class="small muted">Mua vài bình ở cửa hàng trước khi đi săn xa.</p></div><button class="btn" data-tab="shop">Mua</button></div></div>` : ''}
@@ -202,32 +216,6 @@
         <h1>Chiến thắng!</h1>
         <p>${esc(P.name)} đã tiêu diệt Hắc Long ở cấp ${P.level} sau ${fmt(P.kills)} trận đánh. Bạn vẫn có thể tiếp tục luyện cấp và săn quái.</p>
       </div>`;
-  }
-
-  // ---------- Săn quái ----------
-  function viewHunt() {
-    return `<h2 class="display">Vùng đất</h2>` + ZONES.map((z, i) => {
-      const open = P.view.unlocked[i], cleared = P.bosses.includes(z.boss.id);
-      return `
-      <div class="card zone ${open ? '' : 'locked'} ${cleared ? 'cleared' : ''}">
-        <div class="row">
-          ${icon(z.icon, 'lg')}
-          <div class="grow">
-            <h3>${z.name}</h3>
-            <div class="small muted">Cấp ${z.levels}</div>
-          </div>
-          <span class="tag ${cleared ? 'good' : open ? 'gold' : ''} zone-status">${cleared ? 'Đã hạ trùm' : open ? 'Đã mở' : 'Chưa mở'}</span>
-        </div>
-        <p class="small muted">${z.desc}</p>
-        <div class="mobs">${z.monsters.map((m) => sprite(m.id, '', m.name)).join('')}${sprite(z.boss.id, 'boss', z.boss.name)}</div>
-        ${open ? `
-          <div class="btn-row">
-            <button class="btn primary" data-act="hunt" data-zone="${i}">${icon('crossed-swords')} Săn quái</button>
-            <button class="btn" data-act="boss" data-zone="${i}">${icon('crowned-skull')} ${z.boss.final ? 'Đấu Hắc Long' : 'Đấu trùm'} · Cấp ${z.boss.level}</button>
-          </div>`
-        : `<p class="small">Hạ <b>${ZONES[i - 1].boss.name}</b> để mở.</p>`}
-      </div>`;
-    }).join('');
   }
 
   // ---------- Nhân vật ----------
@@ -385,10 +373,9 @@
           ${rw ? `<p class="num">+${fmt(rw.xp)} kinh nghiệm · +${fmt(rw.gold)} vàng${rw.items.length ? ' · ' + rw.items.map((id) => ITEMS[id].name).join(', ') : ''}</p>` : ''}
           ${rw && rw.levels ? `<p style="color:var(--gold);font-weight:600">Lên cấp ${P.level}! Vào tab Nhân vật để cộng điểm.</p>` : ''}
           <div class="btn-row">
-            ${!m.boss && r !== 'lose' ? `<button class="btn primary" data-act="again">${icon('crossed-swords')} Đánh tiếp</button>` : ''}
-            <button class="btn" data-act="leave">${icon('village')} Về làng</button>
+            <button class="btn primary" data-act="leave">${r === 'lose' ? `${icon('village')} Về nhà` : `${icon('walk')} Tiếp tục`}</button>
           </div>
-          ${!m.boss && r !== 'lose' && P.hp < d.maxHp * 0.35 ? '<p class="small" style="color:var(--bad)">Máu đang thấp. Nên uống máu hoặc về làng nghỉ.</p>' : ''}
+          ${r !== 'lose' && P.hp < d.maxHp * 0.35 ? '<p class="small" style="color:var(--bad)">Máu đang thấp. Nên uống máu hoặc về Nhà uống nước giếng.</p>' : ''}
         </div>`;
     }
     return `
@@ -430,7 +417,6 @@
   function command(act, t) {
     const d = t.dataset;
     switch (act) {
-      case 'hunt': case 'boss': return { act, zone: +d.zone };
       case 'alloc': return { act, stat: d.stat, n: 1 };
       case 'alloc5': return { act: 'alloc', stat: d.stat, n: 5 };
       case 'buy': return { act, id: d.id, n: 1 };
@@ -454,7 +440,9 @@
       result(r);
       if (r.ok) {
         if (before) battleFx(before, cmd.act);
-        if (cmd.act === 'leave' || cmd.act === 'reset' || cmd.act === 'create') { tab = 'town'; confirmReset = false; }
+        if (cmd.act === 'leave' || cmd.act === 'create') tab = 'map';
+        if (cmd.act === 'reset') tab = 'map';
+        confirmReset = false;
       }
     } catch (e) {
       toast(e.msg, true);
@@ -465,9 +453,66 @@
     else if (!P || !P.battle) $('#view').scrollTop = scroll;
   }
 
+  // ---------- Đi trên bản đồ ----------
+  // Một bước: gửi lên server, server kiểm tra rồi trả vị trí mới (hoặc bắt đầu trận).
+  async function step(dir) {
+    if (busy || !P || P.battle) return false;
+    busy = true;
+    const mapBefore = P.pos.map;
+    let ok = false;
+    try {
+      const r = await Net.send({ act: 'move', dir });
+      P = r.player;
+      if (r.msg) result(r);
+      ok = r.ok && !P.battle && P.pos.map === mapBefore;
+    } catch (e) {
+      toast(e.msg, true);
+    }
+    busy = false;
+    if (!P || P.battle || P.pos.map !== mapBefore) { walk = null; render(); } else refresh();
+    return ok;
+  }
+
+  // Đi dần tới ô đích (hoặc đuổi theo con quái đã chạm vào), tính lại đường sau mỗi bước.
+  async function walkTo(x, y) {
+    const target = Map_.monsterAt(x, y);
+    const me = { x, y, monster: target ? target.id : null, id: Symbol('walk') };
+    walk = me;
+    for (let i = 0; i < 200 && walk === me && P && !P.battle; i++) {
+      if (me.monster != null) {
+        const q = Map_.monsterById(me.monster);
+        if (!q) break;
+        me.x = q.x; me.y = q.y;
+      }
+      const dir = Map_.nextStep(P, me.x, me.y);
+      if (!dir) break;
+      const started = Date.now();
+      if (!(await step(dir))) break;
+      const wait = 130 - (Date.now() - started);
+      if (wait > 0) await new Promise((res) => setTimeout(res, wait));
+    }
+    if (walk === me) walk = null;
+  }
+
+  function onKey(e) {
+    if (!P || P.battle || tab !== 'map' || e.target.closest('input, textarea')) return;
+    const dir = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right' }[e.key];
+    if (!dir) return;
+    e.preventDefault();
+    walk = null;
+    step(dir);
+  }
+
+  function onMapTap(e) {
+    if (e.target.id !== 'map-canvas' || !P || P.battle) return;
+    const [x, y] = Map_.tileFromEvent(e);
+    walkTo(x, y);
+  }
+
   function enter(r) {
     P = r ? r.player : null;
-    tab = 'town';
+    if (r) Map_.setUser(r.user_id);
+    tab = 'map';
     loading = false;
     render();
   }
@@ -485,6 +530,7 @@
     if (t.dataset.cls) { pickCls = t.dataset.cls; document.querySelectorAll('.class-opt').forEach((b) => b.setAttribute('aria-pressed', b.dataset.cls === pickCls)); return; }
     if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; render(); $('#view').scrollTop = 0; return; }
     if (t.dataset.auth) { authMode = t.dataset.auth; render(); return; }
+    if (t.dataset.move) { walk = null; step(t.dataset.move); return; }
     const act = t.dataset.act;
     if (act === 'logout') return logout();
     if (!act || !P) return;
@@ -518,7 +564,11 @@
   function start() {
     document.addEventListener('click', onClick);
     document.addEventListener('submit', onSubmit);
-    Net.onPlayer((p) => { if (!busy) { P = p; render(); } });
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onMapTap);
+    window.addEventListener('resize', () => Map_.resize());
+    Net.onPlayer((p) => { if (!busy) { P = p; refresh(); } });
+    Net.onMap((snap) => Map_.setWorld(snap));
     render();
     Net.resume().then(enter).catch((e) => { toast(e.msg, true); enter(null); });
   }

@@ -7,10 +7,12 @@ defmodule HacLong.Game.Commands do
   """
 
   alias HacLong.Game.Engine
+  alias HacLong.World
+  alias HacLong.World.Maps
 
   def run(nil, %{"act" => "create"} = c) do
     case Engine.new_player(c["name"], c["cls"]) do
-      {:ok, p} -> {%{ok: true, msg: "Chào mừng #{p.name}!"}, p}
+      {:ok, p} -> {%{ok: true, msg: "Chào mừng #{p.name}!"}, Map.put(p, :pos, Maps.home_spawn())}
       {:error, msg} -> {%{ok: false, msg: msg}, nil}
     end
   end
@@ -21,11 +23,8 @@ defmodule HacLong.Game.Commands do
 
   def run(p, %{"act" => act} = c) do
     case act do
-      "rest" -> Engine.rest(p)
-      "hunt" -> Engine.start_battle(p, int(c["zone"]), false)
-      "boss" -> Engine.start_battle(p, int(c["zone"]), true)
+      "rest" -> rest(p)
       a when a in ~w(attack skill potion flee) -> Engine.act(p, a)
-      "again" -> again(p)
       "leave" -> Engine.leave_battle(p)
       "alloc" -> Engine.allocate(p, c["stat"], int(c["n"] || 1))
       "equip" -> Engine.equip(p, c["id"])
@@ -41,14 +40,11 @@ defmodule HacLong.Game.Commands do
 
   defp invalid(p), do: {%{ok: false, msg: "Thao tác không hợp lệ."}, p}
 
-  # Đánh tiếp ở cùng khu vực sau khi trận quái thường kết thúc.
-  defp again(%{battle: %{over: true, result: r, monster: %{boss: false}, zone: zi}} = p)
-       when r != "lose" do
-    {_, p} = Engine.leave_battle(p)
-    Engine.start_battle(p, zi, false)
+  defp rest(p) do
+    if World.can_rest?(p),
+      do: Engine.rest(p),
+      else: {%{ok: false, msg: "Chỉ nghỉ được ở Làng hoặc ở Nhà."}, p}
   end
-
-  defp again(p), do: invalid(p)
 
   defp int(n) when is_integer(n), do: n
 

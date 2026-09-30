@@ -1,6 +1,6 @@
 # Credits
 
-## Hình quái vật, nhân vật và nền (`priv/static/assets/monsters/`, `priv/static/assets/floors/`)
+## Hình quái vật, nhân vật, nền và ô bản đồ (`priv/static/assets/monsters/`, `priv/static/assets/floors/`, `priv/static/assets/tiles/`)
 
 Lấy từ bộ tile của **Dungeon Crawl Stone Soup**, đóng gói tại
 https://github.com/crawl/tiles (bản `releases/Nov-2015`).

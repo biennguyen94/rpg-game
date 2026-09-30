@@ -1,0 +1,68 @@
+{
+  "id": "mountain",
+  "name": "Núi Khổng Lồ",
+  "zone": 3,
+  "floor": "floors/mountain",
+  "tiles": [
+    "RRRRRRRRRRRRRRRRRRRRRRRRRR",
+    "R...RRS..................R",
+    "RR...SSR..........R...SS.R",
+    "RR..RSR..........R....SR.R",
+    "RRR..RR...........R..RS..R",
+    "R.......R................R",
+    "R......R....SSR.SS.......R",
+    "R......R.....RSS.........R",
+    "R.......R................R",
+    "R.......R..RR........RRRRR",
+    "R..R.......R.........RRRRR",
+    "R...R.RSS.............R.RR",
+    "R..RRR.S....S..S...S.....R",
+    "R.RR....R..S...R..S......R",
+    "R...............SSSS.....R",
+    "R.................S......R",
+    "R...............S........R",
+    "RRRRRRRRRRRRRARRRRRRRRRRRR"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "village",
+      "spawn": [
+        1,
+        11
+      ]
+    }
+  ],
+  "boss": {
+    "at": [
+      13,
+      3
+    ],
+    "respawn": 30
+  },
+  "spawns": [
+    {
+      "monster": "ogre",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "black_bear",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "cyclops",
+      "max": 2,
+      "respawn": 25
+    },
+    {
+      "monster": "manticore",
+      "max": 2,
+      "respawn": 25
+    }
+  ]
+}
