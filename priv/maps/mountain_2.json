@@ -1,0 +1,77 @@
+{
+  "id": "mountain_2",
+  "name": "Núi Khổng Lồ 2",
+  "zone": 3,
+  "floor": "floors/mountain",
+  "tiles": [
+    "RRRRRRRRRRRRRARRRRRRRRRRRR",
+    "R.....RRR.S......R......RR",
+    "R......R..S.......R.....RR",
+    "R........................R",
+    "R...SS..............SSS..R",
+    "R...SRS..............RS..R",
+    "R....RRR..R..........RRR.R",
+    "R.........R..............R",
+    "R...............SS..R....R",
+    "R...............S...R....R",
+    "R...SS..RR..........S....R",
+    "R..RS......RR.......SSR..R",
+    "R..RS.....SR.......SRR...R",
+    "R....S...SS......RRSRRR..R",
+    "R.................RRSRR..R",
+    "R...............WR.RRR...R",
+    "R......R...........RR....R",
+    "RRRRRRRRRRRRRARRRRRRRRRRRR"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "mountain_1",
+      "spawn": [
+        13,
+        1
+      ]
+    },
+    {
+      "at": [
+        13,
+        0
+      ],
+      "to": "mountain_boss",
+      "spawn": [
+        7,
+        9
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "monster": "black_bear",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "cyclops",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "manticore",
+      "max": 3,
+      "respawn": 25
+    }
+  ],
+  "waystone": {
+    "at": [
+      16,
+      15
+    ],
+    "spawn": [
+      16,
+      16
+    ]
+  }
+}

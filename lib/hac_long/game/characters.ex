@@ -8,6 +8,7 @@ defmodule HacLong.Game.Characters do
   alias HacLong.Repo
   alias HacLong.Game.Character
   alias HacLong.World
+  alias HacLong.World.Maps
 
   @save_version 1
 
@@ -60,7 +61,8 @@ defmodule HacLong.Game.Characters do
       deaths: c.deaths,
       victory: c.victory,
       battle: c.battle && atomize(c.battle),
-      pos: World.valid_pos(%{map: c.map_id, x: c.x, y: c.y})
+      pos: World.valid_pos(%{map: c.map_id, x: c.x, y: c.y}),
+      waystones: Enum.filter(c.waystones || [], &(&1 in Maps.waystone_ids()))
     }
   end
 

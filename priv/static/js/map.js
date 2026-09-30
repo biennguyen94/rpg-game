@@ -19,6 +19,32 @@
   let world = { map: null, monsters: [], players: [] };
   let userId = null;
 
+  // ---------- Di chuyển mượt ----------
+  // Server gửi vị trí theo ô; khi vẽ thì trượt từ ô cũ sang ô mới trong `dur` ms.
+  // Nhảy xa hơn một ô (dịch chuyển, qua cổng) thì hiện ngay ở chỗ mới.
+  const anim = new Map();
+  let frame = null, lastCam = [0, 0];
+  const DUR = { me: 130, player: 160, monster: 380 };
+
+  function smooth(key, x, y, dur, now) {
+    let a = anim.get(key);
+    if (!a || Math.abs(a.tx - x) + Math.abs(a.ty - y) > 1) {
+      a = { fx: x, fy: y, tx: x, ty: y, t0: now, dur };
+      anim.set(key, a);
+    } else if (a.tx !== x || a.ty !== y) {
+      const [cx, cy] = at(a, now);
+      Object.assign(a, { fx: cx, fy: cy, tx: x, ty: y, t0: now, dur });
+    }
+    a.seen = now;
+    return at(a, now);
+  }
+
+  function at(a, now) {
+    const k = Math.min(1, (now - a.t0) / a.dur);
+    if (k < 1 && !frame) frame = requestAnimationFrame(() => { frame = null; draw(); });
+    return [a.fx + (a.tx - a.fx) * k, a.fy + (a.ty - a.fy) * k];
+  }
+
   function image(path) {
     if (!images[path]) {
       const im = new Image();
@@ -41,15 +67,15 @@
     return target.zone != null && !P.view.unlocked[target.zone];
   }
 
-  function html(P) {
+  function html(P, overlay) {
     const m = mapOf(P.pos.map);
     const z = m.zone != null ? ZONES[m.zone] : null;
     return `
       <div class="map-top">
         <b>${m.name}</b>
-        <span class="small muted">${z ? `Quái cấp ${z.levels}` : P.pos.map === 'home' ? 'Giếng nước hồi đầy máu' : 'Nghỉ trọ ở tab Hành trình'}</span>
+        <span class="small muted">${z ? (P.pos.map.endsWith('_boss') ? `Phòng trùm · cấp ${z.boss.level}` : `Quái cấp ${z.levels}`) : P.pos.map === 'home' ? 'Giếng nước hồi đầy máu' : 'Nghỉ trọ ở tab Hành trình'}</span>
       </div>
-      <div class="map-wrap"><canvas id="map-canvas" aria-label="Bản đồ ${m.name}"></canvas></div>
+      <div class="map-wrap"><canvas id="map-canvas" aria-label="Bản đồ ${m.name}"></canvas>${overlay || ''}</div>
       <div class="dpad" aria-label="Di chuyển">
         <button class="btn" data-move="up" aria-label="Lên">▲</button>
         <button class="btn" data-move="left" aria-label="Trái">◀</button>
@@ -64,6 +90,7 @@
     canvas = document.getElementById('map-canvas');
     if (!canvas) { mounted = null; return; }
     ctx = canvas.getContext('2d');
+    if (mounted !== getPlayer().pos.map) anim.clear();
     mounted = getPlayer().pos.map;
     resize();
   }
@@ -81,12 +108,13 @@
     draw();
   }
 
-  // Góc trên trái của khung nhìn (pixel), đi theo nhân vật, không lố ra ngoài bản đồ.
-  function camera(m, P) {
+  // Góc trên trái của khung nhìn (pixel), đi theo nhân vật (x, y tính theo ô, có thể lẻ),
+  // không lố ra ngoài bản đồ.
+  function camera(m, x, y) {
     const vw = canvas.clientWidth, vh = canvas.clientHeight;
     const mw = m.tiles[0].length * TILE, mh = m.tiles.length * TILE;
-    const axis = (view, size, at) => (size <= view ? (size - view) / 2 : Math.max(0, Math.min(size - view, at * TILE + TILE / 2 - view / 2)));
-    return [axis(vw, mw, P.pos.x), axis(vh, mh, P.pos.y)];
+    const axis = (view, size, t) => (size <= view ? (size - view) / 2 : Math.max(0, Math.min(size - view, t * TILE + TILE / 2 - view / 2)));
+    return [Math.round(axis(vw, mw, x)), Math.round(axis(vh, mh, y))];
   }
 
   function label(text, cx, y, color) {
@@ -111,7 +139,10 @@
     const P = getPlayer();
     if (!canvas || !ctx || !P || !P.pos || mounted !== P.pos.map) return;
     const m = mapOf(P.pos.map);
-    const [cx, cy] = camera(m, P);
+    const now = performance.now();
+    const [mx, my] = smooth('me', P.pos.x, P.pos.y, DUR.me, now);
+    const [cx, cy] = camera(m, mx, my);
+    lastCam = [cx, cy];
     ctx.fillStyle = '#0c0910';
     ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     const x0 = Math.max(0, Math.floor(cx / TILE)), y0 = Math.max(0, Math.floor(cy / TILE));
@@ -130,6 +161,7 @@
           if (im.complete) ctx.drawImage(im, px, py, TILE, TILE);
         }
         if (GROUND[kind]) continue;
+        if (kind === 'waystone') labels.push(['Đá dịch chuyển', px + TILE / 2, py - 13, '#b9d7ff']);
         const portal = PORTAL.has(m.tiles[y][x]) && portalAt(m, x, y);
         if (portal) {
           const shut = locked(P, portal);
@@ -143,7 +175,8 @@
     // sự kiện "map" có thể đến trước/sau lúc đổi bản đồ một chút
     const here = world.map === P.pos.map;
     for (const q of here ? world.monsters : []) {
-      const px = Math.round(q.x * TILE - cx), py = Math.round(q.y * TILE - cy);
+      const [qx, qy] = smooth('m' + q.id, q.x, q.y, DUR.monster, now);
+      const px = Math.round(qx * TILE - cx), py = Math.round(qy * TILE - cy);
       if (px < -TILE || py < -TILE || px > canvas.clientWidth || py > canvas.clientHeight) continue;
       ctx.globalAlpha = q.busy ? 0.45 : 1;
       if (q.boss) {
@@ -166,25 +199,26 @@
     const hero = image('monsters/hero');
     for (const o of here ? world.players : []) {
       if (o.id === userId) continue;
-      const px = Math.round(o.x * TILE - cx), py = Math.round(o.y * TILE - cy);
+      const [ox, oy] = smooth('p' + o.id, o.x, o.y, DUR.player, now);
+      const px = Math.round(ox * TILE - cx), py = Math.round(oy * TILE - cy);
       ctx.globalAlpha = 0.8;
       if (hero.complete) ctx.drawImage(hero, px, py, TILE, TILE);
       ctx.globalAlpha = 1;
       labels.push([`${o.name} · ${o.level}`, px + TILE / 2, py - 14, '#b9d7ff']);
     }
 
-    const px = Math.round(P.pos.x * TILE - cx), py = Math.round(P.pos.y * TILE - cy);
+    const px = Math.round(mx * TILE - cx), py = Math.round(my * TILE - cy);
     ctx.fillStyle = 'rgba(240, 207, 122, 0.35)';
     ctx.beginPath(); ctx.ellipse(px + TILE / 2, py + TILE - 4, 12, 5, 0, 0, Math.PI * 2); ctx.fill();
     if (hero.complete) ctx.drawImage(hero, px, py, TILE, TILE);
     for (const l of labels) label(...l);
+    // bỏ những con quái/người đã biến mất khỏi bản đồ
+    for (const [k, a] of anim) if (a.seen !== now) anim.delete(k);
   }
 
   // Ô dưới ngón tay/chuột.
   function tileFromEvent(e) {
-    const P = getPlayer();
-    const m = mapOf(P.pos.map);
-    const [cx, cy] = camera(m, P);
+    const [cx, cy] = lastCam;
     const r = canvas.getBoundingClientRect();
     return [Math.floor((e.clientX - r.left + cx) / TILE), Math.floor((e.clientY - r.top + cy) / TILE)];
   }

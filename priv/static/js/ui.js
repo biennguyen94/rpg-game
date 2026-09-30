@@ -14,6 +14,7 @@
   let loading = true;    // đang kết nối server
   let busy = false;      // đang chờ server trả lời
   let walk = null;       // đích đang đi tới trên bản đồ: { x, y, monster, id }
+  let dialog = null;     // bảng trên bản đồ: { type: 'boss', dir, boss } | { type: 'waystone' }
   const Map_ = window.MapView;
 
   const $ = (s) => document.querySelector(s);
@@ -70,8 +71,28 @@
       ['bag', 'backpack', 'Túi đồ'],
       ['shop', 'shop', 'Cửa hàng'],
     ].map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => Map_.html(P), town: viewTown, hero: viewHero, bag: viewBag, shop: viewShop }[tab])();
+    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => Map_.html(P, viewDialog()), town: viewTown, hero: viewHero, bag: viewBag, shop: viewShop }[tab])();
     if (tab === 'map') Map_.mount(() => P);
+  }
+
+  // Bảng nổi trên bản đồ: hỏi đấu trùm, chọn nơi dịch chuyển.
+  function viewDialog() {
+    if (!dialog) return '';
+    if (dialog.type === 'boss') {
+      const b = dialog.boss, weak = P.level < b.level - 1;
+      return `<div class="map-dialog card">
+        <div class="row">${sprite(b.id, '', b.name)}<div class="grow"><h3>Đấu ${esc(b.name)}?</h3><p class="small muted">Trùm cấp ${b.level}.${weak ? ` <span style="color:var(--bad)">Bạn mới cấp ${P.level}, nên luyện thêm.</span>` : ''}</p></div></div>
+        <div class="btn-row"><button class="btn" data-act="dialog-close">Thôi</button><button class="btn primary" data-act="boss-yes">${icon('crowned-skull')} Đấu</button></div>
+      </div>`;
+    }
+    const W = window.GAME_DATA.WORLD.maps;
+    const places = ['village'].concat(P.waystones || []);
+    return `<div class="map-dialog card">
+      <h3>Đá dịch chuyển</h3>
+      <p class="small muted">Chạm vào đá ở nơi khác để ghi nhớ nó.</p>
+      <div class="list">${places.map((id) => `<button class="btn" data-act="teleport" data-to="${id}" ${id === P.pos.map ? 'disabled' : ''}>${esc(W[id].name)}${id === P.pos.map ? ' · đang ở đây' : ''}</button>`).join('')}</div>
+      <button class="btn" data-act="dialog-close">Đóng</button>
+    </div>`;
   }
 
   // Cập nhật nhẹ khi đang xem bản đồ (không dựng lại cả trang, tránh nháy).
@@ -424,6 +445,7 @@
       case 'equip': case 'use': case 'sell': return { act, id: d.id };
       case 'unequip': return { act, slot: d.slot };
       case 'reset-yes': return { act: 'reset' };
+      case 'teleport': return { act, to: d.to };
       default: return { act };
     }
   }
@@ -443,6 +465,7 @@
         if (cmd.act === 'leave' || cmd.act === 'create') tab = 'map';
         if (cmd.act === 'reset') tab = 'map';
         confirmReset = false;
+        dialog = null;
       }
     } catch (e) {
       toast(e.msg, true);
@@ -455,21 +478,24 @@
 
   // ---------- Đi trên bản đồ ----------
   // Một bước: gửi lên server, server kiểm tra rồi trả vị trí mới (hoặc bắt đầu trận).
-  async function step(dir) {
+  async function step(dir, confirm) {
     if (busy || !P || P.battle) return false;
     busy = true;
-    const mapBefore = P.pos.map;
+    const mapBefore = P.pos.map, hadDialog = !!dialog;
+    dialog = null;
     let ok = false;
     try {
-      const r = await Net.send({ act: 'move', dir });
+      const r = await Net.send(confirm ? { act: 'move', dir, confirm: true } : { act: 'move', dir });
       P = r.player;
       if (r.msg) result(r);
-      ok = r.ok && !P.battle && P.pos.map === mapBefore;
+      if (r.confirm === 'boss') dialog = { type: 'boss', dir, boss: r.boss };
+      if (r.waystone) dialog = { type: 'waystone' };
+      ok = r.ok && !P.battle && P.pos.map === mapBefore && !dialog;
     } catch (e) {
       toast(e.msg, true);
     }
     busy = false;
-    if (!P || P.battle || P.pos.map !== mapBefore) { walk = null; render(); } else refresh();
+    if (!P || P.battle || P.pos.map !== mapBefore || dialog || hadDialog) { walk = null; render(); } else refresh();
     return ok;
   }
 
@@ -535,6 +561,8 @@
     if (act === 'logout') return logout();
     if (!act || !P) return;
     if (act === 'reset-ask' || act === 'reset-cancel') { confirmReset = act === 'reset-ask'; render(); return; }
+    if (act === 'dialog-close') { dialog = null; render(); return; }
+    if (act === 'boss-yes') { const d = dialog; if (d) step(d.dir, true); return; }
     sendCommand(command(act, t));
   }
 

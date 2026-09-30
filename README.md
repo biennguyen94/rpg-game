@@ -21,9 +21,12 @@ mix test           # chạy test (cần PostgreSQL)
 ## Nội dung
 
 - 3 lớp nhân vật: **Chiến Binh**, **Thích Khách**, **Hiệp Sĩ**, mỗi lớp một kỹ năng riêng
-- Bản đồ ô vuông: Nhà riêng, Làng và 6 vùng đất nối với nhau bằng cổng. Quái dùng chung giữa
-  mọi người, đi lang thang và hồi lại sau khi bị hạ; thấy người chơi khác trên cùng bản đồ
-- 24 loại quái thường, 6 trùm đứng trong vùng của mình (hạ trùm để mở cổng sang vùng tiếp theo)
+- Bản đồ ô vuông: Nhà riêng, Làng và 6 vùng đất; mỗi vùng có 2 bản đồ quái và một phòng trùm,
+  nối với nhau bằng cổng. Quái dùng chung giữa mọi người, đi lang thang và hồi lại sau khi bị hạ;
+  thấy người chơi khác trên cùng bản đồ. Nhân vật và quái di chuyển mượt
+- Đá dịch chuyển ở Làng và sâu trong mỗi vùng: chạm để ghi nhớ, rồi dịch chuyển qua lại
+- 24 loại quái thường, 6 trùm trong phòng riêng (hỏi xác nhận trước khi đấu; hạ trùm để mở
+  cổng sang vùng tiếp theo)
 - Chiến đấu theo lượt: tấn công, kỹ năng (có hồi chiêu), uống máu, bỏ chạy
 - Lên cấp nhận 3 điểm tiềm năng để cộng vào Sức mạnh, Thể lực, Nhanh nhẹn, Phòng thủ
 - Cửa hàng vũ khí, giáp, khiên, bình máu; 2 món đồ hiếm chỉ rơi từ trùm
@@ -109,11 +112,13 @@ Kết quả in ra số trận trung bình để thắng, số lần chết và c
 | server push `"player"` | `{player}` khi nhân vật đổi từ tab khác |
 | server push `"map"` | `{map, monsters, players}` của bản đồ đang đứng, mỗi khi có thay đổi |
 
-Các `act`: `create {name, cls}`, `reset`, `move {dir}` (`up`/`down`/`left`/`right`), `rest`
+Các `act`: `create {name, cls}`, `reset`, `move {dir, confirm?}` (`up`/`down`/`left`/`right`;
+bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: true` để đấu),
+`teleport {to}` (đứng cạnh đá dịch chuyển; bước vào đá thì nhận `waystone: true`), `rest`
 (chỉ ở Làng hoặc Nhà), `attack`, `skill`, `potion`, `flee`, `leave`, `alloc {stat, n}`,
 `equip {id}`, `unequip {slot}`, `use {id}`, `sell {id}`, `buy {id, n}`.
 
-Trạng thái nhân vật có `pos: {map, x, y}`; khi đang đánh, `battle.encounter` cho biết con quái
+Trạng thái nhân vật có `pos: {map, x, y}` và `waystones` (các đá đã ghi nhớ); khi đang đánh, `battle.encounter` cho biết con quái
 nào trên bản đồ.
 
 ## Production

@@ -49,8 +49,14 @@ defmodule HacLong.World do
   @doc "Chỉ nghỉ trọ được ở Làng hoặc ở Nhà."
   def can_rest?(%{pos: %{map: m}}), do: m in [Maps.home(), "village"]
 
-  @doc "Đi một bước theo hướng `dir`. Trả về `{kết_quả, nhân_vật}` như các lệnh khác."
-  def move(p, uid, dir) do
+  @doc """
+  Đi một bước theo hướng `dir`. Trả về `{kết_quả, nhân_vật}` như các lệnh khác.
+
+  Bước vào trùm thì lần đầu chỉ nhận `%{confirm: "boss", boss: ...}`; gửi lại với
+  `confirm: true` mới vào trận. Bước vào đá dịch chuyển thì ghi nhớ đá đó và nhận
+  `%{waystone: true}` để client mở bảng chọn nơi đến.
+  """
+  def move(p, uid, dir, confirm? \\ false) do
     with {:ok, {dx, dy}} <- Map.fetch(@dirs, dir),
          nil <- p.battle do
       %{map: map_id, x: x, y: y} = p.pos
@@ -60,9 +66,10 @@ defmodule HacLong.World do
       cond do
         portal = Maps.portal_at(map, tx, ty) -> use_portal(p, uid, portal)
         Maps.tile(map, tx, ty) == "F" -> drink_fountain(p)
+        Maps.tile(map, tx, ty) == "W" -> touch_waystone(p, map)
         not Maps.walkable?(map, tx, ty) -> {%{ok: false}, p}
         map.private -> {%{ok: true}, put_pos(p, map_id, tx, ty)}
-        true -> step_shared(p, uid, map, {tx, ty})
+        true -> step_shared(p, uid, map, {tx, ty}, confirm?)
       end
     else
       :error -> {%{ok: false, msg: "Hướng đi không hợp lệ."}, p}
@@ -85,7 +92,7 @@ defmodule HacLong.World do
 
     if target.zone && not Engine.zone_unlocked?(p, target.zone) do
       prev = Data.zone(target.zone - 1)
-      {%{ok: false, msg: "Hạ #{prev.boss.name} để mở #{target.name}."}, p}
+      {%{ok: false, msg: "Hạ #{prev.boss.name} để mở #{Data.zone(target.zone).name}."}, p}
     else
       leave(p, uid)
       {x, y} = portal.spawn
@@ -95,10 +102,16 @@ defmodule HacLong.World do
     end
   end
 
-  defp step_shared(p, uid, map, {tx, ty} = to) do
-    case MapServer.step(map.id, uid, to) do
+  defp step_shared(p, uid, map, {tx, ty} = to, confirm?) do
+    case MapServer.step(map.id, uid, to, confirm? == true) do
       :ok ->
         {%{ok: true}, put_pos(p, map.id, tx, ty)}
+
+      {:confirm_boss, m} ->
+        boss = Data.zone(map.zone).boss
+
+        {%{ok: false, confirm: "boss", boss: %{id: m.kind, name: boss.name, level: boss.level}},
+         p}
 
       {:busy, _m} ->
         {%{ok: false, msg: "Con quái này đang giao chiến với người khác."}, p}
@@ -115,6 +128,61 @@ defmodule HacLong.World do
             MapServer.release(map.id, uid, m.id)
             {r, p}
         end
+    end
+  end
+
+  # ---------- Đá dịch chuyển ----------
+
+  defp touch_waystone(p, map) do
+    known = Map.get(p, :waystones, [])
+
+    if map.id in known or map.id == "village" do
+      {%{ok: true, waystone: true}, p}
+    else
+      {%{ok: true, waystone: true, msg: "Đã ghi nhớ đá dịch chuyển ở #{map.name}."},
+       Map.put(p, :waystones, known ++ [map.id])}
+    end
+  end
+
+  @doc "Những nơi có thể dịch chuyển tới: Làng và các đá đã ghi nhớ."
+  def waystones(p), do: ["village" | Map.get(p, :waystones, [])]
+
+  defp next_to_waystone?(%{pos: %{map: id, x: x, y: y}}) do
+    case Maps.get(id).waystone do
+      %{at: {wx, wy}} -> abs(wx - x) + abs(wy - y) == 1
+      nil -> false
+    end
+  end
+
+  @doc "Dịch chuyển từ đá đang đứng cạnh tới đá ở bản đồ `to`."
+  def teleport(p, uid, to) do
+    target = is_binary(to) && Maps.get(to)
+
+    cond do
+      p.battle ->
+        {%{ok: false, msg: "Đang trong trận đấu."}, p}
+
+      not next_to_waystone?(p) ->
+        {%{ok: false, msg: "Hãy đứng cạnh đá dịch chuyển."}, p}
+
+      !target or target.waystone == nil ->
+        {%{ok: false, msg: "Không có đá dịch chuyển ở đó."}, p}
+
+      to not in waystones(p) ->
+        {%{ok: false, msg: "Bạn chưa tới đá dịch chuyển đó."}, p}
+
+      to == p.pos.map ->
+        {%{ok: false, msg: "Bạn đang ở đây rồi."}, p}
+
+      target.zone && not Engine.zone_unlocked?(p, target.zone) ->
+        {%{ok: false, msg: "Vùng chưa mở."}, p}
+
+      true ->
+        leave(p, uid)
+        {x, y} = target.waystone.spawn
+        p = put_pos(p, target.id, x, y)
+        enter(p, uid)
+        {%{ok: true, msg: "Dịch chuyển tới #{target.name}."}, p}
     end
   end
 

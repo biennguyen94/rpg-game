@@ -253,3 +253,11 @@ input[type="text"], input[type="password"] {
 .dpad [data-move="down"] { grid-area: down; }
 .dpad [data-move="right"] { grid-area: right; }
 .map-hint { text-align: center; }
+.map-wrap { position: relative; }
+.map-dialog {
+  position: absolute; left: 10px; right: 10px; bottom: 10px; max-height: calc(100% - 20px); overflow: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+.map-dialog .sprite { width: 48px; height: 48px; }
+.map-dialog .list { display: grid; gap: 6px; }
+.map-dialog .list .btn { justify-content: flex-start; }

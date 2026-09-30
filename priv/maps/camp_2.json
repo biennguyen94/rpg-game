@@ -1,0 +1,77 @@
+{
+  "id": "camp_2",
+  "name": "Trại Goblin 2",
+  "zone": 1,
+  "floor": "floors/camp",
+  "tiles": [
+    "YYYYYYYYYYYYYAYYYYYYYYYYYY",
+    "Y......RY#...::.:::......Y",
+    "Y......R#....::..:::.....Y",
+    "Y......R.#R..::...::..R..Y",
+    "Y.....RR...R......::...R.Y",
+    "Y......R...#.....:::.....Y",
+    "Y...R.....#.#....::Y.....Y",
+    "YR...RR..Y..#...:::......Y",
+    "Y#Y..RR.........::R.....RY",
+    "YRRY.RRRR.......::.......Y",
+    "YRRYR.........R.::..Y...RY",
+    "YYRRYY...Y...RR.::...RR..Y",
+    "YYYRRYY..YYR....::Y.R....Y",
+    "YY#RRY...YYRR..:::YY.....Y",
+    "Y#RRRR#..Y...::.:.Y....#.Y",
+    "Y#Y#####Y.Y..::.W.......#Y",
+    "YYYYRY##.....::........#RY",
+    "YYYYYYYYYYYYYAYYYYYYYYYYYY"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "camp_1",
+      "spawn": [
+        13,
+        1
+      ]
+    },
+    {
+      "at": [
+        13,
+        0
+      ],
+      "to": "camp_boss",
+      "spawn": [
+        7,
+        9
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "monster": "gnoll",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "hobgoblin",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "orc",
+      "max": 3,
+      "respawn": 25
+    }
+  ],
+  "waystone": {
+    "at": [
+      16,
+      15
+    ],
+    "spawn": [
+      16,
+      16
+    ]
+  }
+}

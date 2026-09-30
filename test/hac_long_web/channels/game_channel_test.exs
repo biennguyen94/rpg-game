@@ -52,19 +52,19 @@ defmodule HacLongWeb.GameChannelTest do
   end
 
   test "chạm quái trên bản đồ, chiến đấu và lưu vào database" do
-    MapServer.clear_monsters("forest")
+    MapServer.clear_monsters("forest_1")
     user = create_user()
-    player_at(user, %{map: "forest", x: 13, y: 16})
+    player_at(user, %{map: "forest_1", x: 13, y: 16})
     {_, socket} = join_game(user)
-    assert_push "map", %{map: "forest"}
-    bat = MapServer.put_monster("forest", "bat", {13, 15})
+    assert_push "map", %{map: "forest_1"}
+    bat = MapServer.put_monster("forest_1", "bat", {13, 15})
 
     r = cmd(socket, %{"act" => "move", "dir" => "up"})
     assert r.ok and r.player.battle.monster.id == "bat"
-    assert r.player.battle.encounter == %{map: "forest", mid: bat.id}
+    assert r.player.battle.encounter == %{map: "forest_1", mid: bat.id}
     # người đứng yên, quái bị khóa cho người này
-    assert r.player.pos == %{map: "forest", x: 13, y: 16}
-    assert [%{busy: true}] = MapServer.snapshot("forest").monsters
+    assert r.player.pos == %{map: "forest_1", x: 13, y: 16}
+    assert [%{busy: true}] = MapServer.snapshot("forest_1").monsters
 
     r =
       Enum.reduce_while(1..200, r, fn _, _ ->
@@ -79,12 +79,29 @@ defmodule HacLongWeb.GameChannelTest do
     assert r.player.view.derived.maxHp > 0
 
     if r.player.battle.result == "win",
-      do: assert(MapServer.snapshot("forest").monsters == []),
+      do: assert(MapServer.snapshot("forest_1").monsters == []),
       else: assert(r.player.pos.map == "home")
 
     r = cmd(socket, %{"act" => "leave"})
     assert r.player.battle == nil
     assert Characters.load(user.id).battle == nil
+  end
+
+  test "chạm đá dịch chuyển rồi dịch chuyển về Làng" do
+    two = HacLong.World.Maps.get("forest_2")
+    {sx, sy} = two.waystone.spawn
+    user = create_user()
+    player_at(user, %{map: "forest_2", x: sx, y: sy})
+    {_, socket} = join_game(user)
+
+    r = cmd(socket, %{"act" => "move", "dir" => "up"})
+    assert r.ok and r.waystone
+    assert Characters.load(user.id).waystones == ["forest_2"]
+
+    r = cmd(socket, %{"act" => "teleport", "to" => "village"})
+    assert r.ok and r.player.pos.map == "village"
+    assert_push "map", %{map: "village"}
+    assert Characters.load(user.id).pos.map == "village"
   end
 
   test "người chơi khác thấy nhau trên bản đồ, tab đóng thì rời bản đồ" do

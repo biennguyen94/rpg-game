@@ -1,0 +1,77 @@
+{
+  "id": "graveyard_2",
+  "name": "Nghĩa Địa Cổ 2",
+  "zone": 2,
+  "floor": "floors/graveyard",
+  "tiles": [
+    "SSSSSSSSSSSSSASSSSSSSSSSSS",
+    "SKKISIII............K....S",
+    "SI.....I.................S",
+    "SI....II.................S",
+    "S.I.K...K................S",
+    "S..K...KK...SS.....I..K..S",
+    "S............SSK...I...K.S",
+    "S..........K.......I.....S",
+    "S.I.......KII.....S..SS..S",
+    "SIII.......ISK.....K.S...S",
+    "S.I..K.....ISII....KK....S",
+    "S.I..KSI....SIKI.........S",
+    "S......S......I.....I....S",
+    "S...................I....S",
+    "S........................S",
+    "S.I.......K.....W.....I..S",
+    "S..I.............I..SIKIIS",
+    "SSSSSSSSSSSSSASSSSSSSSSSSS"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "graveyard_1",
+      "spawn": [
+        13,
+        1
+      ]
+    },
+    {
+      "at": [
+        13,
+        0
+      ],
+      "to": "graveyard_boss",
+      "spawn": [
+        7,
+        9
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "monster": "ghoul",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "wight",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "vampire",
+      "max": 3,
+      "respawn": 25
+    }
+  ],
+  "waystone": {
+    "at": [
+      16,
+      15
+    ],
+    "spawn": [
+      16,
+      16
+    ]
+  }
+}

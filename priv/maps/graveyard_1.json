@@ -1,0 +1,62 @@
+{
+  "id": "graveyard_1",
+  "name": "Nghĩa Địa Cổ 1",
+  "zone": 2,
+  "floor": "floors/graveyard",
+  "tiles": [
+    "SSSSSSSSSSSSSASSSSSSSSSSSS",
+    "S....SSS................KS",
+    "S.IS.SS................KKS",
+    "SISS......I.............SS",
+    "S........I...............S",
+    "SIII.....................S",
+    "S.I......................S",
+    "S.S..........II..KK....K.S",
+    "S.S...SSSS.............KKS",
+    "S......I.KK.....K......KKS",
+    "S....II....K.............S",
+    "S...II......K....S.......S",
+    "S...I............SI.K....S",
+    "SI...K..SS.....I..KK.....S",
+    "SKIIIII..................S",
+    "SKSSIIISS................S",
+    "SIKKKSSIS.............KK.S",
+    "SSSSSSSSSSSSSASSSSSSSSSSSS"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "village",
+      "spawn": [
+        1,
+        5
+      ]
+    },
+    {
+      "at": [
+        13,
+        0
+      ],
+      "to": "graveyard_2",
+      "spawn": [
+        13,
+        16
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "monster": "skeletal_warrior",
+      "max": 5,
+      "respawn": 25
+    },
+    {
+      "monster": "ghoul",
+      "max": 5,
+      "respawn": 25
+    }
+  ]
+}

@@ -44,9 +44,11 @@ defmodule HacLong.World.MapServer do
   @doc """
   Người chơi bước sang ô `{x, y}` (đã kiểm tra địa hình). Trả về:
   `:ok` (đã đi), `{:engage, quái}` (ô có quái, quái đã bị khóa cho người này, người
-  đứng yên) hoặc `{:busy, quái}` (quái đang đánh với người khác).
+  đứng yên), `{:busy, quái}` (quái đang đánh với người khác) hoặc `{:confirm_boss, trùm}`
+  (ô có trùm mà chưa xác nhận muốn đấu: chưa khóa gì).
   """
-  def step(map_id, uid, {x, y}), do: GenServer.call(via(map_id), {:step, uid, {x, y}})
+  def step(map_id, uid, {x, y}, confirm_boss? \\ false),
+    do: GenServer.call(via(map_id), {:step, uid, {x, y}, confirm_boss?})
 
   @doc "Trận thắng: quái biến mất và hẹn giờ hồi lại."
   def defeat(map_id, uid, mid), do: GenServer.call(via(map_id), {:defeat, uid, mid})
@@ -98,8 +100,11 @@ defmodule HacLong.World.MapServer do
 
   def handle_call({:leave, uid}, _from, s), do: {:reply, :ok, remove_player(s, uid)}
 
-  def handle_call({:step, uid, pos}, _from, s) do
+  def handle_call({:step, uid, pos, confirm?}, _from, s) do
     case monster_at(s, pos) do
+      %{boss: true, busy: nil} = m when not confirm? ->
+        {:reply, {:confirm_boss, public(m)}, s}
+
       %{busy: nil} = m ->
         {:reply, {:engage, public(m)}, changed(put_in(s.monsters[m.id].busy, uid))}
 

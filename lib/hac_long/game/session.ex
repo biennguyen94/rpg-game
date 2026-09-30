@@ -81,7 +81,8 @@ defmodule HacLong.Game.Session do
     reply(s.player, s)
   end
 
-  def handle_call({:command, %{"act" => "move"} = cmd, origin}, _from, s) do
+  def handle_call({:command, %{"act" => act} = cmd, origin}, _from, s)
+      when act in ["move", "teleport"] do
     case take_step(s) do
       {:ok, s} ->
         {result, player} = run_move(s, cmd)
@@ -89,9 +90,15 @@ defmodule HacLong.Game.Session do
 
         s =
           cond do
-            player == old -> s
-            old.pos.map != player.pos.map or player.battle != nil -> save(s, player)
-            true -> s |> Map.put(:player, player) |> mark_dirty()
+            player == old ->
+              s
+
+            old.pos.map != player.pos.map or player.battle != nil or
+                player.waystones != old.waystones ->
+              save(s, player)
+
+            true ->
+              s |> Map.put(:player, player) |> mark_dirty()
           end
 
         if player != old, do: broadcast(s, player, origin)
@@ -150,7 +157,12 @@ defmodule HacLong.Game.Session do
   defp timeout(_), do: @idle_timeout
 
   defp run_move(%{player: nil} = s, _cmd), do: {%{ok: false, msg: "Chưa có nhân vật."}, s.player}
-  defp run_move(s, cmd), do: World.move(s.player, s.user_id, cmd["dir"])
+
+  defp run_move(s, %{"act" => "teleport"} = cmd),
+    do: World.teleport(s.player, s.user_id, cmd["to"])
+
+  defp run_move(s, cmd),
+    do: World.move(s.player, s.user_id, cmd["dir"], cmd["confirm"] == true)
 
   defp after_command(s, old, player, cmd) do
     cond do

@@ -10,6 +10,9 @@ defmodule HacLong.World.Maps do
     bản đồ `to`, đứng ở `spawn`. Cổng vào vùng chưa mở (chưa hạ trùm vùng trước) bị khóa.
   - `spawns`: `{monster, max, respawn}`: loại quái, số con tối đa, số giây hồi lại.
   - `boss`: `{at, respawn}`: chỗ trùm của vùng đứng (trùm không đi lang thang).
+  - `waystone`: `{at, spawn}`: đá dịch chuyển (ô `W`) và chỗ đứng khi dịch chuyển tới đây.
+    Chạm vào đá lần đầu thì ghi nhớ nó; đứng cạnh bất kỳ đá nào đều dịch chuyển được tới
+    các đá đã ghi nhớ (Làng luôn có sẵn).
   - `private: true`: bản đồ riêng của mỗi người (Nhà), không có ai khác.
   """
 
@@ -32,6 +35,7 @@ defmodule HacLong.World.Maps do
     "S" => "stone",
     "I" => "column",
     "F" => "fountain",
+    "W" => "waystone",
     "D" => "door",
     "A" => "arch",
     "O" => "portal"
@@ -62,7 +66,13 @@ defmodule HacLong.World.Maps do
                  &%{monster: &1["monster"], max: &1["max"], respawn: &1["respawn"]}
                ),
              boss:
-               m["boss"] && %{at: List.to_tuple(m["boss"]["at"]), respawn: m["boss"]["respawn"]}
+               m["boss"] && %{at: List.to_tuple(m["boss"]["at"]), respawn: m["boss"]["respawn"]},
+             waystone:
+               m["waystone"] &&
+                 %{
+                   at: List.to_tuple(m["waystone"]["at"]),
+                   spawn: List.to_tuple(m["waystone"]["spawn"])
+                 }
            }
 
            {map.id, map}
@@ -73,6 +83,7 @@ defmodule HacLong.World.Maps do
   def get(id), do: Map.get(@maps, id)
   def ids, do: Map.keys(@maps)
   def shared_ids, do: for({id, m} <- @maps, not m.private, do: id)
+  def waystone_ids, do: for({id, m} <- @maps, m.waystone, do: id)
   def legend, do: @legend
   def home, do: @home
 
@@ -103,7 +114,8 @@ defmodule HacLong.World.Maps do
            zone: m.zone,
            floor: m.floor,
            tiles: m.tiles,
-           portals: Enum.map(m.portals, &%{at: Tuple.to_list(&1.at), to: &1.to})
+           portals: Enum.map(m.portals, &%{at: Tuple.to_list(&1.at), to: &1.to}),
+           waystone: m.waystone != nil
          }}
       end)
 

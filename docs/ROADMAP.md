@@ -107,7 +107,8 @@ Mỗi bản đồ một file `priv/maps/<id>.json`, vẽ bằng ký tự để d
 | Chạm vào | Kết quả |
 | --- | --- |
 | Quái | Vào trận. Thắng: quái biến mất, hồi lại sau N giây. Chạy thoát: đứng yên tại chỗ, quái được nhả ra. Thua: tỉnh dậy ở nhà |
-| Trùm | Hỏi xác nhận trước khi đấu (chưa làm: hiện bước vào là đánh luôn) |
+| Trùm | Hỏi xác nhận trước khi đấu (có cảnh báo nếu cấp còn thấp) |
+| Đá dịch chuyển | Lần đầu chạm thì ghi nhớ; mở bảng chọn nơi đến (Làng và các đá đã ghi nhớ) |
 | Cổng | Chuyển bản đồ |
 | NPC | Cửa hàng, hội thoại, nhận nhiệm vụ |
 | Cây thuốc, quặng | Thu thập nguyên liệu (cho chế tạo sau này) |
@@ -147,8 +148,10 @@ Mỗi bản đồ một file `priv/maps/<id>.json`, vẽ bằng ký tự để d
   bản đồ); đi lại, qua cổng, chạm quái vào trận. Quái dùng chung, đi lang thang, hồi theo thời
   gian; thấy người chơi khác. Bỏ tab "Săn quái". (Vì bỏ nút săn nhanh nên phải có đủ 6 vùng
   ngay từ đầu; bản đồ chung và thấy người chơi khác gộp luôn vào đây.)
-- [ ] **Giai đoạn 2**: tách mỗi vùng thành 2–3 bản đồ, phòng trùm riêng; di chuyển mượt (nội suy
-  vị trí), đá dịch chuyển giữa các vùng đã mở.
+- [x] **Giai đoạn 2**: mỗi vùng tách thành 2 bản đồ quái (bản đồ 2 có quái mạnh hơn) và một
+  phòng trùm riêng; di chuyển mượt (nội suy vị trí cho mình, người khác và quái); đá dịch
+  chuyển ở Làng và ở bản đồ 2 mỗi vùng (chạm lần đầu để ghi nhớ, đứng cạnh đá nào cũng
+  dịch chuyển được tới các đá đã ghi nhớ); hỏi xác nhận trước khi đấu trùm.
 - [ ] **Giai đoạn 3**: NPC, cây thuốc và quặng, nhiệm vụ.
 - [ ] **Giai đoạn 4**: trang trí nhà, trùm thế giới trên bản đồ.
 

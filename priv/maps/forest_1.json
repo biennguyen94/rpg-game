@@ -1,0 +1,62 @@
+{
+  "id": "forest_1",
+  "name": "Rừng Mê 1",
+  "zone": 0,
+  "floor": "floors/forest",
+  "tiles": [
+    "TTTTTTTTTTTTTATTTTTTTTTTTT",
+    "TTTTTT.......::*::::.....T",
+    "TTTTT....~...::..:::.....T",
+    "TTTTT.....~..::.:::......T",
+    "T~T~T...~.......::.......T",
+    "T.~~...~......RR::..*....T",
+    "T.........~...~~::.TT....T",
+    "T.~~T......~~~.~::T...TT*T",
+    "T.TTTTT...T~.~..::.......T",
+    "T...T~T...T~....::.......T",
+    "T...~~*..T......::...*...T",
+    "T.*~~...........::.TT.*.TT",
+    "T...~T........*.::.T.....T",
+    "T..TTT..........::.~*....T",
+    "T*..T~~......::.::~~.....T",
+    "T.*..~.......::..RTT~....T",
+    "T...........*::.RTR......T",
+    "TTTTTTTTTTTTTATTTTTTTTTTTT"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "village",
+      "spawn": [
+        6,
+        1
+      ]
+    },
+    {
+      "at": [
+        13,
+        0
+      ],
+      "to": "forest_2",
+      "spawn": [
+        13,
+        16
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "monster": "bat",
+      "max": 5,
+      "respawn": 25
+    },
+    {
+      "monster": "jackal",
+      "max": 5,
+      "respawn": 25
+    }
+  ]
+}

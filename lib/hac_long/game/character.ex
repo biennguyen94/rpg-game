@@ -2,7 +2,7 @@ defmodule HacLong.Game.Character do
   @moduledoc "Bảng `characters`: trạng thái nhân vật đã lưu của một tài khoản."
   use Ecto.Schema
 
-  @fields ~w(name cls level xp gold hp points stats equip inv bosses kills deaths victory battle map_id x y)a
+  @fields ~w(name cls level xp gold hp points stats equip inv bosses kills deaths victory battle map_id x y waystones)a
 
   schema "characters" do
     belongs_to :user, HacLong.Accounts.User
@@ -24,6 +24,7 @@ defmodule HacLong.Game.Character do
     field :map_id, :string
     field :x, :integer
     field :y, :integer
+    field :waystones, {:array, :string}
     timestamps(type: :utc_datetime)
   end
 

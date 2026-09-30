@@ -12,8 +12,12 @@ defmodule HacLong.Game.Commands do
 
   def run(nil, %{"act" => "create"} = c) do
     case Engine.new_player(c["name"], c["cls"]) do
-      {:ok, p} -> {%{ok: true, msg: "Chào mừng #{p.name}!"}, Map.put(p, :pos, Maps.home_spawn())}
-      {:error, msg} -> {%{ok: false, msg: msg}, nil}
+      {:ok, p} ->
+        {%{ok: true, msg: "Chào mừng #{p.name}!"},
+         p |> Map.put(:pos, Maps.home_spawn()) |> Map.put(:waystones, [])}
+
+      {:error, msg} ->
+        {%{ok: false, msg: msg}, nil}
     end
   end
 
