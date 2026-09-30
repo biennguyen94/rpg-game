@@ -326,3 +326,20 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 
 /* Rèn đồ */
 .up-lv { color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Âm thanh */
+.volume { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.volume input { flex: 1; accent-color: var(--gold); }
+
+/* Câu cá */
+.fish-ui { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 10px;
+  background: rgba(20, 16, 26, 0.9); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+.fish-ui b { flex: 1; min-width: 0; }
+.fish-ui.idle { left: auto; background: none; border: 0; padding: 0; }
+.fish-ui.bite { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(233, 196, 106, 0.35); }
+.fish-ui b { font-size: 0.85rem; }
+.bobber { width: 14px; height: 18px; border-radius: 50% 50% 45% 45%; background: linear-gradient(#e0583f 50%, #f4f1e8 50%); flex: none; animation: bob 1.4s ease-in-out infinite; }
+.bobber.sink { animation: sink 0.25s ease-in-out infinite alternate; }
+@keyframes bob { 50% { transform: translateY(-3px); } }
+@keyframes sink { to { transform: translateY(5px) scale(0.85); } }
+@media (prefers-reduced-motion: reduce) { .bobber, .bobber.sink { animation: none; } }

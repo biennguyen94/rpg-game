@@ -24,8 +24,10 @@
   let blocked = [];      // người mình đã chặn: [{ id, name }]
   let adm = { reports: null, user: null, loading: false }; // tab Quản trị
   let mail = { unread: 0, list: null, open: false }; // hộp thư
+  let fishing = null;    // lượt câu: { phase: 'wait' | 'bite', timers: [] }
   let wb = { alive: false }; // trùm thế giới; `skew`: lệch đồng hồ máy chủ - máy này
   const Map_ = window.MapView;
+  const Sound = window.Sound;
 
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -83,7 +85,7 @@
       ['bag', 'backpack', 'Túi đồ'],
       ['quests', 'scroll-unfurled', 'Nhiệm vụ'],
     ].concat(Net.isAdmin ? [['admin', 'crowned-skull', 'Quản trị']] : []).map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = mail.open ? viewMail() : P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + Map_.html(P, viewDialog()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests, admin: viewAdmin }[tab])();
+    view.innerHTML = mail.open ? viewMail() : P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + Map_.html(P, viewDialog() + viewFishing()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests, admin: viewAdmin }[tab])();
     if (tab === 'map' && !npc && !mail.open) {
       Map_.mount(() => P);
       const log = $('#chat-log');
@@ -200,6 +202,73 @@
       <div class="list">${places.map((id) => `<button class="btn" data-act="teleport" data-to="${id}" ${id === P.pos.map ? 'disabled' : ''}>${esc(W[id].name)}${id === P.pos.map ? ' · đang ở đây' : ''}</button>`).join('')}</div>
       <button class="btn" data-act="dialog-close">Đóng</button>
     </div>`;
+  }
+
+  // ---------- Câu cá ----------
+  function nearWater() {
+    const m = WORLD.maps[P.pos.map];
+    if (!m) return false;
+    return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => (m.tiles[P.pos.y + dy] || '')[P.pos.x + dx] === '~');
+  }
+
+  function viewFishing() {
+    if (fishing) {
+      const bite = fishing.phase === 'bite';
+      return `<div id="fish-ui" class="fish-ui ${bite ? 'bite' : ''}">
+        <span class="bobber ${bite ? 'sink' : ''}" aria-hidden="true"></span>
+        <b>${bite ? 'Cá cắn câu! Giật ngay!' : 'Đang chờ cá cắn câu…'}</b>
+        <button class="btn ${bite ? 'primary' : ''}" data-act="fish-reel">${icon('fishing-pole')} Giật cần</button>
+      </div>`;
+    }
+    if (dialog || P.pos.map === 'tower' || !nearWater()) return '<div id="fish-ui" hidden></div>';
+    return `<div id="fish-ui" class="fish-ui idle"><button class="btn" data-act="fish-cast">${icon('fishing-pole')} Câu cá</button></div>`;
+  }
+
+  function stopFishing() {
+    if (!fishing) return;
+    fishing.timers.forEach(clearTimeout);
+    fishing = null;
+  }
+
+  function redrawFishing() {
+    const el = $('#fish-ui');
+    if (el) el.outerHTML = viewFishing();
+  }
+
+  async function castLine() {
+    if (busy || fishing) return;
+    busy = true;
+    const t0 = performance.now();
+    try {
+      const r = await Net.send({ act: 'fish_cast' });
+      P = r.player;
+      if (!r.ok) { toast(r.msg, true); busy = false; return; }
+      const rtt = performance.now() - t0;
+      // server tính giờ cá cắn từ lúc nhận lệnh; lệnh giật cũng mất nửa vòng mạng mới tới,
+      // nên hiện "cá cắn" sớm hơn một vòng mạng để bấm kịp
+      const biteIn = Math.max(0, r.wait - rtt);
+      const f = { phase: 'wait', timers: [] };
+      fishing = f;
+      f.timers.push(setTimeout(() => { if (fishing !== f) return; f.phase = 'bite'; Sound.play('bite'); if (navigator.vibrate) navigator.vibrate(120); redrawFishing(); }, biteIn));
+      f.timers.push(setTimeout(() => { if (fishing !== f) return; stopFishing(); toast('Chậm tay rồi, cá ăn mất mồi.', true); redrawFishing(); }, biteIn + r.window + 400));
+      Sound.play('cast');
+    } catch (e) { toast(e.msg, true); }
+    busy = false;
+    redrawFishing();
+  }
+
+  async function reelIn() {
+    if (!fishing || busy) return;
+    stopFishing();
+    busy = true;
+    try {
+      const r = await Net.send({ act: 'fish_reel' });
+      P = r.player;
+      result(r);
+      Sound.play(!r.ok ? 'error' : r.fish === 'fish_gold' ? 'rare' : 'catch');
+    } catch (e) { toast(e.msg, true); }
+    busy = false;
+    refresh();
   }
 
   // ---------- Hướng dẫn người mới ----------
@@ -328,6 +397,8 @@
       if (head) head.outerHTML = Map_.top(P);
       const tut = $('#tut');
       if (tut) tut.outerHTML = viewTutorial();
+      const fish = $('#fish-ui');
+      if (fish) fish.outerHTML = viewFishing();
       Map_.draw();
     } else {
       render();
@@ -480,6 +551,12 @@
           <div class="stat"><span class="small muted">Quái đã hạ</span><b>${fmt(P.kills)}</b></div>
           <div class="stat"><span class="small muted">Số lần gục ngã</span><b>${fmt(P.deaths)}</b></div>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="row">${icon(Sound.on ? 'speaker' : 'speaker-off', 'lg')}<h3 class="grow">Âm thanh</h3>
+          <button class="btn" data-act="sound-toggle" aria-pressed="${Sound.on}">${Sound.on ? 'Đang bật' : 'Đang tắt'}</button></div>
+        <label class="small volume">Âm lượng <input type="range" id="volume" min="0" max="100" value="${Math.round(Sound.volume * 100)}" ${Sound.on ? '' : 'disabled'}></label>
       </div>
 
       <div class="card">
@@ -884,18 +961,38 @@
     }
   }
 
+  // Âm thanh cho kết quả một lệnh.
+  const CMD_SOUND = { buy: 'coin', sell: 'coin', mail_claim: 'coin', craft: 'brew', upgrade: 'forge', quest_turnin: 'quest', daily_claim: 'quest', quest_accept: 'notice', rest: 'potion', use: 'potion', tower_enter: 'portal', potion: 'potion' };
+
+  function commandSound(cmd, r, old) {
+    if (!r.ok) { Sound.play('error'); return; }
+    if (fx) {
+      if (cmd.act === 'skill') Sound.play('skill');
+      if (cmd.act === 'potion') Sound.play('potion');
+      if (fx.mDmg === 0) Sound.play('miss'); else if (fx.mDmg) Sound.play(fx.crit ? 'crit' : 'hit');
+      if (fx.pDmg) setTimeout(() => Sound.play('hurt'), 180);
+    } else if (CMD_SOUND[cmd.act]) Sound.play(CMD_SOUND[cmd.act]);
+    if (cmd.act === 'flee' && P.battle && P.battle.over && P.battle.result === 'fled') Sound.play('flee');
+    const ended = old && old.battle && !old.battle.over && P && P.battle && P.battle.over;
+    if (ended && P.battle.result === 'win') setTimeout(() => Sound.play('win'), 250);
+    if (ended && P.battle.result === 'lose') setTimeout(() => Sound.play('lose'), 250);
+    if (old && P && P.level > old.level) setTimeout(() => Sound.play('levelup'), ended ? 700 : 100);
+  }
+
   async function sendCommand(cmd) {
     if (busy) return;
     busy = true;
     const battle = ['attack', 'skill', 'potion', 'flee'].includes(cmd.act) && P && P.battle;
     const before = battle ? snapBattle() : null;
     const scroll = $('#view').scrollTop;
+    const old = P;
     try {
       const r = await Net.send(cmd);
       P = r.player;
       result(r);
+      if (r.ok && before) battleFx(before, cmd.act);
+      commandSound(cmd, r, old);
       if (r.ok) {
-        if (before) battleFx(before, cmd.act);
         if (cmd.act === 'leave' || cmd.act === 'create') tab = 'map';
         if (cmd.act === 'reset') tab = 'map';
         if (cmd.act === 'tower_enter') { tab = 'map'; npc = null; }
@@ -916,6 +1013,7 @@
   // Một bước: gửi lên server, server kiểm tra rồi trả vị trí mới (hoặc bắt đầu trận).
   async function step(dir, confirm) {
     if (busy || !P || P.battle) return false;
+    if (fishing) { stopFishing(); toast('Bạn đã thu cần.'); }
     busy = true;
     const mapBefore = P.pos.map, hadDialog = !!dialog;
     dialog = null;
@@ -924,6 +1022,10 @@
       const r = await Net.send(confirm ? { act: 'move', dir, confirm: true } : { act: 'move', dir });
       P = r.player;
       if (r.msg) result(r);
+      if (r.gather) Sound.play('gather');
+      else if (P.battle) Sound.play('encounter');
+      else if (P.pos.map !== mapBefore) Sound.play('portal');
+      else if (r.msg && r.ok) Sound.play('notice');
       if (r.confirm === 'boss') dialog = { type: 'boss', dir, boss: r.boss };
       if (r.waystone) dialog = { type: 'waystone' };
       if (r.npc) {
@@ -996,7 +1098,7 @@
     const t = e.target.closest('button');
     if (!t) return;
     if (t.dataset.cls) { pickCls = t.dataset.cls; document.querySelectorAll('.class-opt').forEach((b) => b.setAttribute('aria-pressed', b.dataset.cls === pickCls)); return; }
-    if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; mail.open = false; render(); $('#view').scrollTop = 0; return; }
+    if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; mail.open = false; stopFishing(); render(); $('#view').scrollTop = 0; return; }
     if (t.dataset.auth) { authMode = t.dataset.auth; render(); return; }
     if (t.dataset.board) { board.kind = t.dataset.board; const el = $('#board'); if (el) el.outerHTML = viewBoard(); loadBoard(); return; }
     if (t.dataset.move) { walk = null; step(t.dataset.move); return; }
@@ -1026,6 +1128,9 @@
     if (act === 'npc-close') { npc = null; render(); return; }
     if (act === 'mail-open') { mail.open = !mail.open; walk = null; render(); $('#view').scrollTop = 0; if (mail.open) loadMail(); return; }
     if (act === 'mail-close') { mail.open = false; render(); return; }
+    if (act === 'fish-cast') { walk = null; castLine(); return; }
+    if (act === 'sound-toggle') { Sound.toggle(); render(); return; }
+    if (act === 'fish-reel') { reelIn(); return; }
     if (act === 'boss-yes') { const d = dialog; if (d) step(d.dir, true); return; }
     sendCommand(command(act, t));
   }
@@ -1091,16 +1196,17 @@
     Net.onMap((snap) => Map_.setWorld(snap));
     Net.onChat(onChatMessage);
     Net.onWorldBoss(onWorldBoss);
-    Net.onNotice((msg) => toast(msg));
+    Net.onNotice((msg) => { toast(msg); Sound.play(/Thành tựu/.test(msg) ? 'achieve' : 'notice'); });
     Net.onMail((n) => {
       const more = n > mail.unread;
       mail.unread = n;
-      if (more) { toast('Bạn có thư mới.'); if (mail.open) loadMail(); }
+      if (more) { toast('Bạn có thư mới.'); Sound.play('mail'); if (mail.open) loadMail(); }
       if (P && !P.battle) $('#hud').innerHTML = viewHud();
     });
     setInterval(() => { const el = $('#wb-left'); if (el && wb.alive) el.textContent = clock(wb.endsAt - wb.skew - Date.now()); }, 1000);
     Net.onChatHistory((msgs) => { chats = msgs; const log = $('#chat-log'); if (log) { log.innerHTML = chats.map(chatLine).join(''); log.scrollTop = log.scrollHeight; } });
     document.addEventListener('input', (e) => { if (e.target.id === 'chat-input') chatDraft = e.target.value; });
+    document.addEventListener('change', (e) => { if (e.target.id === 'volume') { Sound.setVolume(e.target.value / 100); Sound.play('coin'); } });
     Net.onStatus((st) => {
       const bar = $('#netbar');
       bar.hidden = st === 'online';

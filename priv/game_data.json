@@ -507,6 +507,41 @@
       "price": 125,
       "desc": "Đào ở Núi Khổng Lồ, Đầm Lầy Rồng, Hang Hắc Long."
     },
+    "fish_small": {
+      "name": "Cá Diếc",
+      "slot": "material",
+      "sprite": "items/fish_small",
+      "price": 10,
+      "desc": "Câu ở hồ nước. Bán cho Bà Lang hoặc Thợ Rèn."
+    },
+    "fish_carp": {
+      "name": "Cá Chép",
+      "slot": "material",
+      "sprite": "items/fish_carp",
+      "price": 25,
+      "desc": "Câu ở hồ nước. Bán được giá khá."
+    },
+    "fish_eel": {
+      "name": "Lươn Điện",
+      "slot": "material",
+      "sprite": "items/fish_eel",
+      "price": 60,
+      "desc": "Chỉ có ở Đầm Lầy và Hang Rồng."
+    },
+    "fish_gold": {
+      "name": "Cá Chép Vàng",
+      "slot": "material",
+      "sprite": "items/fish_gold",
+      "price": 500,
+      "desc": "Hiếm lắm mới câu được. Bán được giá cao."
+    },
+    "old_boot": {
+      "name": "Chiếc Ủng Cũ",
+      "slot": "material",
+      "sprite": "items/old_boot",
+      "price": 2,
+      "desc": "Ai vứt xuống hồ thế này..."
+    },
     "dragon_scale": {
       "name": "Vảy Cổ Long",
       "slot": "material",

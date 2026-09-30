@@ -56,6 +56,7 @@ defmodule HacLong.Game.Engine do
           equip: %{weapon: "club", armor: "vest", shield: nil},
           inv: %{"potion_s" => 3},
           upgrades: %{},
+          fish_caught: 0,
           bosses: [],
           kills: 0,
           deaths: 0,

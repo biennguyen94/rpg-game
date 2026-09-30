@@ -190,7 +190,7 @@ defmodule HacLong.World do
         item = Data.item(node.item)
         verb = if String.starts_with?(node.item, "ore"), do: "Đào", else: "Hái"
         p = p |> Engine.add_item(node.item) |> Daily.on_gather(node.item)
-        {%{ok: true, msg: "#{verb} được #{item.name}."}, p}
+        {%{ok: true, msg: "#{verb} được #{item.name}.", gather: node.item}, p}
 
       {:confirm_boss, m} ->
         boss = Data.zone(map.zone).boss
