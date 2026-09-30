@@ -5,13 +5,14 @@ defmodule HacLong.Leaderboard do
   - `:level`: cấp cao nhất (bằng cấp thì ai nhiều kinh nghiệm hơn xếp trên).
   - `:kills`: hạ nhiều quái nhất.
   - `:dragon`: những người đã hạ Hắc Long, ai hạ trước xếp trên.
+  - `:tower`: tầng cao nhất đã vượt ở Tháp Vô Tận.
   """
   import Ecto.Query
 
   alias HacLong.Repo
   alias HacLong.Game.Character
 
-  @kinds [:level, :kills, :dragon]
+  @kinds [:level, :kills, :dragon, :tower]
 
   def kinds, do: @kinds
 
@@ -25,7 +26,8 @@ defmodule HacLong.Leaderboard do
       cls: c.cls,
       level: c.level,
       kills: c.kills,
-      victory_at: c.victory_at
+      victory_at: c.victory_at,
+      tower_best: c.tower_best
     })
     |> Repo.all()
     |> Enum.with_index(1)
@@ -34,6 +36,9 @@ defmodule HacLong.Leaderboard do
 
   defp query(:level), do: from(c in Character, order_by: [desc: c.level, desc: c.xp, asc: c.id])
   defp query(:kills), do: from(c in Character, order_by: [desc: c.kills, asc: c.id])
+
+  defp query(:tower),
+    do: from(c in Character, where: c.tower_best > 0, order_by: [desc: c.tower_best, asc: c.id])
 
   defp query(:dragon),
     do:

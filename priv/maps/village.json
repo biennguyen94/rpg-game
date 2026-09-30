@@ -227,6 +227,21 @@
         "Việc vặt mỗi ngày của dân làng. Làm xong quay lại đây nhận thưởng.",
         "Sáng mai sẽ có việc mới."
       ]
+    },
+    {
+      "id": "tower_guard",
+      "name": "Người Gác Tháp",
+      "sprite": "tower_guard",
+      "at": [
+        21,
+        8
+      ],
+      "role": "tower",
+      "lines": [
+        "Tháp Vô Tận không có đỉnh. Leo được bao cao là tài của cậu.",
+        "Trong tháp máu không tự hồi đâu, mang đủ bình máu vào.",
+        "Vượt mỗi 10 tầng thì lần sau ta cho vào thẳng từ tầng đó."
+      ]
     }
   ],
   "spawns": []

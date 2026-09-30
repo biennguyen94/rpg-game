@@ -44,9 +44,11 @@ defmodule HacLong.World.Maps do
     "W" => "waystone",
     "D" => "door",
     "A" => "arch",
-    "O" => "portal"
+    "O" => "portal",
+    ">" => "stairs_up",
+    "<" => "stairs_down"
   }
-  @walkable MapSet.new(~w(. , : * D A O))
+  @walkable MapSet.new(~w(. , : * D A O > <))
 
   @maps (for f <- @files, into: %{} do
            m = f |> File.read!() |> Jason.decode!()

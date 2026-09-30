@@ -34,7 +34,10 @@ Các tính năng dự định cho Hắc Long RPG, xếp theo thứ tự ưu tiê
   một loại quái, hạ quái ở một vùng, hái/đào nguyên liệu) ở hai vùng cao nhất đã mở, tự tính
   tiến độ, làm mới lúc 0 giờ giờ Việt Nam.
 - [ ] **Nội dung sau khi phá đảo**
-  - Tháp vô tận: mỗi tầng quái mạnh hơn, có bảng kỷ lục tầng cao nhất.
+  - [x] Tháp Vô Tận: gặp Người Gác Tháp ở Làng; mỗi tầng một bản đồ nhỏ sinh ngẫu nhiên riêng
+    cho mình, tầng N có quái cấp N (không có trần), hạ hết quái thì lên tầng và nhận thưởng,
+    5 tầng một trùm tầng, máu không tự hồi, gục ngã là hết lượt; vượt mỗi 10 tầng thì lần sau
+    vào thẳng được; bảng xếp hạng "Tháp".
   - Chuyển sinh: về cấp 1, nhận chỉ số cộng thêm vĩnh viễn.
 
 ## C. Làm game sâu hơn

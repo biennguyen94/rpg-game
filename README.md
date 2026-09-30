@@ -40,6 +40,7 @@ mix test           # chạy test (cần PostgreSQL)
   săn nhiều nhất, ai hạ Hắc Long trước
 - Trùm thế giới: Cổ Long Ba Đầu xuất hiện định kỳ ở Tế Đàn, cả server đánh chung một thanh máu,
   chia thưởng theo sát thương
+- Tháp Vô Tận: leo từng tầng sinh ngẫu nhiên, quái mạnh dần không có trần, bảng kỷ lục
 - Gục ngã mất 10% vàng và tỉnh dậy ở Nhà; giếng nước ở Nhà hồi máu miễn phí
 - Mỗi tài khoản một nhân vật, lưu sau mỗi thao tác, chơi tiếp được trên thiết bị khác
 
@@ -91,6 +92,7 @@ lib/hac_long/game/session.ex        Tiến trình giữ nhân vật đang online
 lib/hac_long/game/characters.ex     Đọc/ghi bảng characters
 lib/hac_long/game/quests.ex         Nhiệm vụ: nhận, tiến độ, trả và nhận thưởng
 lib/hac_long/game/daily.ex          Việc hằng ngày
+lib/hac_long/game/tower.ex          Tháp Vô Tận: sinh tầng, quái, lên tầng, thưởng
 lib/hac_long/game/names.ex          Kiểm tra và chuẩn hóa tên nhân vật
 lib/hac_long/game/simulator.ex      Bot chơi thử để kiểm tra cân bằng
 lib/hac_long/world.ex               Đi lại trên bản đồ, qua cổng, chạm quái, kết thúc trận
@@ -140,7 +142,7 @@ Kết quả in ra số trận trung bình để thắng, số lần chết và c
 | push `"chat"` | `{text}` → ok hoặc `{msg}` lỗi; server đẩy `"chat"` `{uid, name, map, text, at}` cho mọi người, `"chat_history"` lúc mới vào |
 | server push `"world_boss"` | `{alive, name, hp, maxHp, endsAt, nextAt, now, fighters, top}` khi trùm thế giới thay đổi |
 | server push `"notice"` | `{msg}`: thông báo riêng (vd. nhận thưởng trùm thế giới) |
-| push `"leaderboard"` | → `{level, kills, dragon, me}` (mỗi bảng 10 người, `me` là hạng theo cấp) |
+| push `"leaderboard"` | → `{level, kills, dragon, tower, me}` (mỗi bảng 10 người, `me` là hạng theo cấp) |
 
 Các `act`: `create {name, cls}`, `reset`, `move {dir, confirm?}` (`up`/`down`/`left`/`right`;
 bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: true` để đấu),
@@ -149,10 +151,11 @@ bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: tr
 `unequip {slot}`, `use {id}`. Bước vào NPC thì nhận `npc: id`; các lệnh sau phải đứng cạnh
 đúng NPC: `buy {id, n}`, `sell {id}` (Thợ Rèn, Bà Lang), `craft {id}` (Bà Lang), `rest`
 (Chủ Quán Trọ), `quest_accept {id}`, `quest_turnin {id}` (Trưởng Làng), `daily_claim {i}`
-(Bảng Tin).
+(Bảng Tin), `tower_enter {floor}` (Người Gác Tháp).
 
 Trạng thái nhân vật có `pos: {map, x, y}`, `waystones` (các đá đã ghi nhớ),
-`quests: {active: {id: số_đã_hạ}, done: [id]}`, `daily: {date, tasks}`; khi đang đánh, `battle.encounter` cho biết con quái
+`quests: {active: {id: số_đã_hạ}, done: [id]}`, `daily: {date, tasks}`, `tower` (tầng tháp
+đang leo: `floor, tiles, stairs, exit, monsters`, khi `pos.map` là `"tower"`), `tower_best`; khi đang đánh, `battle.encounter` cho biết con quái
 nào trên bản đồ.
 
 ## Production

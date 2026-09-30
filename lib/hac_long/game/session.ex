@@ -17,7 +17,7 @@ defmodule HacLong.Game.Session do
   """
   use GenServer, restart: :transient
 
-  alias HacLong.Game.{Characters, Commands, Daily, Engine, Names, Quests}
+  alias HacLong.Game.{Characters, Commands, Daily, Engine, Names, Quests, Tower}
   alias HacLong.{World, WorldBoss}
 
   @idle_timeout :timer.minutes(10)
@@ -110,7 +110,7 @@ defmodule HacLong.Game.Session do
               s
 
             old.pos.map != player.pos.map or player.battle != nil or
-                player.waystones != old.waystones ->
+              player.waystones != old.waystones or player[:tower] != old[:tower] ->
               save(s, player)
 
             true ->
@@ -321,7 +321,7 @@ defmodule HacLong.Game.Session do
     cond do
       # trận vừa kết thúc: cập nhật quái trên bản đồ, gục ngã thì về Nhà
       player && old && old.battle && not old.battle.over && player.battle && player.battle.over ->
-        player = World.finish_encounter(player, s.user_id)
+        player = player |> Tower.after_battle() |> World.finish_encounter(s.user_id)
 
         # lần đầu hạ Hắc Long: ghi lại thời điểm cho bảng xếp hạng
         player =
@@ -339,6 +339,11 @@ defmodule HacLong.Game.Session do
 
       cmd["act"] == "create" and player && old == nil ->
         if map_size(s.tabs) > 0, do: World.enter(player, s.user_id)
+        player
+
+      # vừa vào tháp: rời bản đồ Làng (người khác không thấy mình nữa)
+      old && player && player.pos.map == Tower.map_id() && old.pos.map != Tower.map_id() ->
+        World.leave(old, s.user_id)
         player
 
       cmd["act"] == "reset" and old && player == nil ->

@@ -9,7 +9,7 @@ defmodule HacLong.World do
   Session luôn gọi MapServer, không bao giờ ngược lại, nên không thể bị treo chờ nhau.
   """
 
-  alias HacLong.Game.{Daily, Data, Engine}
+  alias HacLong.Game.{Daily, Data, Engine, Tower}
   alias HacLong.WorldBoss
   alias HacLong.World.{Maps, MapServer}
 
@@ -66,7 +66,8 @@ defmodule HacLong.World do
   """
   def move(p, uid, dir, confirm? \\ false) do
     with {:ok, {dx, dy}} <- Map.fetch(@dirs, dir),
-         nil <- p.battle do
+         nil <- p.battle,
+         false <- p.pos.map == Tower.map_id() && tower_move(p, uid, {dx, dy}) do
       %{map: map_id, x: x, y: y} = p.pos
       map = Maps.get(map_id)
       {tx, ty} = {x + dx, y + dy}
@@ -83,8 +84,53 @@ defmodule HacLong.World do
       end
     else
       :error -> {%{ok: false, msg: "Hướng đi không hợp lệ."}, p}
+      {%{}, %{}} = tower_result -> tower_result
       _battle -> {%{ok: false, msg: "Đang trong trận đấu."}, p}
     end
+  end
+
+  # ---------- Tháp Vô Tận ----------
+  # Tầng tháp là bản đồ riêng của từng người, nằm ngay trong trạng thái nhân vật (`p.tower`).
+
+  # chỗ đứng trong Làng khi ra khỏi tháp (cạnh Người Gác Tháp)
+  @tower_door %{map: "village", x: 21, y: 9}
+
+  defp tower_move(%{tower: nil} = p, uid, _d),
+    do: leave_tower(p, uid, "Lượt leo tháp đã kết thúc.")
+
+  defp tower_move(%{tower: t, pos: %{x: x, y: y}} = p, uid, {dx, dy}) do
+    {tx, ty} = {x + dx, y + dy}
+    tile = t.tiles |> Enum.at(ty, "") |> String.at(tx)
+
+    cond do
+      m = Enum.find(t.monsters, &(&1.x == tx and &1.y == ty)) ->
+        case Engine.start_with_monster(
+               p,
+               min(div(t.floor - 1, 10), Data.zone_count() - 1),
+               Tower.battle_monster(m)
+             ) do
+          {%{ok: true} = r, p} -> {r, put_in(p.battle[:encounter], %{tower: m.id})}
+          other -> other
+        end
+
+      tile == ">" ->
+        Tower.climb(p)
+
+      tile == "<" ->
+        leave_tower(p, uid, "Rời Tháp Vô Tận. Kỷ lục: tầng #{Map.get(p, :tower_best, 0)}.")
+
+      tile == "." ->
+        {%{ok: true}, %{p | pos: %{p.pos | x: tx, y: ty}}}
+
+      true ->
+        {%{ok: false}, p}
+    end
+  end
+
+  defp leave_tower(p, uid, msg) do
+    p = %{p | pos: @tower_door} |> Map.put(:tower, nil)
+    enter(p, uid)
+    {%{ok: true, msg: msg}, p}
   end
 
   # Chạm trùm thế giới: hỏi xác nhận như trùm thường, rồi vào trận với thanh máu chung.

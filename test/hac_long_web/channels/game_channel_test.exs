@@ -331,6 +331,24 @@ defmodule HacLongWeb.GameChannelTest do
     end
   end
 
+  test "vào tháp thì rời bản đồ Làng; tầng tháp được lưu và nạp lại" do
+    user = create_user()
+    player_at(user, %{map: "village", x: 21, y: 9})
+    {_, socket} = join_game(user)
+    assert Enum.any?(MapServer.snapshot("village").players, &(&1.id == user.id))
+
+    r = cmd(socket, %{"act" => "tower_enter", "floor" => 1})
+    assert r.ok and r.player.pos.map == "tower"
+    assert_push "map", %{map: "tower"}
+    refute Enum.any?(MapServer.snapshot("village").players, &(&1.id == user.id))
+    loaded = Characters.load(user.id)
+    assert loaded.pos == r.player.pos and loaded.tower == r.player.tower
+
+    r = cmd(socket, %{"act" => "move", "dir" => "down"})
+    assert r.player.pos.map == "village" and r.player.tower == nil
+    assert Enum.any?(MapServer.snapshot("village").players, &(&1.id == user.id))
+  end
+
   test "người chơi khác thấy nhau trên bản đồ, tab đóng thì rời bản đồ" do
     a = create_user()
     b = create_user()

@@ -200,14 +200,14 @@
   }
 
   function viewBoard() {
-    const kinds = [['level', 'Cấp cao'], ['kills', 'Săn nhiều'], ['dragon', 'Diệt rồng']];
+    const kinds = [['level', 'Cấp cao'], ['kills', 'Săn nhiều'], ['tower', 'Tháp'], ['dragon', 'Diệt rồng']];
     const rows = board.data ? board.data[board.kind] : null;
-    const value = (r) => (board.kind === 'level' ? `Cấp ${r.level}` : board.kind === 'kills' ? `${fmt(r.kills)} quái` : new Date(r.victory_at).toLocaleDateString('vi-VN'));
+    const value = (r) => (board.kind === 'level' ? `Cấp ${r.level}` : board.kind === 'kills' ? `${fmt(r.kills)} quái` : board.kind === 'tower' ? `Tầng ${r.tower_best}` : new Date(r.victory_at).toLocaleDateString('vi-VN'));
     return `<div class="card" id="board">
       <div class="row"><h3 class="grow">Bảng xếp hạng</h3>${board.data && board.data.me ? `<span class="tag gold num">Bạn hạng ${board.data.me}</span>` : ''}</div>
       <div class="seg">${kinds.map(([k, label]) => `<button class="btn ${board.kind === k ? 'primary' : ''}" data-board="${k}">${label}</button>`).join('')}</div>
       ${rows == null ? '<p class="small muted">Đang tải…</p>'
-        : rows.length === 0 ? `<p class="small muted">${board.kind === 'dragon' ? 'Chưa ai hạ được Hắc Long. Bạn sẽ là người đầu tiên?' : 'Chưa có ai.'}</p>`
+        : rows.length === 0 ? `<p class="small muted">${board.kind === 'dragon' ? 'Chưa ai hạ được Hắc Long. Bạn sẽ là người đầu tiên?' : board.kind === 'tower' ? 'Chưa ai leo Tháp Vô Tận. Gặp Người Gác Tháp ở Làng.' : 'Chưa có ai.'}</p>`
         : `<ol class="board">${rows.map((r) => `<li class="${r.user_id === Net.userId ? 'me' : ''}"><span class="num rank">${r.rank}</span><span class="grow">${esc(r.name)} <span class="small muted">${CLASSES[r.cls] ? CLASSES[r.cls].name : ''}</span></span><span class="num">${value(r)}</span></li>`).join('')}</ol>`}
     </div>`;
   }
@@ -216,6 +216,8 @@
   function refresh() {
     if (P && !P.battle && tab === 'map' && !npc && Map_.mountedMap() === P.pos.map && $('#map-canvas')) {
       $('#hud').innerHTML = viewHud();
+      const head = $('.map-top');
+      if (head) head.outerHTML = Map_.top(P);
       Map_.draw();
     } else {
       render();
@@ -586,6 +588,18 @@
       const full = P.hp >= d.maxHp, cost = P.view.restCost;
       sections.push(`<div class="card"><button class="btn ${full ? '' : 'primary'} block" data-act="rest" ${full ? 'disabled' : ''}>${full ? 'Máu đang đầy' : cost ? `Nghỉ một đêm · ${fmt(cost)} vàng` : 'Nghỉ một đêm · miễn phí'}</button></div>`);
     }
+    if (n.role === 'tower') {
+      const best = P.tower_best || 0;
+      const starts = []; for (let f = 1; f <= best + 1; f += 10) starts.push(f);
+      const pots = ['potion_s', 'potion_m', 'potion_l'].reduce((s, id) => s + (P.inv[id] || 0), 0);
+      sections.push(`<div class="card">
+        <div class="row"><h3 class="grow">Tháp Vô Tận</h3><span class="tag gold num">Kỷ lục: tầng ${best}</span></div>
+        <p class="small muted">Mỗi tầng hạ hết quái thì cầu thang lên mở và bạn nhận thưởng. Tầng N có quái cấp N, cứ 5 tầng có trùm tầng. Trong tháp máu không tự hồi; gục ngã là hết lượt. Muốn về thì đi cầu thang xuống ở đầu tầng.</p>
+        ${pots ? '' : '<p class="small" style="color:var(--bad)">Bạn không có bình máu nào.</p>'}
+        <div class="btn-row">${starts.map((f) => `<button class="btn ${f === starts[starts.length - 1] ? 'primary' : ''}" data-act="tower_enter" data-floor="${f}" ${P.hp <= 0 ? 'disabled' : ''}>Vào tầng ${f}</button>`).join('')}</div>
+        ${starts.length === 1 ? '<p class="small muted">Vượt tầng 10 thì lần sau vào thẳng được tầng 11.</p>' : ''}
+      </div>`);
+    }
     if (n.role === 'daily') {
       sections.push(`<div class="card"><div class="row"><h3 class="grow">Việc hôm nay</h3><span class="small muted">Việc mới sau ${dailyLeft()}</span></div>${dailyList(true)}</div>`);
     }
@@ -646,12 +660,12 @@
     }
     return `
       <div class="stage ${m.boss ? 'boss' : ''} ${m.world ? 'world' : ''}" style="background-image:url('${asset('floors/' + z.id + '.png')}')">
-        <span class="eyebrow">${m.world ? 'Trùm thế giới · Tế Đàn' : z.name + (m.boss ? ' · Trùm' : '')}</span>
+        <span class="eyebrow">${m.world ? 'Trùm thế giới · Tế Đàn' : m.tower ? `Tháp Vô Tận${P.tower ? ' · Tầng ' + P.tower.floor : ''}${m.elite ? ' · Trùm tầng' : ''}` : z.name + (m.boss ? ' · Trùm' : '')}</span>
         ${sprite(m.id, fx && fx.mDmg ? 'hit' : '', m.name)}
         ${floatHtml}
         <h2>${m.name}</h2>
         <span class="small muted">Cấp ${m.level} · Tấn công ${m.atk} · Phòng thủ ${m.def}${m.special ? ` · ${m.special.name} mỗi ${m.special.every} lượt` : ''}</span>
-        ${bar(m.boss || m.world ? 'boss' : 'hp', m.hp, m.maxHp)}
+        ${bar(m.boss || m.world || m.elite ? 'boss' : 'hp', m.hp, m.maxHp)}
       </div>
       <div class="me ${fx && fx.pDmg ? 'hurt' : ''}">
         ${sprite('hero', '', '')}
@@ -693,6 +707,7 @@
       case 'teleport': return { act, to: d.to };
       case 'craft': case 'quest_accept': case 'quest_turnin': return { act, id: d.id };
       case 'daily_claim': return { act, i: +d.i };
+      case 'tower_enter': return { act, floor: +d.floor };
       default: return { act };
     }
   }
@@ -711,6 +726,7 @@
         if (before) battleFx(before, cmd.act);
         if (cmd.act === 'leave' || cmd.act === 'create') tab = 'map';
         if (cmd.act === 'reset') tab = 'map';
+        if (cmd.act === 'tower_enter') { tab = 'map'; npc = null; }
         confirmReset = false;
         dialog = null;
       }

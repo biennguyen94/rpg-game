@@ -1,0 +1,13 @@
+{
+  "id": "tower",
+  "name": "Tháp Vô Tận",
+  "zone": null,
+  "floor": "floors/forest",
+  "private": true,
+  "tiles": [
+    "S"
+  ],
+  "portals": [],
+  "spawns": [],
+  "_note": "Chỗ giữ tên. Tầng tháp sinh ngẫu nhiên cho từng người, xem HacLong.Game.Tower."
+}

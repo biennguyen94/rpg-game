@@ -71,11 +71,13 @@ defmodule HacLong.Game.Characters do
       deaths: c.deaths,
       victory: c.victory,
       battle: c.battle && atomize(c.battle),
-      pos: World.valid_pos(%{map: c.map_id, x: c.x, y: c.y}),
+      pos: pos(c),
       waystones: Enum.filter(c.waystones || [], &(&1 in Maps.waystone_ids())),
       quests: quests(c.quests),
       victory_at: c.victory_at,
-      daily: daily(c.daily)
+      daily: daily(c.daily),
+      tower: tower(c.tower),
+      tower_best: c.tower_best || 0
     }
   end
 
@@ -112,9 +114,39 @@ defmodule HacLong.Game.Characters do
 
   defp daily(_), do: nil
 
+  # Trong tháp thì giữ vị trí (tầng tháp không có trong priv/maps nên valid_pos không biết).
+  defp pos(%Character{map_id: "tower", tower: %{}, x: x, y: y}), do: %{map: "tower", x: x, y: y}
+
+  defp pos(%Character{map_id: "tower"}), do: HacLong.World.Maps.home_spawn()
+
+  defp pos(c), do: World.valid_pos(%{map: c.map_id, x: c.x, y: c.y})
+
+  defp tower(%{"floor" => floor} = t) do
+    %{
+      floor: floor,
+      tiles: t["tiles"],
+      stairs: t["stairs"],
+      exit: t["exit"],
+      monsters:
+        Enum.map(t["monsters"], fn m ->
+          %{
+            id: m["id"],
+            kind: m["kind"],
+            name: m["name"],
+            level: m["level"],
+            x: m["x"],
+            y: m["y"],
+            elite: m["elite"]
+          }
+        end)
+    }
+  end
+
+  defp tower(_), do: nil
+
   # Tên các trường có trong trận đấu (trận, quái, nhật ký, phần thưởng).
   @battle_keys Map.new(
-                 ~w(zone monster turn skillCd log over result reward encounter map mid world world_boss
+                 ~w(zone monster turn skillCd log over result reward encounter map mid world world_boss tower elite
                     id name level boss final special maxHp atk def crit dodge xp gold hp
                     every mult text kind items levels)a,
                  &{Atom.to_string(&1), &1}

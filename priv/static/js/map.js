@@ -85,8 +85,21 @@
   const mapOf = (id) => WORLD.maps[id];
   const tileAt = (m, x, y) => (y >= 0 && y < m.tiles.length && x >= 0 && x < m.tiles[0].length ? m.tiles[y][x] : null);
   const portalAt = (m, x, y) => m.portals.find((p) => p.at[0] === x && p.at[1] === y);
-  const monsterAt = (x, y) => world.monsters.find((q) => q.x === x && q.y === y);
-  const monsterById = (id) => world.monsters.find((q) => q.id === id);
+  // Tầng Tháp Vô Tận không có trong WORLD: dựng từ trạng thái nhân vật (P.tower).
+  function cur(P) {
+    if (P.pos.map !== 'tower' || !P.tower) return mapOf(P.pos.map);
+    const t = P.tower, zi = Math.min(ZONES.length - 1, Math.floor((t.floor - 1) / 10));
+    return { name: `Tháp Vô Tận · Tầng ${t.floor}`, zone: null, floor: 'floors/' + ZONES[zi].id, tiles: t.tiles, portals: [], npcs: [], tower: t };
+  }
+
+  // Quái trên bản đồ đang đứng: quái dùng chung (sự kiện "map") hoặc quái của tầng tháp.
+  function mobs(P) {
+    if (P.pos.map === 'tower' && P.tower) return P.tower.monsters.map((q) => Object.assign({}, q, { id: 't' + q.id, boss: q.elite }));
+    return world.map === P.pos.map ? world.monsters : [];
+  }
+
+  const monsterAt = (x, y) => mobs(getPlayer()).find((q) => q.x === x && q.y === y);
+  const monsterById = (id) => mobs(getPlayer()).find((q) => q.id === id);
   const nodeAt = (x, y) => (world.nodes || []).find((n) => n.x === x && n.y === y);
   const npcAt = (m, x, y) => (m.npcs || []).find((n) => n.at[0] === x && n.at[1] === y);
 
@@ -96,14 +109,19 @@
     return target.zone != null && !P.view.unlocked[target.zone];
   }
 
-  function html(P, overlay) {
-    const m = mapOf(P.pos.map);
+  function top(P) {
+    const m = cur(P);
     const z = m.zone != null ? ZONES[m.zone] : null;
-    return `
-      <div class="map-top">
+    return `<div class="map-top">
         <b>${m.name}</b>
-        <span class="small muted">${z ? (P.pos.map.endsWith('_boss') ? `Phòng trùm · cấp ${z.boss.level}` : `Quái cấp ${z.levels}`) : P.pos.map === 'home' ? 'Giếng nước hồi đầy máu' : P.pos.map === 'altar' ? 'Nơi trùm thế giới xuất hiện' : 'Bước vào người dân để nói chuyện'}</span>
-      </div>
+        <span class="small muted">${m.tower ? (m.tower.monsters.length ? `Còn ${m.tower.monsters.length} quái · kỷ lục tầng ${P.tower_best || 0}` : 'Cầu thang đã mở!') : z ? (P.pos.map.endsWith('_boss') ? `Phòng trùm · cấp ${z.boss.level}` : `Quái cấp ${z.levels}`) : P.pos.map === 'home' ? 'Giếng nước hồi đầy máu' : P.pos.map === 'altar' ? 'Nơi trùm thế giới xuất hiện' : 'Bước vào người dân để nói chuyện'}</span>
+      </div>`;
+  }
+
+  function html(P, overlay) {
+    const m = cur(P);
+    return `
+      ${top(P)}
       <div class="map-wrap"><canvas id="map-canvas" aria-label="Bản đồ ${m.name}"></canvas>${overlay || ''}</div>
       <div class="dpad" aria-label="Di chuyển">
         <button class="btn" data-move="up" aria-label="Lên">▲</button>
@@ -167,7 +185,7 @@
   function draw() {
     const P = getPlayer();
     if (!canvas || !ctx || !P || !P.pos || mounted !== P.pos.map) return;
-    const m = mapOf(P.pos.map);
+    const m = cur(P);
     const now = performance.now();
     const [mx, my] = smooth('me', P.pos.x, P.pos.y, DUR.me, now);
     const [cx, cy] = camera(m, mx, my);
@@ -191,6 +209,8 @@
         }
         if (GROUND[kind]) continue;
         if (kind === 'waystone') labels.push(['Đá dịch chuyển', px + TILE / 2, py - 13, '#b9d7ff']);
+        if (kind === 'stairs_up') labels.push([m.tower && m.tower.monsters.length ? '🔒 Lên tầng' : 'Lên tầng', px + TILE / 2, py + TILE - 13, '#f0cf7a']);
+        if (kind === 'stairs_down') labels.push(['Về Làng', px + TILE / 2, py + TILE - 13, '#b9d7ff']);
         const portal = PORTAL.has(m.tiles[y][x]) && portalAt(m, x, y);
         if (portal) {
           const shut = locked(P, portal);
@@ -203,7 +223,7 @@
 
     // sự kiện "map" có thể đến trước/sau lúc đổi bản đồ một chút
     const here = world.map === P.pos.map;
-    for (const q of here ? world.monsters : []) {
+    for (const q of mobs(P)) {
       const [qx, qy] = smooth('m' + q.id, q.x, q.y, DUR.monster, now);
       const px = Math.round(qx * TILE - cx), py = Math.round(qy * TILE - cy);
       if (px < -TILE || py < -TILE || px > canvas.clientWidth || py > canvas.clientHeight) continue;
@@ -215,7 +235,7 @@
       const im = image('monsters/' + q.kind);
       if (im.complete) ctx.drawImage(im, px, py, TILE, TILE);
       ctx.globalAlpha = 1;
-      const lv = LEVEL[q.kind] || 1;
+      const lv = q.level || LEVEL[q.kind] || 1;
       ctx.font = '700 9px system-ui, sans-serif';
       ctx.fillStyle = 'rgba(12,9,16,0.85)';
       ctx.fillRect(px + TILE - 14, py + TILE - 10, 14, 10);
@@ -288,7 +308,7 @@
   // Hướng của bước đầu tiên trên đường ngắn nhất tới (tx, ty), hoặc null.
   // Không đi xuyên quái hay cổng; riêng ô đích thì cho phép (đánh quái, qua cổng, uống nước giếng).
   function nextStep(P, tx, ty) {
-    const m = mapOf(P.pos.map);
+    const m = cur(P);
     const sx = P.pos.x, sy = P.pos.y;
     if (sx === tx && sy === ty) return null;
     const key = (x, y) => y * 1000 + x;
@@ -303,7 +323,8 @@
         const c = tileAt(m, nx, ny);
         if (c == null) continue;
         const bossHere = boss.alive && m.worldBoss && m.worldBoss[0] === nx && m.worldBoss[1] === ny;
-        if (!goal && (!WALK.has(c) || PORTAL.has(c) || monsterAt(nx, ny) || nodeAt(nx, ny) || npcAt(m, nx, ny) || bossHere)) continue;
+        // không đi ngang qua cầu thang (lên/xuống tầng ngoài ý muốn); ô đích thì được
+        if (!goal && (!WALK.has(c) || PORTAL.has(c) || c === '<' || c === '>' || monsterAt(nx, ny) || nodeAt(nx, ny) || npcAt(m, nx, ny) || bossHere)) continue;
         prev.set(k, [x, y, dir]);
         if (goal) {
           // lần ngược về ô xuất phát để lấy bước đầu
@@ -318,7 +339,7 @@
   }
 
   window.MapView = {
-    html, mount, resize, draw, tileFromEvent, nextStep, monsterAt, monsterById,
+    html, top, mount, resize, draw, tileFromEvent, nextStep, monsterAt, monsterById,
     mountedMap: () => mounted,
     setUser(id) { userId = id; },
     setBoss(st) { boss = st; draw(); },

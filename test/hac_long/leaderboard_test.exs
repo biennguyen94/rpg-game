@@ -30,6 +30,10 @@ defmodule HacLong.LeaderboardTest do
     assert Enum.map(Leaderboard.top(:level), & &1.name) == ~w(chi_ binh anna dung)
     assert Enum.map(Leaderboard.top(:kills), & &1.name) == ~w(dung anna binh chi_)
     assert Enum.map(Leaderboard.top(:dragon), & &1.name) == ~w(chi_ binh)
+    assert Leaderboard.top(:tower) == []
+    hero("thapcao", %{tower_best: 42})
+    hero("thapthap", %{tower_best: 7})
+    assert Enum.map(Leaderboard.top(:tower), & &1.tower_best) == [42, 7]
     assert [%{rank: 1}, %{rank: 2} | _] = Leaderboard.top(:level)
     assert length(Leaderboard.top(:level, 2)) == 2
 

@@ -286,7 +286,7 @@ input[type="text"], input[type="password"] {
 
 /* Bảng xếp hạng */
 .seg { display: flex; gap: 6px; }
-.seg .btn { flex: 1; padding: 6px 4px; font-size: 0.85rem; }
+.seg .btn { flex: 1; padding: 6px 2px; font-size: 0.8rem; min-width: 0; }
 ol.board { list-style: none; display: grid; gap: 4px; margin: 0; padding: 0; }
 ol.board li { display: flex; align-items: baseline; gap: 10px; padding: 5px 8px; border-radius: 8px; background: #16121c; }
 ol.board li.me { box-shadow: inset 0 0 0 1px var(--gold); }
@@ -298,3 +298,5 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 .card.wb .bar { margin-top: 4px; }
 .stage.world .sprite { width: 160px; height: 160px; }
 .chat-line.system { color: #f0b36a; font-weight: 600; }
+.map-top { flex-wrap: wrap; row-gap: 2px; }
+.map-top b { font-size: 1.25rem; }
