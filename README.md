@@ -257,10 +257,15 @@ nào trên bản đồ.
 
 ## Production
 
+Triển khai bằng Docker lên VPS (chỉ có IP, có domain với Caddy hoặc nginx làm TLS proxy, có
+Cloudflare): xem [docs/DEPLOY.md](docs/DEPLOY.md).
+
+Chạy trực tiếp không dùng Docker:
+
 ```bash
 export DATABASE_URL=ecto://USER:PASS@HOST/hac_long
 export SECRET_KEY_BASE=$(mix phx.gen.secret)
-export PHX_HOST=game.example.com
+export PHX_HOST=game.example.com   # chỉ có IP: PHX_HOST=<ip> PHX_SCHEME=http PHX_URL_PORT=4000
 MIX_ENV=prod mix do compile, ecto.migrate
 MIX_ENV=prod PHX_SERVER=true mix phx.server
 ```

@@ -1,0 +1,16 @@
+# TLS proxy cho Hắc Long (dùng với docker-compose.caddy.yml). Xem docs/DEPLOY.md.
+# Caddy tự xin và gia hạn chứng chỉ Let's Encrypt cho {$PHX_HOST} (domain phải trỏ về IP của
+# VPS, cổng 80 và 443 mở), tự chuyển http sang https, và chuyển tiếp cả WebSocket (/socket).
+{
+	servers {
+		# Có proxy khác đứng trước Caddy (vd. Cloudflare): liệt kê dải IP của nó ở
+		# CADDY_TRUSTED_PROXIES để Caddy giữ nguyên X-Forwarded-For (IP thật của người chơi).
+		# Để trống nếu người chơi kết nối thẳng vào Caddy.
+		trusted_proxies static {$CADDY_TRUSTED_PROXIES}
+	}
+}
+
+{$PHX_HOST} {
+	encode gzip
+	reverse_proxy app:4000
+}

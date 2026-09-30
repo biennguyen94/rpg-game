@@ -1,0 +1,11 @@
+.git
+.github
+_build
+deps
+test
+docs
+*.md
+!README.md
+.env
+.env.*
+deploy

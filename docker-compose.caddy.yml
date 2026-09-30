@@ -1,0 +1,27 @@
+# Thêm Caddy làm TLS proxy (tự lấy và gia hạn chứng chỉ Let's Encrypt). Xem docs/DEPLOY.md.
+#   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build
+services:
+  app:
+    # chỉ Caddy nói chuyện với game, không mở cổng 4000 ra Internet
+    ports: !reset []
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      PHX_HOST: ${PHX_HOST}
+      CADDY_TRUSTED_PROXIES: ${CADDY_TRUSTED_PROXIES:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
