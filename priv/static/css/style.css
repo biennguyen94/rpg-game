@@ -300,3 +300,8 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 .chat-line.system { color: #f0b36a; font-weight: 600; }
 .map-top { flex-wrap: wrap; row-gap: 2px; }
 .map-top b { font-size: 1.25rem; }
+
+/* Hướng dẫn người mới */
+.card.tut { border-color: #8a6d2a; background: linear-gradient(#2b2415, var(--ink-2)); margin-bottom: 10px; gap: 6px; }
+.card.tut .row { align-items: center; gap: 8px; }
+.small-btn { padding: 4px 10px; font-size: 0.8rem; }

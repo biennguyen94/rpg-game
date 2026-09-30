@@ -17,7 +17,7 @@ defmodule HacLongWeb.GameChannel do
   use HacLongWeb, :channel
 
   alias HacLong.{Chat, Leaderboard, RateLimit, WorldBoss}
-  alias HacLong.Game.{Daily, Data, Engine, Quests, Session}
+  alias HacLong.Game.{Daily, Data, Engine, Quests, Session, Tutorial}
   alias HacLong.World.{Maps, MapServer}
 
   @impl true
@@ -149,7 +149,8 @@ defmodule HacLongWeb.GameChannel do
       |> Map.merge(%{
         questReady: ready,
         dailyReady: Daily.ready?(player),
-        dailyLeft: Daily.seconds_left()
+        dailyLeft: Daily.seconds_left(),
+        tutorial: Tutorial.view(player)
       })
 
     Map.put(player, :view, view)

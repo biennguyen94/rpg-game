@@ -17,7 +17,7 @@ defmodule HacLong.Game.Session do
   """
   use GenServer, restart: :transient
 
-  alias HacLong.Game.{Characters, Commands, Daily, Engine, Names, Quests, Tower}
+  alias HacLong.Game.{Characters, Commands, Daily, Engine, Names, Quests, Tower, Tutorial}
   alias HacLong.{World, WorldBoss}
 
   @idle_timeout :timer.minutes(10)
@@ -102,6 +102,7 @@ defmodule HacLong.Game.Session do
     case take(s, :steps, @step_ms, @step_burst) do
       {:ok, s} ->
         {result, player} = run_move(s, cmd)
+        {player, note} = Tutorial.check(player)
         old = s.player
 
         s =
@@ -110,7 +111,8 @@ defmodule HacLong.Game.Session do
               s
 
             old.pos.map != player.pos.map or player.battle != nil or
-              player.waystones != old.waystones or player[:tower] != old[:tower] ->
+              player.waystones != old.waystones or player[:tower] != old[:tower] or
+                player[:tutorial] != old[:tutorial] ->
               save(s, player)
 
             true ->
@@ -118,6 +120,7 @@ defmodule HacLong.Game.Session do
           end
 
         if player != old, do: broadcast(s, player, origin)
+        notify(s, note)
         reply({result, player}, s)
 
       :too_fast ->
@@ -213,6 +216,7 @@ defmodule HacLong.Game.Session do
     {result, player} = run(s, old, cmd)
     # nhân vật vừa tạo cũng có ngay việc hằng ngày
     player = s |> after_command(old, player, cmd) |> Daily.ensure(Daily.today())
+    {player, note} = Tutorial.check(player)
 
     s =
       if player != old do
@@ -222,8 +226,15 @@ defmodule HacLong.Game.Session do
         s
       end
 
+    notify(s, note)
     reply({result, player}, s)
   end
+
+  # Thông báo riêng cho người chơi này (hiện ở mọi tab đang mở), vd. bước hướng dẫn mới.
+  defp notify(_s, nil), do: :ok
+
+  defp notify(s, text),
+    do: Phoenix.PubSub.broadcast(HacLong.PubSub, topic(s.user_id), {:notice, text})
 
   # Đánh trùm thế giới: máu trùm là máu chung ở HacLong.WorldBoss. Trước lượt đánh lấy máu
   # mới nhất, sau lượt đánh báo sát thương vừa gây.

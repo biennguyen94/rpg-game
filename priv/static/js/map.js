@@ -30,7 +30,7 @@
   // Bong bóng lời nói trên đầu nhân vật (chat), hiện vài giây.
   const bubbles = new Map();
   const BUBBLE_MS = 6000;
-  let bubbleTimer = null;
+  let bubbleTimer = null, tutTimer = null;
 
   function bubble(text, cx, py) {
     ctx.font = '500 11px "Be Vietnam Pro", system-ui, sans-serif';
@@ -290,6 +290,29 @@
     if (hero.complete) ctx.drawImage(hero, px, py, TILE, TILE);
     const mine = bubbleOf(userId, now);
     if (mine) talk.push([mine, px + TILE / 2, py]);
+    // hướng dẫn người mới: vòng sáng nhấp nháy và mũi tên ở ô cần tới
+    const goal = P.view && P.view.tutorial && P.view.tutorial.target;
+    if (goal && goal.map === P.pos.map) {
+      const gx = Math.round(goal.x * TILE - cx) + TILE / 2, gy = Math.round(goal.y * TILE - cy) + TILE / 2;
+      const k = (Math.sin(now / 250) + 1) / 2;
+      const vw = canvas.clientWidth, vh = canvas.clientHeight, pad = 18;
+      if (gx < 0 || gy < 0 || gx > vw || gy > vh) {
+        // ô đích bị khuất: mũi tên ở mép khung nhìn chỉ về phía đó
+        const ex = Math.max(pad, Math.min(vw - pad, gx)), ey = Math.max(pad, Math.min(vh - pad, gy));
+        const ang = Math.atan2(gy - vh / 2, gx - vw / 2);
+        ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang);
+        ctx.fillStyle = `rgba(240, 207, 122, ${0.6 + k * 0.4})`;
+        ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -9); ctx.lineTo(-8, 9); ctx.fill();
+        ctx.restore();
+      }
+      ctx.strokeStyle = `rgba(240, 207, 122, ${0.5 + k * 0.5})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(gx, gy, TILE * (0.55 + k * 0.15), 0, Math.PI * 2); ctx.stroke();
+      const ay = gy - TILE - 6 - k * 6;
+      ctx.fillStyle = '#f0cf7a';
+      ctx.beginPath(); ctx.moveTo(gx - 8, ay); ctx.lineTo(gx + 8, ay); ctx.lineTo(gx, ay + 10); ctx.fill();
+      if (!tutTimer) tutTimer = setTimeout(() => { tutTimer = null; draw(); }, 60);
+    }
     for (const l of labels) label(...l);
     for (const t of talk) bubble(...t);
     // vẽ lại khi bong bóng hết hạn

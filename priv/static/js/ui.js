@@ -79,7 +79,7 @@
       ['bag', 'backpack', 'Túi đồ'],
       ['quests', 'scroll-unfurled', 'Nhiệm vụ'],
     ].map(([id, ic, label]) => `<button data-tab="${id}" ${tab === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}${id === 'hero' && P.points ? `<span class="points-dot">${P.points}</span>` : ''}</span></button>`).join('');
-    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewBossBanner() + Map_.html(P, viewDialog()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests }[tab])();
+    view.innerHTML = P.victory && tab === 'town' ? viewVictory() + viewTown() : ({ map: () => (npc ? viewNpc() : viewTutorial() + viewBossBanner() + Map_.html(P, viewDialog()) + viewChat()), town: viewTown, hero: viewHero, bag: viewBag, quests: viewQuests }[tab])();
     if (tab === 'map' && !npc) {
       Map_.mount(() => P);
       const log = $('#chat-log');
@@ -105,6 +105,17 @@
       <p class="small muted">Chạm vào đá ở nơi khác để ghi nhớ nó.</p>
       <div class="list">${places.map((id) => `<button class="btn" data-act="teleport" data-to="${id}" ${id === P.pos.map ? 'disabled' : ''}>${esc(W[id].name)}${id === P.pos.map ? ' · đang ở đây' : ''}</button>`).join('')}</div>
       <button class="btn" data-act="dialog-close">Đóng</button>
+    </div>`;
+  }
+
+  // ---------- Hướng dẫn người mới ----------
+  function viewTutorial() {
+    const t = P.view.tutorial;
+    if (!t) return '<div id="tut" hidden></div>';
+    return `<div class="card tut" id="tut">
+      <div class="row"><span class="tag gold num">Hướng dẫn ${t.step}/${t.total}</span><b class="grow">${esc(t.text)}</b>
+        <button class="btn small-btn" data-act="tutorial_skip" aria-label="Tắt hướng dẫn">Bỏ qua</button></div>
+      <p class="small muted">${esc(t.hint)}${t.target ? ' Làm theo vòng sáng trên bản đồ.' : ''}</p>
     </div>`;
   }
 
@@ -218,6 +229,8 @@
       $('#hud').innerHTML = viewHud();
       const head = $('.map-top');
       if (head) head.outerHTML = Map_.top(P);
+      const tut = $('#tut');
+      if (tut) tut.outerHTML = viewTutorial();
       Map_.draw();
     } else {
       render();

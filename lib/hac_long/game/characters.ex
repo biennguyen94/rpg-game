@@ -77,7 +77,8 @@ defmodule HacLong.Game.Characters do
       victory_at: c.victory_at,
       daily: daily(c.daily),
       tower: tower(c.tower),
-      tower_best: c.tower_best || 0
+      tower_best: c.tower_best || 0,
+      tutorial: c.tutorial
     }
   end
 

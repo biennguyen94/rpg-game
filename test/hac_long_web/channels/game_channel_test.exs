@@ -35,7 +35,9 @@ defmodule HacLongWeb.GameChannelTest do
     # tên nhân vật không được trùng nên thêm số riêng cho mỗi người
     name = "Hiệp #{System.unique_integer([:positive]) |> rem(100_000)}"
     {_, p} = Commands.run(nil, %{"act" => "create", "name" => name, "cls" => "knight"})
-    p = p |> Map.merge(attrs) |> Map.put(:pos, pos)
+
+    # các test ở đây không nói về hướng dẫn người mới: tắt để không có thông báo lẫn vào
+    p = p |> Map.put(:tutorial, nil) |> Map.merge(attrs) |> Map.put(:pos, pos)
     Characters.save!(user.id, p)
     p
   end
@@ -82,6 +84,10 @@ defmodule HacLongWeb.GameChannelTest do
     # bước xuống cửa nhà thì ra Làng
     r = cmd(socket, %{"act" => "move", "dir" => "down"})
     assert r.ok and r.player.pos == %{map: "village", x: 12, y: 15}
+    # hướng dẫn người mới sang bước 2, chỉ đường tới Trưởng Làng
+    assert_push "notice", %{msg: "Hướng dẫn 2/5" <> _}
+    assert %{step: 2, target: %{map: "village"}} = r.player.view.tutorial
+    assert Characters.load(user.id).tutorial == 1
     assert_push "map", %{map: "village", players: players}
     assert Enum.any?(players, &(&1.id == user.id))
     assert Characters.load(user.id).pos.map == "village"
