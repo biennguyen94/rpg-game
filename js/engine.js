@@ -2,7 +2,7 @@
  * (dùng cho mô phỏng cân bằng). Mọi thay đổi trạng thái đi qua các hàm ở đây. */
 (function (root) {
   const D = (typeof module !== 'undefined' && module.exports) ? require('./data.js') : root.GAME_DATA;
-  const { CLASSES, ZONES, ITEMS, BOSS_DROPS } = D;
+  const { CLASSES, ZONES, ITEMS, BOSS_DROPS, SHOP } = D;
 
   const SAVE_VERSION = 1;
   const POINTS_PER_LEVEL = 3;
@@ -245,7 +245,8 @@
   function buy(p, id, n) {
     n = n || 1;
     const it = ITEMS[id];
-    if (!it || it.drop) return { ok: false, msg: 'Không bán món này.' };
+    // Chỉ bán món có trong cửa hàng (đồ khởi đầu giá 0 và đồ rơi từ trùm thì không).
+    if (!it || it.drop || !SHOP.includes(id)) return { ok: false, msg: 'Không bán món này.' };
     if (it.level && p.level < it.level) return { ok: false, msg: `Cần cấp ${it.level}.` };
     const cost = it.price * n;
     if (p.gold < cost) return { ok: false, msg: 'Không đủ vàng.' };

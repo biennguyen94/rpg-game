@@ -1,4 +1,8 @@
-/* Giao diện: vẽ lại từng màn hình từ trạng thái người chơi (P) sau mỗi thao tác. */
+/* Giao diện: vẽ lại từng màn hình từ trạng thái người chơi (P) sau mỗi thao tác.
+ * Hai chế độ:
+ * - offline: logic chạy ngay trong trình duyệt (engine.js), lưu localStorage.
+ * - online (có window.Net, xem net.js): thao tác gửi lên server Phoenix, server tính
+ *   rồi trả về trạng thái mới; engine.js chỉ còn dùng để hiển thị chỉ số. */
 (function () {
   const { CLASSES, ZONES, ITEMS, SHOP } = window.GAME_DATA;
   const E = window.Engine;
@@ -9,6 +13,11 @@
   let pickCls = 'warrior';
   let confirmReset = false;
   let fx = null;         // hiệu ứng trận đấu của lượt vừa rồi
+  const Net = window.Net;
+  const online = !!Net;
+  let authMode = 'login'; // 'login' | 'register'
+  let loading = online;  // đang kết nối server
+  let busy = false;      // đang chờ server trả lời
 
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -21,6 +30,7 @@
 
   // ---------- Lưu / tải ----------
   function save() {
+    if (online) return;
     try { if (P) localStorage.setItem(SAVE_KEY, E.serialize(P)); else localStorage.removeItem(SAVE_KEY); } catch (e) { /* trình duyệt chặn lưu */ }
   }
   function load() {
@@ -45,6 +55,11 @@
   // ---------- Khung ----------
   function render() {
     const hud = $('#hud'), tabs = $('#tabs'), view = $('#view');
+    if (online && (loading || !Net.username)) {
+      hud.hidden = true; tabs.hidden = true;
+      view.innerHTML = loading ? viewLoading() : viewLogin();
+      return;
+    }
     if (!P) {
       hud.hidden = true; tabs.hidden = true;
       view.innerHTML = viewCreate();
@@ -120,6 +135,33 @@
           </div>
         </div>
         <button class="btn primary block" type="submit">Bắt đầu hành trình</button>
+      </form>
+      ${online ? `<p class="small muted" style="text-align:center">Tài khoản <b>${esc(Net.username)}</b> · <button class="btn" data-act="logout">Đăng xuất</button></p>` : ''}`;
+  }
+
+  // ---------- Đăng nhập (online) ----------
+  function viewLoading() {
+    return `<div class="intro">${sprite('shadow_dragon', '', 'Hắc Long')}<h1>Hắc Long</h1><p>Đang kết nối máy chủ...</p></div>`;
+  }
+
+  function viewLogin() {
+    const reg = authMode === 'register';
+    return `
+      <div class="intro">
+        ${sprite('shadow_dragon', '', 'Hắc Long')}
+        <h1>Hắc Long</h1>
+        <p>${reg ? 'Tạo tài khoản để lưu nhân vật trên máy chủ và chơi trên mọi thiết bị.' : 'Đăng nhập để tiếp tục hành trình.'}</p>
+      </div>
+      <form id="auth" class="card">
+        <label class="field" for="auth-user">Tên đăng nhập
+          <input type="text" id="auth-user" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        </label>
+        <label class="field" for="auth-pass">Mật khẩu
+          <input type="password" id="auth-pass" maxlength="72" autocomplete="${reg ? 'new-password' : 'current-password'}" required>
+        </label>
+        ${reg ? '<p class="small muted">Tên đăng nhập 3–20 ký tự: chữ không dấu, số, dấu gạch dưới. Mật khẩu từ 6 ký tự.</p>' : ''}
+        <button class="btn primary block" type="submit" ${busy ? 'disabled' : ''}>${reg ? 'Tạo tài khoản' : 'Đăng nhập'}</button>
+        <button class="btn block" type="button" data-auth="${reg ? 'login' : 'register'}">${reg ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký'}</button>
       </form>`;
   }
 
@@ -159,7 +201,8 @@
 
       <div class="card">
         <h3>Dữ liệu</h3>
-        <p class="small muted">Game tự lưu trong trình duyệt này sau mỗi thao tác.</p>
+        <p class="small muted">${online ? `Nhân vật lưu trên máy chủ, tài khoản <b>${esc(Net.username)}</b>.` : 'Game tự lưu trong trình duyệt này sau mỗi thao tác.'}</p>
+        ${online ? '<div class="btn-row" style="margin-bottom:8px"><button class="btn" data-act="logout">Đăng xuất</button></div>' : ''}
         ${confirmReset
           ? `<p class="small" style="color:var(--bad)">Xóa nhân vật ${esc(P.name)} và chơi lại từ đầu? Không thể hoàn tác.</p>
              <div class="btn-row"><button class="btn" data-act="reset-cancel">Giữ lại</button><button class="btn danger" data-act="reset-yes">Xóa và chơi lại</button></div>`
@@ -381,18 +424,82 @@
   }
 
   // ---------- Xử lý thao tác ----------
-  function battleAct(action) {
-    const m = P.battle.monster;
-    const mBefore = m.hp, pBefore = P.hp, logLen = P.battle.log.length;
-    const r = E.act(P, action);
-    if (!r.ok) return toast(r.msg, true);
-    const newLog = P.battle.log.slice(logLen);
+  // Ghi lại trạng thái trước một lượt đánh để tính hiệu ứng (số sát thương bay lên, rung).
+  function snapBattle() {
+    return { mHp: P.battle.monster.hp, pHp: P.hp, logLen: P.battle.log.length };
+  }
+
+  function battleFx(before, action) {
+    if (!P || !P.battle) return;
+    // Nhật ký giới hạn 60 dòng; khi đã đầy thì xem vài dòng cuối.
+    const newLog = before.logLen < 60 ? P.battle.log.slice(before.logLen) : P.battle.log.slice(-4);
     const struck = action === 'attack' || action === 'skill';
     fx = {
-      mDmg: struck ? mBefore - m.hp : null,
-      pDmg: pBefore - P.hp > 0 ? pBefore - P.hp : 0,
+      mDmg: struck ? before.mHp - P.battle.monster.hp : null,
+      pDmg: before.pHp - P.hp > 0 ? before.pHp - P.hp : 0,
       crit: newLog.some((l) => l.kind === 'crit'),
     };
+  }
+
+  function battleAct(action) {
+    const before = snapBattle();
+    const r = E.act(P, action);
+    if (!r.ok) return toast(r.msg, true);
+    battleFx(before, action);
+  }
+
+  // ---------- Chế độ online ----------
+  // Tên thao tác của nút → lệnh gửi server (xem server/lib/hac_long/game/commands.ex).
+  function command(act, t) {
+    const d = t.dataset;
+    switch (act) {
+      case 'hunt': case 'boss': return { act, zone: +d.zone };
+      case 'alloc': return { act, stat: d.stat, n: 1 };
+      case 'alloc5': return { act: 'alloc', stat: d.stat, n: 5 };
+      case 'buy': return { act, id: d.id, n: 1 };
+      case 'buy5': return { act: 'buy', id: d.id, n: 5 };
+      case 'equip': case 'use': case 'sell': return { act, id: d.id };
+      case 'unequip': return { act, slot: d.slot };
+      case 'reset-yes': return { act: 'reset' };
+      default: return { act };
+    }
+  }
+
+  async function sendCommand(cmd) {
+    if (busy) return;
+    busy = true;
+    const battle = ['attack', 'skill', 'potion', 'flee'].includes(cmd.act) && P && P.battle;
+    const before = battle ? snapBattle() : null;
+    const scroll = $('#view').scrollTop;
+    try {
+      const r = await Net.send(cmd);
+      P = r.player;
+      result(r);
+      if (r.ok) {
+        if (before) battleFx(before, cmd.act);
+        if (cmd.act === 'leave' || cmd.act === 'reset' || cmd.act === 'create') { tab = 'town'; confirmReset = false; }
+      }
+    } catch (e) {
+      toast(e.msg, true);
+    }
+    busy = false;
+    render();
+    if (cmd.act === 'create' || cmd.act === 'reset') $('#view').scrollTop = 0;
+    else if (!P || !P.battle) $('#view').scrollTop = scroll;
+  }
+
+  function enter(r) {
+    P = r ? r.player : null;
+    tab = 'town';
+    loading = false;
+    render();
+  }
+
+  function logout() {
+    Net.logout();
+    P = null;
+    confirmReset = false;
+    render();
   }
 
   function onClick(e) {
@@ -400,8 +507,15 @@
     if (!t) return;
     if (t.dataset.cls) { pickCls = t.dataset.cls; document.querySelectorAll('.class-opt').forEach((b) => b.setAttribute('aria-pressed', b.dataset.cls === pickCls)); return; }
     if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; render(); $('#view').scrollTop = 0; return; }
+    if (t.dataset.auth) { authMode = t.dataset.auth; render(); return; }
     const act = t.dataset.act;
+    if (act === 'logout') return logout();
     if (!act || !P) return;
+    if (online) {
+      if (act === 'reset-ask' || act === 'reset-cancel') { confirmReset = act === 'reset-ask'; render(); return; }
+      sendCommand(command(act, t));
+      return;
+    }
     const id = t.dataset.id, zi = +t.dataset.zone;
     switch (act) {
       case 'rest': result(E.rest(P)); break;
@@ -428,11 +542,27 @@
     if (!P || !P.battle) $('#view').scrollTop = scroll;
   }
 
+  async function onAuth() {
+    if (busy) return;
+    const user = $('#auth-user').value.trim(), pass = $('#auth-pass').value;
+    if (!user || !pass) { toast('Nhập tên đăng nhập và mật khẩu.', true); return; }
+    busy = true;
+    try {
+      enter(await Net.login(user, pass, authMode === 'register'));
+      toast(authMode === 'register' ? 'Đã tạo tài khoản.' : `Xin chào ${Net.username}!`);
+    } catch (err) {
+      toast(err.msg, true);
+    }
+    busy = false;
+  }
+
   function onSubmit(e) {
+    if (e.target.id === 'auth') { e.preventDefault(); onAuth(); return; }
     if (e.target.id !== 'create') return;
     e.preventDefault();
     const name = $('#hero-name').value.trim();
     if (!name) { toast('Hãy đặt tên cho nhân vật.', true); return; }
+    if (online) { sendCommand({ act: 'create', name, cls: pickCls }); return; }
     P = E.newPlayer(name, pickCls);
     tab = 'town';
     save();
@@ -441,7 +571,16 @@
     toast(`Chào mừng ${P.name}!`);
   }
 
+  function startOnline() {
+    document.addEventListener('click', onClick);
+    document.addEventListener('submit', onSubmit);
+    Net.onPlayer((p) => { if (!busy) { P = p; render(); } });
+    render();
+    Net.resume().then(enter).catch((e) => { toast(e.msg, true); enter(null); });
+  }
+
   function start(hotData) {
+    if (online) return startOnline();
     if (hotData && hotData.save) { try { P = E.deserialize(hotData.save); tab = hotData.tab || 'town'; } catch (e) { P = load(); } }
     else P = load();
     document.addEventListener('click', onClick);
