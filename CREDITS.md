@@ -1,6 +1,6 @@
 # Credits
 
-## Hình quái vật, nhân vật và nền (`assets/monsters/`, `assets/floors/`)
+## Hình quái vật, nhân vật và nền (`priv/static/assets/monsters/`, `priv/static/assets/floors/`)
 
 Lấy từ bộ tile của **Dungeon Crawl Stone Soup**, đóng gói tại
 https://github.com/crawl/tiles (bản `releases/Nov-2015`).
@@ -9,7 +9,7 @@ Giấy phép: **CC0 1.0** (public domain). Không bắt buộc ghi tên, nhưng 
 các họa sĩ của Dungeon Crawl Stone Soup và dự án RLTiles.
 Danh sách họa sĩ: https://github.com/crawl/tiles/blob/master/ARTISTS.md
 
-## Icon (`assets/icons/`)
+## Icon (`priv/static/assets/icons/`)
 
 Lấy từ **game-icons.net** (https://github.com/game-icons/icons), đã đổi màu và bỏ nền đen.
 

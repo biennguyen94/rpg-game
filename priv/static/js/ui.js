@@ -1,31 +1,26 @@
-/* Giao diện: vẽ lại từng màn hình từ trạng thái người chơi (P) sau mỗi thao tác. */
+/* Giao diện: vẽ lại từng màn hình từ trạng thái người chơi (P) do server gửi về.
+ * Mọi thao tác gửi lên server qua Net (net.js); server tính toán rồi trả trạng thái mới.
+ * P.view chứa các chỉ số server tính sẵn (máu tối đa, tấn công, giá nghỉ trọ...). */
 (function () {
-  const { CLASSES, ZONES, ITEMS, SHOP } = window.GAME_DATA;
-  const E = window.Engine;
-  const SAVE_KEY = 'hac-long-rpg-save-v1';
+  const { CLASSES, ZONES, ITEMS, SHOP, RULES } = window.GAME_DATA;
+  const Net = window.Net;
 
   let P = null;          // trạng thái người chơi
   let tab = 'town';      // tab đang mở
   let pickCls = 'warrior';
   let confirmReset = false;
   let fx = null;         // hiệu ứng trận đấu của lượt vừa rồi
+  let authMode = 'login'; // 'login' | 'register'
+  let loading = true;    // đang kết nối server
+  let busy = false;      // đang chờ server trả lời
 
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n) => Math.round(n).toLocaleString('vi-VN');
 
-  // Bản build một file nhét ảnh vào window.ASSET_DATA; bản thường đọc từ thư mục assets/.
-  const asset = (path) => (window.ASSET_DATA && window.ASSET_DATA[path]) || 'assets/' + path;
+  const asset = (path) => 'assets/' + path;
   const icon = (name, cls) => `<img class="ic ${cls || ''}" src="${asset('icons/' + name + '.svg')}" alt="">`;
   const sprite = (id, cls, alt) => `<img class="sprite ${cls || ''}" src="${asset('monsters/' + id + '.png')}" alt="${esc(alt || '')}">`;
-
-  // ---------- Lưu / tải ----------
-  function save() {
-    try { if (P) localStorage.setItem(SAVE_KEY, E.serialize(P)); else localStorage.removeItem(SAVE_KEY); } catch (e) { /* trình duyệt chặn lưu */ }
-  }
-  function load() {
-    try { const s = localStorage.getItem(SAVE_KEY); return s ? E.deserialize(s) : null; } catch (e) { return null; }
-  }
 
   let toastTimer;
   function toast(msg, err) {
@@ -45,6 +40,11 @@
   // ---------- Khung ----------
   function render() {
     const hud = $('#hud'), tabs = $('#tabs'), view = $('#view');
+    if (loading || !Net.username) {
+      hud.hidden = true; tabs.hidden = true;
+      view.innerHTML = loading ? viewLoading() : viewLogin();
+      return;
+    }
     if (!P) {
       hud.hidden = true; tabs.hidden = true;
       view.innerHTML = viewCreate();
@@ -77,7 +77,7 @@
   }
 
   function viewHud() {
-    const d = E.derived(P), need = E.xpToNext(P.level);
+    const d = P.view.derived, need = P.view.xpToNext;
     return `
       <div class="hud-top">
         ${sprite('hero', '', 'Nhân vật')}
@@ -89,7 +89,7 @@
       </div>
       <div class="bars">
         ${bar('hp', P.hp, d.maxHp, `❤ ${fmt(P.hp)} / ${fmt(d.maxHp)}`)}
-        ${P.level >= E.MAX_LEVEL ? bar('xp', 1, 1, 'Cấp tối đa') : bar('xp', P.xp, need, `EXP ${Math.floor((P.xp / need) * 100)}%`)}
+        ${P.level >= RULES.maxLevel ? bar('xp', 1, 1, 'Cấp tối đa') : bar('xp', P.xp, need, `EXP ${Math.floor((P.xp / need) * 100)}%`)}
       </div>`;
   }
 
@@ -120,6 +120,33 @@
           </div>
         </div>
         <button class="btn primary block" type="submit">Bắt đầu hành trình</button>
+      </form>
+      <p class="small muted" style="text-align:center">Tài khoản <b>${esc(Net.username)}</b> · <button class="btn" data-act="logout">Đăng xuất</button></p>`;
+  }
+
+  // ---------- Đăng nhập ----------
+  function viewLoading() {
+    return `<div class="intro">${sprite('shadow_dragon', '', 'Hắc Long')}<h1>Hắc Long</h1><p>Đang kết nối máy chủ...</p></div>`;
+  }
+
+  function viewLogin() {
+    const reg = authMode === 'register';
+    return `
+      <div class="intro">
+        ${sprite('shadow_dragon', '', 'Hắc Long')}
+        <h1>Hắc Long</h1>
+        <p>${reg ? 'Tạo tài khoản để lưu nhân vật trên máy chủ và chơi trên mọi thiết bị.' : 'Đăng nhập để tiếp tục hành trình.'}</p>
+      </div>
+      <form id="auth" class="card">
+        <label class="field" for="auth-user">Tên đăng nhập
+          <input type="text" id="auth-user" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        </label>
+        <label class="field" for="auth-pass">Mật khẩu
+          <input type="password" id="auth-pass" maxlength="72" autocomplete="${reg ? 'new-password' : 'current-password'}" required>
+        </label>
+        ${reg ? '<p class="small muted">Tên đăng nhập 3–20 ký tự: chữ không dấu, số, dấu gạch dưới. Mật khẩu từ 6 ký tự.</p>' : ''}
+        <button class="btn primary block" type="submit" ${busy ? 'disabled' : ''}>${reg ? 'Tạo tài khoản' : 'Đăng nhập'}</button>
+        <button class="btn block" type="button" data-auth="${reg ? 'login' : 'register'}">${reg ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký'}</button>
       </form>`;
   }
 
@@ -129,7 +156,7 @@
   }
 
   function viewTown() {
-    const d = E.derived(P), cost = E.restCost(P), full = P.hp >= d.maxHp;
+    const d = P.view.derived, cost = P.view.restCost, full = P.hp >= d.maxHp;
     const ni = nextBossIndex();
     const pots = ['potion_s', 'potion_m', 'potion_l'].reduce((s, id) => s + (P.inv[id] || 0), 0);
     return `
@@ -159,7 +186,8 @@
 
       <div class="card">
         <h3>Dữ liệu</h3>
-        <p class="small muted">Game tự lưu trong trình duyệt này sau mỗi thao tác.</p>
+        <p class="small muted">Nhân vật lưu trên máy chủ, tài khoản <b>${esc(Net.username)}</b>.</p>
+        <div class="btn-row" style="margin-bottom:8px"><button class="btn" data-act="logout">Đăng xuất</button></div>
         ${confirmReset
           ? `<p class="small" style="color:var(--bad)">Xóa nhân vật ${esc(P.name)} và chơi lại từ đầu? Không thể hoàn tác.</p>
              <div class="btn-row"><button class="btn" data-act="reset-cancel">Giữ lại</button><button class="btn danger" data-act="reset-yes">Xóa và chơi lại</button></div>`
@@ -179,7 +207,7 @@
   // ---------- Săn quái ----------
   function viewHunt() {
     return `<h2 class="display">Vùng đất</h2>` + ZONES.map((z, i) => {
-      const open = E.zoneUnlocked(P, i), cleared = P.bosses.includes(z.boss.id);
+      const open = P.view.unlocked[i], cleared = P.bosses.includes(z.boss.id);
       return `
       <div class="card zone ${open ? '' : 'locked'} ${cleared ? 'cleared' : ''}">
         <div class="row">
@@ -218,7 +246,7 @@
   }
 
   function viewHero() {
-    const d = E.derived(P), c = CLASSES[P.cls];
+    const d = P.view.derived, c = CLASSES[P.cls];
     return `
       <div class="card">
         <div class="row">
@@ -235,7 +263,7 @@
 
       <div class="card">
         <div class="row"><h3 class="grow">Tiềm năng</h3><span class="tag ${P.points ? 'gold' : ''} num">${P.points} điểm</span></div>
-        <p class="small muted">Mỗi lần lên cấp nhận ${E.POINTS_PER_LEVEL} điểm để cộng vào chỉ số.</p>
+        <p class="small muted">Mỗi lần lên cấp nhận ${RULES.pointsPerLevel} điểm để cộng vào chỉ số.</p>
         <div class="list alloc">
           ${Object.entries(STAT_INFO).map(([k, [n, hint]]) => `
             <div class="item">
@@ -277,7 +305,7 @@
     const ids = Object.keys(P.inv).filter((id) => P.inv[id] > 0);
     const gear = ids.filter((id) => ITEMS[id].slot !== 'potion');
     const pots = ids.filter((id) => ITEMS[id].slot === 'potion');
-    const d = E.derived(P);
+    const d = P.view.derived;
     const rowFor = (id) => {
       const it = ITEMS[id], n = P.inv[id];
       const low = it.level && P.level < it.level;
@@ -291,7 +319,7 @@
           <div class="small muted">${itemStat(it)} ${it.slot !== 'potion' ? compare(it) : ''}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}</div>
         </div>
         ${main}
-        <button class="btn" data-act="sell" data-id="${id}" aria-label="Bán ${it.name}">Bán ${fmt(E.sellPrice(id))}</button>
+        <button class="btn" data-act="sell" data-id="${id}" aria-label="Bán ${it.name}">Bán ${fmt(it.sell)}</button>
       </div>`;
     };
     return `
@@ -334,7 +362,7 @@
 
   // ---------- Trận đấu ----------
   function viewBattle() {
-    const b = P.battle, m = b.monster, d = E.derived(P), z = ZONES[b.zone];
+    const b = P.battle, m = b.monster, d = P.view.derived, z = ZONES[b.zone];
     const skill = CLASSES[P.cls].skill;
     const pots = ['potion_s', 'potion_m', 'potion_l'].reduce((s, id) => s + (P.inv[id] || 0), 0);
     const floatHtml = fx && fx.mDmg != null
@@ -381,18 +409,74 @@
   }
 
   // ---------- Xử lý thao tác ----------
-  function battleAct(action) {
-    const m = P.battle.monster;
-    const mBefore = m.hp, pBefore = P.hp, logLen = P.battle.log.length;
-    const r = E.act(P, action);
-    if (!r.ok) return toast(r.msg, true);
-    const newLog = P.battle.log.slice(logLen);
+  // Ghi lại trạng thái trước một lượt đánh để tính hiệu ứng (số sát thương bay lên, rung).
+  function snapBattle() {
+    return { mHp: P.battle.monster.hp, pHp: P.hp, logLen: P.battle.log.length };
+  }
+
+  function battleFx(before, action) {
+    if (!P || !P.battle) return;
+    // Nhật ký giới hạn 60 dòng; khi đã đầy thì xem vài dòng cuối.
+    const newLog = before.logLen < 60 ? P.battle.log.slice(before.logLen) : P.battle.log.slice(-4);
     const struck = action === 'attack' || action === 'skill';
     fx = {
-      mDmg: struck ? mBefore - m.hp : null,
-      pDmg: pBefore - P.hp > 0 ? pBefore - P.hp : 0,
+      mDmg: struck ? before.mHp - P.battle.monster.hp : null,
+      pDmg: before.pHp - P.hp > 0 ? before.pHp - P.hp : 0,
       crit: newLog.some((l) => l.kind === 'crit'),
     };
+  }
+
+  // Tên thao tác của nút → lệnh gửi server (xem lib/hac_long/game/commands.ex).
+  function command(act, t) {
+    const d = t.dataset;
+    switch (act) {
+      case 'hunt': case 'boss': return { act, zone: +d.zone };
+      case 'alloc': return { act, stat: d.stat, n: 1 };
+      case 'alloc5': return { act: 'alloc', stat: d.stat, n: 5 };
+      case 'buy': return { act, id: d.id, n: 1 };
+      case 'buy5': return { act: 'buy', id: d.id, n: 5 };
+      case 'equip': case 'use': case 'sell': return { act, id: d.id };
+      case 'unequip': return { act, slot: d.slot };
+      case 'reset-yes': return { act: 'reset' };
+      default: return { act };
+    }
+  }
+
+  async function sendCommand(cmd) {
+    if (busy) return;
+    busy = true;
+    const battle = ['attack', 'skill', 'potion', 'flee'].includes(cmd.act) && P && P.battle;
+    const before = battle ? snapBattle() : null;
+    const scroll = $('#view').scrollTop;
+    try {
+      const r = await Net.send(cmd);
+      P = r.player;
+      result(r);
+      if (r.ok) {
+        if (before) battleFx(before, cmd.act);
+        if (cmd.act === 'leave' || cmd.act === 'reset' || cmd.act === 'create') { tab = 'town'; confirmReset = false; }
+      }
+    } catch (e) {
+      toast(e.msg, true);
+    }
+    busy = false;
+    render();
+    if (cmd.act === 'create' || cmd.act === 'reset') $('#view').scrollTop = 0;
+    else if (!P || !P.battle) $('#view').scrollTop = scroll;
+  }
+
+  function enter(r) {
+    P = r ? r.player : null;
+    tab = 'town';
+    loading = false;
+    render();
+  }
+
+  function logout() {
+    Net.logout();
+    P = null;
+    confirmReset = false;
+    render();
   }
 
   function onClick(e) {
@@ -400,57 +484,44 @@
     if (!t) return;
     if (t.dataset.cls) { pickCls = t.dataset.cls; document.querySelectorAll('.class-opt').forEach((b) => b.setAttribute('aria-pressed', b.dataset.cls === pickCls)); return; }
     if (t.dataset.tab) { tab = t.dataset.tab; confirmReset = false; render(); $('#view').scrollTop = 0; return; }
+    if (t.dataset.auth) { authMode = t.dataset.auth; render(); return; }
     const act = t.dataset.act;
+    if (act === 'logout') return logout();
     if (!act || !P) return;
-    const id = t.dataset.id, zi = +t.dataset.zone;
-    switch (act) {
-      case 'rest': result(E.rest(P)); break;
-      case 'hunt': result(E.startBattle(P, zi, false)); break;
-      case 'boss': result(E.startBattle(P, zi, true)); break;
-      case 'attack': case 'skill': case 'potion': case 'flee': battleAct(act); break;
-      case 'again': { const z = P.battle.zone; E.leaveBattle(P); result(E.startBattle(P, z, false)); break; }
-      case 'leave': E.leaveBattle(P); tab = 'town'; break;
-      case 'alloc': result(E.allocate(P, t.dataset.stat, 1)); break;
-      case 'alloc5': result(E.allocate(P, t.dataset.stat, 5)); break;
-      case 'equip': result(E.equip(P, id)); break;
-      case 'unequip': result(E.unequip(P, t.dataset.slot)); break;
-      case 'use': result(E.usePotion(P, id)); break;
-      case 'sell': result(E.sell(P, id)); break;
-      case 'buy': result(E.buy(P, id, 1)); break;
-      case 'buy5': result(E.buy(P, id, 5)); break;
-      case 'reset-ask': confirmReset = true; break;
-      case 'reset-cancel': confirmReset = false; break;
-      case 'reset-yes': P = null; confirmReset = false; tab = 'town'; break;
+    if (act === 'reset-ask' || act === 'reset-cancel') { confirmReset = act === 'reset-ask'; render(); return; }
+    sendCommand(command(act, t));
+  }
+
+  async function onAuth() {
+    if (busy) return;
+    const user = $('#auth-user').value.trim(), pass = $('#auth-pass').value;
+    if (!user || !pass) { toast('Nhập tên đăng nhập và mật khẩu.', true); return; }
+    busy = true;
+    try {
+      enter(await Net.login(user, pass, authMode === 'register'));
+      toast(authMode === 'register' ? 'Đã tạo tài khoản.' : `Xin chào ${Net.username}!`);
+    } catch (err) {
+      toast(err.msg, true);
     }
-    save();
-    const scroll = $('#view').scrollTop;
-    render();
-    if (!P || !P.battle) $('#view').scrollTop = scroll;
+    busy = false;
   }
 
   function onSubmit(e) {
+    if (e.target.id === 'auth') { e.preventDefault(); onAuth(); return; }
     if (e.target.id !== 'create') return;
     e.preventDefault();
     const name = $('#hero-name').value.trim();
     if (!name) { toast('Hãy đặt tên cho nhân vật.', true); return; }
-    P = E.newPlayer(name, pickCls);
-    tab = 'town';
-    save();
-    render();
-    $('#view').scrollTop = 0;
-    toast(`Chào mừng ${P.name}!`);
+    sendCommand({ act: 'create', name, cls: pickCls });
   }
 
-  function start(hotData) {
-    if (hotData && hotData.save) { try { P = E.deserialize(hotData.save); tab = hotData.tab || 'town'; } catch (e) { P = load(); } }
-    else P = load();
+  function start() {
     document.addEventListener('click', onClick);
     document.addEventListener('submit', onSubmit);
+    Net.onPlayer((p) => { if (!busy) { P = p; render(); } });
     render();
+    Net.resume().then(enter).catch((e) => { toast(e.msg, true); enter(null); });
   }
 
-  // Giữ trạng thái khi trang được cập nhật trong trình xem artifact.
-  const hot = window.claude && window.claude.hot;
-  if (hot && hot.snapshot) hot.snapshot(() => ({ save: P ? E.serialize(P) : null, tab }));
-  if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
+  start();
 })();
