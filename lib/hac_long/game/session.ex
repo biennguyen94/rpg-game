@@ -17,7 +17,7 @@ defmodule HacLong.Game.Session do
   """
   use GenServer, restart: :transient
 
-  alias HacLong.Game.{Characters, Commands, Quests}
+  alias HacLong.Game.{Characters, Commands, Names, Quests}
   alias HacLong.World
 
   @idle_timeout :timer.minutes(10)
@@ -120,7 +120,23 @@ defmodule HacLong.Game.Session do
     end
   end
 
-  defp run_command(s, cmd, origin) do
+  # Tạo nhân vật: kiểm tra tên hợp lệ và chưa ai dùng (cần database nên làm ở đây).
+  defp run_command(%{player: nil} = s, %{"act" => "create"} = cmd, origin) do
+    with {:ok, name} <- Names.validate(cmd["name"]),
+         false <- Characters.name_taken?(name) do
+      run_command_(s, Map.put(cmd, "name", name), origin)
+    else
+      {:error, msg} -> reply({%{ok: false, msg: msg}, nil}, s)
+      true -> reply({%{ok: false, msg: "Tên này đã có người dùng."}, nil}, s)
+    end
+  rescue
+    # hai người cùng lấy một tên đúng lúc: ràng buộc duy nhất trong database chặn người sau
+    Ecto.ConstraintError -> reply({%{ok: false, msg: "Tên này đã có người dùng."}, nil}, s)
+  end
+
+  defp run_command(s, cmd, origin), do: run_command_(s, cmd, origin)
+
+  defp run_command_(s, cmd, origin) do
     old = s.player
     {result, player} = Commands.run(old, cmd)
     player = after_command(s, old, player, cmd)

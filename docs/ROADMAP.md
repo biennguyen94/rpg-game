@@ -48,8 +48,9 @@ Các tính năng dự định cho Hắc Long RPG, xếp theo thứ tự ưu tiê
 
 - [x] **Chat thế giới**: khung chat dưới bản đồ, bong bóng lời nói trên đầu người đang ở
   cùng bản đồ, giữ 50 tin gần nhất trong bộ nhớ (không lưu database), 5 tin/10 giây mỗi người.
-- [ ] Tên nhân vật đang được trùng nhau; nên bắt buộc tên duy nhất để không mạo danh trong
-  chat và bảng xếp hạng. Chưa có chặn/báo cáo người chat xấu.
+- [x] Tên nhân vật duy nhất (không phân biệt hoa thường, 2–16 ký tự chữ/số/khoảng trắng/-/_),
+  để không mạo danh trong chat và bảng xếp hạng.
+- [ ] Chặn/báo cáo người chat xấu.
 - [ ] **Trùm thế giới**: trùm cực mạnh xuất hiện theo giờ, mọi người đánh chung một thanh máu
   theo thời gian thực, chia thưởng theo sát thương. Một GenServer giữ máu trùm và phát cho mọi người.
 - [ ] **Chợ giữa người chơi**: rao bán đồ. Phải dùng transaction trong database để không

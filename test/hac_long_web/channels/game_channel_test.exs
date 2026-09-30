@@ -32,10 +32,37 @@ defmodule HacLongWeb.GameChannelTest do
 
   # Tạo nhân vật rồi đặt sẵn ở vị trí `pos` trong database, trước khi vào game.
   defp player_at(user, pos, attrs \\ %{}) do
-    {_, p} = Commands.run(nil, %{"act" => "create", "name" => "Hiệp", "cls" => "knight"})
+    # tên nhân vật không được trùng nên thêm số riêng cho mỗi người
+    name = "Hiệp #{System.unique_integer([:positive]) |> rem(100_000)}"
+    {_, p} = Commands.run(nil, %{"act" => "create", "name" => name, "cls" => "knight"})
     p = p |> Map.merge(attrs) |> Map.put(:pos, pos)
     Characters.save!(user.id, p)
     p
+  end
+
+  test "tên nhân vật không được trùng (không phân biệt hoa thường) và phải hợp lệ" do
+    a = create_user()
+    {_, sa} = join_game(a)
+
+    assert cmd(sa, %{"act" => "create", "name" => "  Rồng   Đen ", "cls" => "rogue"}).player.name ==
+             "Rồng Đen"
+
+    b = create_user()
+    {_, sb} = join_game(b)
+
+    for bad <- ["rồng đen", "RỒNG  ĐEN"] do
+      assert %{ok: false, msg: "Tên này đã có người dùng.", player: nil} =
+               cmd(sb, %{"act" => "create", "name" => bad, "cls" => "rogue"})
+    end
+
+    assert %{ok: false, msg: "Tên nhân vật phải dài 2–16 ký tự."} =
+             cmd(sb, %{"act" => "create", "name" => "x", "cls" => "rogue"})
+
+    assert %{ok: false, msg: "Tên chỉ gồm chữ, số, khoảng trắng, - và _."} =
+             cmd(sb, %{"act" => "create", "name" => "<b>hi</b>", "cls" => "rogue"})
+
+    # tên khác dấu là tên khác
+    assert %{ok: true} = cmd(sb, %{"act" => "create", "name" => "Rồng Đèn", "cls" => "rogue"})
   end
 
   test "tạo nhân vật rồi ra khỏi nhà" do
@@ -124,8 +151,9 @@ defmodule HacLongWeb.GameChannelTest do
     HacLong.RateLimit.reset()
     a = create_user()
     b = create_user()
-    player_at(a, %{map: "village", x: 12, y: 14})
+    pa = player_at(a, %{map: "village", x: 12, y: 14})
     player_at(b, %{map: "forest_1", x: 13, y: 16})
+    name = pa.name
     {_, sa} = join_game(a)
     {_, _sb} = join_game(b)
     assert_push "chat_history", %{messages: _}
@@ -133,7 +161,7 @@ defmodule HacLongWeb.GameChannelTest do
     ref = push(sa, "chat", %{"text" => "  xin\nchào\u0000   mọi người  "})
     assert_reply ref, :ok
     # cả hai kênh (a và b) đều nhận
-    assert_push "chat", %{text: "xin chào mọi người", name: "Hiệp", map: "village", uid: uid}
+    assert_push "chat", %{text: "xin chào mọi người", name: ^name, map: "village", uid: uid}
     assert uid == a.id
     assert_push "chat", %{text: "xin chào mọi người"}
     assert Enum.any?(HacLong.Chat.history(), &(&1.text == "xin chào mọi người"))
@@ -172,12 +200,13 @@ defmodule HacLongWeb.GameChannelTest do
     user = create_user()
     bosses = ~w(wolf orc_warrior lich hill_giant golden_dragon)
 
-    player_at(user, %{map: "lair_boss", x: 7, y: 4}, %{
-      level: 50,
-      bosses: bosses,
-      stats: %{str: 400, vit: 200, agi: 0, def: 200},
-      hp: 5000
-    })
+    p =
+      player_at(user, %{map: "lair_boss", x: 7, y: 4}, %{
+        level: 50,
+        bosses: bosses,
+        stats: %{str: 400, vit: 200, agi: 0, def: 200},
+        hp: 5000
+      })
 
     {_, socket} = join_game(user)
     MapServer.put_monster("lair_boss", "shadow_dragon", {7, 3}, true)
@@ -192,7 +221,8 @@ defmodule HacLongWeb.GameChannelTest do
 
     assert r.player.battle.result == "win" and r.player.victory
     assert %DateTime{} = Characters.load(user.id).victory_at
-    assert [%{name: "Hiệp"} | _] = HacLong.Leaderboard.top(:dragon)
+    assert [%{name: name} | _] = HacLong.Leaderboard.top(:dragon)
+    assert name == p.name
   end
 
   test "người chơi khác thấy nhau trên bản đồ, tab đóng thì rời bản đồ" do

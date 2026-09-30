@@ -6,7 +6,7 @@ defmodule HacLong.Game.Characters do
 
   import Ecto.Query
   alias HacLong.Repo
-  alias HacLong.Game.Character
+  alias HacLong.Game.{Character, Names}
   alias HacLong.World
   alias HacLong.World.Maps
 
@@ -23,7 +23,12 @@ defmodule HacLong.Game.Characters do
   def save!(user_id, player) do
     attrs =
       player
-      |> Map.merge(%{map_id: player.pos.map, x: player.pos.x, y: player.pos.y})
+      |> Map.merge(%{
+        map_id: player.pos.map,
+        x: player.pos.x,
+        y: player.pos.y,
+        name_key: Names.key(player.name)
+      })
       |> Map.take(Character.fields())
 
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -35,6 +40,11 @@ defmodule HacLong.Game.Characters do
     )
 
     :ok
+  end
+
+  @doc "Tên đã có người khác dùng chưa (không phân biệt hoa thường)."
+  def name_taken?(name) do
+    Repo.exists?(from c in Character, where: c.name_key == ^Names.key(name))
   end
 
   def delete!(user_id) do
