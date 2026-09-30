@@ -176,7 +176,8 @@ defmodule HacLong.Game.Tower do
       name: m.name,
       level: m.level,
       mult: if(m.elite, do: mult * 1.3, else: mult),
-      special: base[:special]
+      special: base[:special],
+      on_hit: if(m.elite, do: nil, else: Data.monster(m.kind)[:on_hit])
     }
 
     q = Engine.make_monster(spec, false)

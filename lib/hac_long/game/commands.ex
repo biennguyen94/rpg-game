@@ -39,7 +39,7 @@ defmodule HacLong.Game.Commands do
         rest(p)
 
       a when a in ~w(attack skill potion flee) ->
-        Engine.act(p, a)
+        Engine.act(p, a, c["skill"])
 
       "leave" ->
         Engine.leave_battle(p)

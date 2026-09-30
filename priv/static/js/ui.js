@@ -482,7 +482,7 @@
                   <b>${c.name}</b>
                   <span class="small muted">${c.desc}</span>
                   <span class="stats">Sức mạnh ${c.base.str} · Thể lực ${c.base.vit} · Nhanh nhẹn ${c.base.agi} · Phòng thủ ${c.base.def}</span>
-                  <span class="small" style="color:var(--gold)">Kỹ năng: ${c.skill.name}. ${c.skill.desc}</span>
+                  <span class="small" style="color:var(--gold)">Kỹ năng: ${c.skills[0].name}. ${c.skills[0].desc}</span>
                 </span>
               </button>`).join('')}
           </div>
@@ -654,9 +654,11 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="row">${icon(c.skill.icon, 'lg')}<div class="grow"><h3>${c.skill.name}</h3><p class="small muted">${c.skill.desc} Hồi chiêu ${c.skill.cooldown} lượt.</p></div></div>
-      </div>
+      <div class="card"><h3>Kỹ năng</h3><div class="list">
+        ${c.skills.map((k) => `<div class="item ${k.level > P.level ? 'locked' : ''}">${icon(k.icon, 'lg')}<div class="grow">
+          <div class="name">${k.name}${k.level > P.level ? ` <span class="small" style="color:var(--bad)">· mở ở cấp ${k.level}</span>` : ''}</div>
+          <div class="small muted">${k.desc} Hồi chiêu ${k.cooldown} lượt.</div></div></div>`).join('')}
+      </div></div>
 
       ${viewAchievements()}`;
   }
@@ -907,9 +909,28 @@
   }
 
   // ---------- Trận đấu ----------
+  const mySkills = () => CLASSES[P.cls].skills.filter((k) => k.level <= P.level);
+
+  // Hiệu ứng trạng thái đang có (độc, choáng, cuồng nộ...).
+  const EFFECTS = {
+    poison: ['☠', 'Trúng độc', 'bad'], burn: ['🔥', 'Bỏng', 'bad'], bleed: ['🩸', 'Chảy máu', 'bad'],
+    stun: ['💫', 'Choáng', 'bad'], weaken: ['⬇', 'Suy yếu', 'bad'],
+    rage: ['⬆', 'Cuồng nộ', 'good'], guard: ['🛡', 'Thủ thế', 'good'], evade: ['💨', 'Ảnh bộ', 'good'],
+  };
+  function effectTags(list) {
+    if (!list || !list.length) return '';
+    return `<div class="fx-tags">${list.map((e) => {
+      const [ic, name, kind] = EFFECTS[e.id] || ['•', e.id, ''];
+      const dot = ['poison', 'burn', 'bleed'].includes(e.id) ? ` -${e.power}` : '';
+      return `<span class="fx-tag ${kind}" title="${name}">${ic} ${name}${dot}${e.id === 'stun' ? '' : ` · ${e.turns}`}</span>`;
+    }).join('')}</div>`;
+  }
   function viewBattle() {
     const b = P.battle, m = b.monster, d = P.view.derived, z = ZONES[b.zone];
-    const skill = CLASSES[P.cls].skill;
+    const skills = mySkills();
+    const cd = (id) => { const c = (b.cds || []).find((x) => x.id === id); return c ? c.turns : 0; };
+    const fxs = (!b.over && b.effects) || { player: [], monster: [] };
+    const dotted = fxs.player.some((e) => ['poison', 'burn', 'bleed'].includes(e.id));
     const pots = ['potion_s', 'potion_m', 'potion_l'].reduce((s, id) => s + (P.inv[id] || 0), 0);
     const floatHtml = fx && fx.mDmg != null
       ? `<span class="float ${fx.crit ? 'crit' : ''} ${fx.mDmg === 0 ? 'miss' : ''}">${fx.mDmg === 0 ? 'Trượt' : '-' + fmt(fx.mDmg)}</span>` : '';
@@ -918,8 +939,8 @@
       bottom = `
         <div class="actions">
           <button class="btn primary" data-act="attack">${icon('broadsword')} Tấn công</button>
-          <button class="btn" data-act="skill" ${b.skillCd ? 'disabled' : ''}>${icon(skill.icon)} ${skill.name}${b.skillCd ? ` (${b.skillCd})` : ''}</button>
-          <button class="btn" data-act="potion" ${pots && P.hp < d.maxHp ? '' : 'disabled'}>${icon('health-potion')} Uống máu (${pots})</button>
+          ${skills.map((k) => `<button class="btn" data-act="skill" data-skill="${k.id}" ${cd(k.id) ? 'disabled' : ''}>${icon(k.icon)} ${k.name}${cd(k.id) ? ` (${cd(k.id)})` : ''}</button>`).join('')}
+          <button class="btn" data-act="potion" ${pots && (P.hp < d.maxHp || dotted) ? '' : 'disabled'}>${icon('health-potion')} Uống máu (${pots})</button>
           <button class="btn" data-act="flee">${icon('walk')} Bỏ chạy</button>
         </div>`;
     } else {
@@ -944,10 +965,11 @@
         <h2>${m.name}</h2>
         <span class="small muted">Cấp ${m.level} · Tấn công ${m.atk} · Phòng thủ ${m.def}${m.special ? ` · ${m.special.name} mỗi ${m.special.every} lượt` : ''}</span>
         ${bar(m.boss || m.world || m.elite ? 'boss' : 'hp', m.hp, m.maxHp)}
+        ${effectTags(fxs.monster)}
       </div>
       <div class="me ${fx && fx.pDmg ? 'hurt' : ''}">
         ${sprite('hero', '', '')}
-        <div class="grow" style="flex:1;min-width:0">${bar('hp', P.hp, d.maxHp, `${esc(P.name)} · ${fmt(P.hp)} / ${fmt(d.maxHp)}`)}</div>
+        <div class="grow" style="flex:1;min-width:0">${bar('hp', P.hp, d.maxHp, `${esc(P.name)} · ${fmt(P.hp)} / ${fmt(d.maxHp)}`)}${effectTags(fxs.player)}</div>
       </div>
       <div class="log" aria-live="polite">${b.log.map((l) => `<div class="${l.kind}">${esc(l.text)}</div>`).join('')}</div>
       ${bottom}`;
@@ -986,6 +1008,7 @@
       case 'craft': case 'quest_accept': case 'quest_turnin': return { act, id: d.id };
       case 'daily_claim': return { act, i: +d.i };
       case 'tower_enter': return { act, floor: +d.floor };
+      case 'skill': return { act, skill: d.skill };
       case 'mail_claim': return { act, id: +d.id };
       case 'title_set': return { act, id: d.id || null };
       default: return { act };

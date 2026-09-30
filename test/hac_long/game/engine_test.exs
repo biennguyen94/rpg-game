@@ -62,9 +62,75 @@ defmodule HacLong.Game.EngineTest do
     p = %{player("knight") | hp: 50}
     {_, p} = Engine.start_battle(p, 0, true)
     {%{ok: true}, p} = Engine.act(p, "skill")
-    assert p.battle.skillCd == 4
+    assert Engine.cooldown(p, "holy") == 4
     assert Enum.any?(p.battle.log, &(&1.text =~ "Khiên Thánh hồi"))
-    assert {%{ok: false, msg: "Kỹ năng hồi sau 4 lượt."}, ^p} = Engine.act(p, "skill")
+    assert {%{ok: false, msg: "Khiên Thánh hồi sau 4 lượt."}, ^p} = Engine.act(p, "skill")
+  end
+
+  test "kỹ năng mở theo cấp" do
+    ids = fn p -> Enum.map(Engine.skills(p), & &1.id) end
+    assert ids.(player()) == ["cleave"]
+    assert ids.(%{player() | level: 10}) == ["cleave", "stun_bash"]
+    assert ids.(%{player("rogue") | level: 25}) == ["backstab", "venom", "shadow_step"]
+
+    Rng.put_sequence([0.5])
+    {_, p} = Engine.start_battle(player(), 0, false)
+    assert {%{ok: false, msg: "Chưa học kỹ năng này."}, _} = Engine.act(p, "skill", "stun_bash")
+  end
+
+  # quái thường, không né, không chí mạng: dãy 0.99 cho mọi lần ngẫu nhiên
+  defp fight(cls, level, zone \\ 0) do
+    Rng.put_sequence([0.99])
+    p = %{player(cls) | level: level, stats: %{str: 5, vit: 200, agi: 0, def: 5}}
+    p = %{p | hp: Engine.derived(p).maxHp}
+    {_, p} = Engine.start_battle(p, zone, false)
+    put_in(p.battle.monster.hp, 100_000) |> put_in([:battle, :monster, :maxHp], 100_000)
+  end
+
+  test "choáng làm quái mất lượt" do
+    p = fight("warrior", 10)
+    hp = p.hp
+    {%{ok: true}, p} = Engine.act(p, "skill", "stun_bash")
+    assert Enum.any?(p.battle.log, &(&1.text =~ "bị choáng, không đánh được"))
+    assert p.hp == hp
+    # choáng chỉ một lượt
+    {_, p} = Engine.act(p, "attack")
+    assert p.hp < hp
+  end
+
+  test "tẩm độc: quái mất máu cuối mỗi lượt trong 3 lượt" do
+    p = fight("rogue", 10)
+    {_, p} = Engine.act(p, "skill", "venom")
+    assert [%{id: "poison", turns: 2, power: per}] = p.battle.effects.monster
+    hp = p.battle.monster.hp
+    {_, p} = Engine.act(p, "attack")
+    {_, p} = Engine.act(p, "attack")
+    assert p.battle.effects.monster == []
+    ticks = Enum.count(p.battle.log, &(&1.text =~ "mất #{per} máu vì độc"))
+    assert ticks == 3
+    assert p.battle.monster.hp < hp - per
+  end
+
+  test "trùm gây bỏng; bình máu giải bỏng" do
+    Rng.put_sequence([0.99])
+    p = %{player() | level: 20, stats: %{str: 5, vit: 300, agi: 0, def: 5}}
+
+    p = %{
+      p
+      | hp: Engine.derived(p).maxHp,
+        inv: %{"potion_l" => 3},
+        bosses: ["wolf", "orc_warrior"]
+    }
+
+    # Pháp Sư Bất Tử: Lửa Âm Phủ mỗi 3 lượt gây bỏng
+    {_, p} = Engine.start_battle(p, 2, true)
+    p = put_in(p.battle.monster.hp, 100_000)
+    p = Enum.reduce(1..3, p, fn _, p -> elem(Engine.act(p, "attack"), 1) end)
+    assert [%{id: "burn", power: per}] = p.battle.effects.player
+    assert Enum.any?(p.battle.log, &(&1.text =~ "Bạn mất #{per} máu vì bị bỏng"))
+    {_, p} = Engine.act(p, "potion")
+    assert p.battle.effects.player == []
+    assert Enum.any?(p.battle.log, &(&1.text == "Hết bị bỏng."))
   end
 
   test "hạ trùm mở vùng mới, gục ngã mất 10% vàng" do

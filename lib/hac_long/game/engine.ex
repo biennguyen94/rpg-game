@@ -140,6 +140,7 @@ defmodule HacLong.Game.Engine do
       boss: boss?,
       final: Map.get(spec, :final, false),
       special: Map.get(spec, :special),
+      on_hit: Map.get(spec, :on_hit),
       maxHp: round((20 + l * 26 + l * l * 0.6) * m * bm),
       atk: round((10 + l * 6.4) * m * 1),
       def: round((1 + l * 2.0) * m),
@@ -204,7 +205,10 @@ defmodule HacLong.Game.Engine do
       zone: zi,
       monster: m,
       turn: 0,
-      skillCd: 0,
+      # hồi chiêu từng kỹ năng: [%{id, turns}]
+      cds: [],
+      # hiệu ứng trạng thái: [%{id, turns, power}] của mỗi bên
+      effects: %{player: [], monster: []},
       log: [],
       over: false,
       result: nil,
@@ -242,16 +246,99 @@ defmodule HacLong.Game.Engine do
     {p, p.hp - before}
   end
 
-  @doc "action: \"attack\" | \"skill\" | \"potion\" | \"flee\""
-  def act(p, action) do
+  # ---------- Kỹ năng ----------
+
+  @doc "Các kỹ năng đã mở ở cấp hiện tại (mỗi lớp mở thêm kỹ năng ở cấp 10 và 25)."
+  def skills(p), do: Enum.filter(Data.class(p.cls).skills, &(&1.level <= p.level))
+
+  @doc "Số lượt còn phải chờ để dùng lại kỹ năng `id` trong trận hiện tại."
+  def cooldown(%{battle: %{} = b}, id) do
+    case Enum.find(Map.get(b, :cds) || [], &(&1.id == id)) do
+      nil -> 0
+      c -> c.turns
+    end
+  end
+
+  def cooldown(_p, _id), do: 0
+
+  defp set_cd(p, id, turns) do
+    cds = (Map.get(p.battle, :cds) || []) |> Enum.reject(&(&1.id == id))
+    %{p | battle: Map.put(p.battle, :cds, cds ++ [%{id: id, turns: turns}])}
+  end
+
+  # ---------- Hiệu ứng trạng thái ----------
+  # Độc, bỏng, chảy máu (`power` là số máu mất mỗi lượt); choáng (mất lượt kế tiếp);
+  # suy yếu (tấn công giảm `power`); cuồng nộ (tấn công tăng); thủ thế (sát thương nhận
+  # giảm); ảnh bộ (né thêm). Cuối mỗi lượt tính độc rồi giảm số lượt còn lại.
+
+  @dots ~w(poison burn bleed)
+  @effect_names %{
+    "poison" => "trúng độc",
+    "burn" => "bị bỏng",
+    "bleed" => "chảy máu",
+    "stun" => "bị choáng",
+    "weaken" => "suy yếu",
+    "rage" => "cuồng nộ",
+    "guard" => "thủ thế",
+    "evade" => "ảnh bộ"
+  }
+
+  def effect_names, do: @effect_names
+
+  defp effects(p, who), do: (Map.get(p.battle, :effects) || %{})[who] || []
+  defp effect(p, who, id), do: Enum.find(effects(p, who), &(&1.id == id))
+
+  defp power(p, who, id) do
+    case effect(p, who, id) do
+      nil -> 0
+      e -> e.power
+    end
+  end
+
+  defp set_effects(p, who, list) do
+    all = Map.get(p.battle, :effects) || %{player: [], monster: []}
+    %{p | battle: Map.put(p.battle, :effects, Map.put(all, who, list))}
+  end
+
+  defp put_effect(p, who, id, turns, power) do
+    list = p |> effects(who) |> Enum.reject(&(&1.id == id))
+    set_effects(p, who, list ++ [%{id: id, turns: turns, power: power}])
+  end
+
+  defp drop_effect(p, who, id),
+    do: set_effects(p, who, p |> effects(who) |> Enum.reject(&(&1.id == id)))
+
+  # ---------- Lượt đánh ----------
+
+  @doc """
+  action: "attack" | "skill" | "potion" | "flee". Với "skill", `skill_id` chọn kỹ năng
+  (không có thì dùng kỹ năng đầu tiên).
+  """
+  def act(p, action, skill_id \\ nil) do
     b = p.battle
 
     cond do
-      b == nil or b.over -> {err("Không có trận đấu."), p}
-      action in ~w(attack skill) -> act_strike(p, action, derived(p))
-      action == "potion" -> act_potion(p, derived(p))
-      action == "flee" -> act_flee(p, derived(p))
-      true -> {err("Thao tác không hợp lệ."), p}
+      b == nil or b.over ->
+        {err("Không có trận đấu."), p}
+
+      action not in ~w(attack skill potion flee) ->
+        {err("Thao tác không hợp lệ."), p}
+
+      effect(p, :player, "stun") ->
+        p
+        |> next_turn()
+        |> drop_effect(:player, "stun")
+        |> log("💫 Bạn bị choáng, mất một lượt.", "bad")
+        |> monster_turn(derived(p))
+
+      action in ~w(attack skill) ->
+        act_strike(p, action, skill_id, derived(p))
+
+      action == "potion" ->
+        act_potion(p, derived(p))
+
+      true ->
+        act_flee(p, derived(p))
     end
   end
 
@@ -269,101 +356,280 @@ defmodule HacLong.Game.Engine do
 
   defp act_potion(p, d) do
     id = best_potion(p, d.maxHp - p.hp)
+    poisoned = Enum.filter(effects(p, :player), &(&1.id in @dots))
 
     cond do
       id == nil ->
         {err("Hết bình máu."), p}
 
-      p.hp >= d.maxHp ->
+      p.hp >= d.maxHp and poisoned == [] ->
         {err("Máu đang đầy."), p}
 
       true ->
         {p, healed} = p |> next_turn() |> drink(id)
+        p = log(p, "Bạn uống #{Data.item(id).name}, hồi #{healed} máu.", "good")
 
-        p
-        |> log("Bạn uống #{Data.item(id).name}, hồi #{healed} máu.", "good")
-        |> monster_turn(d)
+        # bình máu giải luôn độc, bỏng, chảy máu
+        p =
+          if poisoned == [],
+            do: p,
+            else:
+              p
+              |> set_effects(:player, Enum.reject(effects(p, :player), &(&1.id in @dots)))
+              |> log("Hết #{Enum.map_join(poisoned, ", ", &@effect_names[&1.id])}.", "good")
+
+        monster_turn(p, d)
     end
   end
 
-  defp act_strike(p, action, d) do
+  defp pick_skill(p, nil), do: List.first(skills(p))
+  defp pick_skill(p, id), do: Enum.find(skills(p), &(&1.id == id))
+
+  defp act_strike(p, action, skill_id, d) do
     m = p.battle.monster
-    crit = chance(d.crit)
+    skill = if action == "skill", do: pick_skill(p, skill_id)
 
-    if action == "skill" and p.battle.skillCd > 0 do
-      {err("Kỹ năng hồi sau #{p.battle.skillCd} lượt."), p}
-    else
-      p = next_turn(p)
-      {p, atk, dfn, crit, mult, name} = apply_skill(p, action, d, d.atk, m.def, crit)
+    cond do
+      action == "skill" and skill == nil ->
+        {err("Chưa học kỹ năng này."), p}
 
-      p =
-        if action != "skill" and chance(m.dodge) do
-          log(p, "#{m.name} né được đòn #{name}.", "info")
-        else
-          dmg = round(damage(atk, dfn) * mult * if(crit, do: d.critMult, else: 1))
-          p = update_in(p.battle.monster.hp, &max(0, &1 - dmg))
-          prefix = if action == "skill", do: "✨ #{name}: ", else: ""
-          suffix = if crit, do: " (CHÍ MẠNG!)", else: ""
+      skill && cooldown(p, skill.id) > 0 ->
+        {err("#{skill.name} hồi sau #{cooldown(p, skill.id)} lượt."), p}
 
-          log(
-            p,
-            "#{prefix}Bạn gây #{dmg} sát thương#{suffix}.",
-            if(crit, do: "crit", else: "hit")
-          )
-        end
+      true ->
+        p = next_turn(p)
 
-      if p.battle.monster.hp <= 0, do: win(p), else: monster_turn(p, d)
+        atk =
+          round(d.atk * (1 + power(p, :player, "rage")) * (1 - power(p, :player, "weaken")))
+
+        {p, atk, dfn, crit, mult, name, on_hit} =
+          strike_with(p, skill, d, atk, m.def, chance(d.crit))
+
+        p =
+          if skill == nil and chance(m.dodge) do
+            log(p, "#{m.name} né được đòn #{name}.", "info")
+          else
+            dmg = round(damage(atk, dfn) * mult * if(crit, do: d.critMult, else: 1))
+            p = update_in(p.battle.monster.hp, &max(0, &1 - dmg))
+            prefix = if skill, do: "✨ #{name}: ", else: ""
+            suffix = if crit, do: " (CHÍ MẠNG!)", else: ""
+
+            p
+            |> log(
+              "#{prefix}Bạn gây #{dmg} sát thương#{suffix}.",
+              if(crit, do: "crit", else: "hit")
+            )
+            |> on_hit.(dmg)
+          end
+
+        if p.battle.monster.hp <= 0, do: win(p), else: monster_turn(p, d)
     end
   end
 
-  defp apply_skill(p, "attack", _d, atk, dfn, crit), do: {p, atk, dfn, crit, 1, "tấn công"}
+  # Trả về {nhân_vật, tấn_công, phòng_thủ_quái, chí_mạng?, hệ_số, tên, hàm_sau_khi_trúng}.
+  defp strike_with(p, nil, _d, atk, dfn, crit),
+    do: {p, atk, dfn, crit, 1, "tấn công", fn p, _ -> p end}
 
-  defp apply_skill(p, "skill", d, atk, dfn, crit) do
-    skill = Data.class(p.cls).skill
+  defp strike_with(p, skill, d, atk, dfn, crit) do
     # +1 vì cuối lượt sẽ trừ 1
-    p = put_in(p.battle.skillCd, skill.cooldown + 1)
+    p = set_cd(p, skill.id, skill.cooldown + 1)
+    m = p.battle.monster
+    none = fn p, _ -> p end
 
     case skill.id do
       "cleave" ->
-        {p, atk, dfn, crit, 2.2, skill.name}
+        {p, atk, dfn, crit, 2.2, skill.name, none}
 
       "backstab" ->
-        {p, atk, round(dfn * 0.5), true, 1, skill.name}
+        {p, atk, round(dfn * 0.5), true, 1, skill.name, none}
 
       "holy" ->
         heal = round(d.maxHp * 0.25)
         before = p.hp
         p = %{p | hp: min(d.maxHp, p.hp + heal)}
-        {log(p, "Khiên Thánh hồi #{p.hp - before} máu.", "good"), atk, dfn, crit, 1.3, skill.name}
+
+        {log(p, "Khiên Thánh hồi #{p.hp - before} máu.", "good"), atk, dfn, crit, 1.3, skill.name,
+         none}
+
+      "stun_bash" ->
+        {p, atk, dfn, crit, 1.2, skill.name,
+         fn p, _ ->
+           if (m.boss || m[:world]) && chance(0.5),
+             do: log(p, "#{m.name} không bị choáng.", "info"),
+             else:
+               p |> put_effect(:monster, "stun", 1, 0) |> log("💫 #{m.name} bị choáng!", "good")
+         end}
+
+      "war_cry" ->
+        {p, atk, dfn, crit, 1, skill.name,
+         fn p, _ ->
+           p
+           |> put_effect(:player, "rage", 4, 0.4)
+           |> log("Bạn nổi cuồng nộ: tấn công +40%.", "good")
+         end}
+
+      "venom" ->
+        {p, atk, dfn, crit, 1, skill.name,
+         fn p, dmg ->
+           p
+           |> put_effect(:monster, "poison", 3, max(1, round(dmg * 0.5)))
+           |> log("☠ #{m.name} trúng độc.", "good")
+         end}
+
+      "shadow_step" ->
+        {p, atk, dfn, crit, 1.3, skill.name,
+         fn p, _ ->
+           p |> put_effect(:player, "evade", 2, 0.6) |> log("Bạn nhập ảnh bộ: né +60%.", "good")
+         end}
+
+      "guard" ->
+        {p, atk, dfn, crit, 1, skill.name,
+         fn p, _ ->
+           p
+           |> put_effect(:player, "guard", 2, 0.5)
+           |> log("Bạn giơ khiên thủ thế: sát thương nhận -50%.", "good")
+         end}
+
+      "judgement" ->
+        {p, atk, dfn, crit, 1.8, skill.name,
+         fn p, _ ->
+           p
+           |> put_effect(:monster, "weaken", 3, 0.3)
+           |> log("#{m.name} bị suy yếu: tấn công -30%.", "good")
+         end}
     end
   end
 
   defp monster_turn(p, d) do
     b = p.battle
     m = b.monster
-    special = m.special != nil and rem(b.turn, m.special.every) == 0
-    m_atk = if special, do: round(m.atk * m.special.mult), else: m.atk
+
+    if effect(p, :monster, "stun") do
+      p
+      |> drop_effect(:monster, "stun")
+      |> log("💫 #{m.name} bị choáng, không đánh được.", "good")
+      |> round_end()
+    else
+      special = m.special != nil and rem(b.turn, m.special.every) == 0
+      m_atk = if special, do: round(m.atk * m.special.mult), else: m.atk
+      m_atk = round(m_atk * (1 - power(p, :monster, "weaken")))
+
+      p =
+        if not special and chance(d.dodge + power(p, :player, "evade")) do
+          log(p, "Bạn né được đòn của #{m.name}.", "info")
+        else
+          mc = not special and chance(m.crit)
+
+          dmg =
+            round(
+              damage(m_atk, d.def) * if(mc, do: 1.5, else: 1) * (1 - power(p, :player, "guard"))
+            )
+
+          p = %{p | hp: max(0, p.hp - dmg)}
+
+          text =
+            if special,
+              do: "🔥 #{m.name} dùng #{m.special.name}! Bạn mất #{dmg} máu.",
+              else: "#{m.name} đánh bạn #{dmg} máu#{if mc, do: " (chí mạng)", else: ""}."
+
+          p = log(p, text, "bad")
+
+          cond do
+            special and m.special[:effect] ->
+              inflict(p, m, m.special.effect)
+
+            not special and m[:on_hit] && chance(m.on_hit.chance) ->
+              inflict(p, m, m.on_hit)
+
+            true ->
+              p
+          end
+        end
+
+      if p.hp <= 0, do: lose(p), else: round_end(p)
+    end
+  end
+
+  # Quái gây hiệu ứng lên người chơi.
+  defp inflict(p, m, e) do
+    case e.id do
+      id when id in @dots ->
+        per = max(1, round(m.atk * e.power))
+
+        p
+        |> put_effect(:player, id, e.turns, per)
+        |> log("Bạn #{@effect_names[id]} (-#{per} máu mỗi lượt, uống bình máu để giải).", "bad")
+
+      "stun" ->
+        p |> put_effect(:player, "stun", 1, 0) |> log("💫 Bạn bị choáng!", "bad")
+
+      "weaken" ->
+        p
+        |> put_effect(:player, "weaken", e.turns, e.power)
+        |> log("Bạn bị suy yếu: tấn công -#{round(e.power * 100)}%.", "bad")
+    end
+  end
+
+  # Cuối lượt: độc trên quái rồi trên người chơi, sau đó giảm số lượt hiệu ứng và hồi chiêu.
+  defp round_end(p) do
+    m = p.battle.monster
+
+    mdot =
+      p
+      |> effects(:monster)
+      |> Enum.filter(&(&1.id in @dots))
+      |> Enum.map(& &1.power)
+      |> Enum.sum()
 
     p =
-      if not special and chance(d.dodge) do
-        log(p, "Bạn né được đòn của #{m.name}.", "info")
+      if mdot > 0 do
+        p
+        |> update_in([:battle, :monster, :hp], &max(0, &1 - mdot))
+        |> log("☠ #{m.name} mất #{mdot} máu vì độc.", "hit")
       else
-        mc = not special and chance(m.crit)
-        dmg = round(damage(m_atk, d.def) * if(mc, do: 1.5, else: 1))
-        p = %{p | hp: max(0, p.hp - dmg)}
-
-        text =
-          if special,
-            do: "🔥 #{m.name} dùng #{m.special.name}! Bạn mất #{dmg} máu.",
-            else: "#{m.name} đánh bạn #{dmg} máu#{if mc, do: " (chí mạng)", else: ""}."
-
-        log(p, text, "bad")
+        p
       end
 
-    if p.hp <= 0 do
-      lose(p)
+    if p.battle.monster.hp <= 0 do
+      win(p)
     else
-      {ok(), update_in(p.battle.skillCd, &if(&1 > 0, do: &1 - 1, else: 0))}
+      pdots = p |> effects(:player) |> Enum.filter(&(&1.id in @dots))
+      pdot = pdots |> Enum.map(& &1.power) |> Enum.sum()
+
+      p =
+        if pdot > 0 do
+          p = %{p | hp: max(0, p.hp - pdot)}
+
+          log(
+            p,
+            "Bạn mất #{pdot} máu vì #{Enum.map_join(pdots, ", ", &@effect_names[&1.id])}.",
+            "bad"
+          )
+        else
+          p
+        end
+
+      if p.hp <= 0 do
+        lose(p)
+      else
+        tick = fn list ->
+          list
+          |> Enum.map(fn e -> if e.id == "stun", do: e, else: %{e | turns: e.turns - 1} end)
+          |> Enum.filter(&(&1.turns > 0))
+        end
+
+        p =
+          p
+          |> set_effects(:player, tick.(effects(p, :player)))
+          |> set_effects(:monster, tick.(effects(p, :monster)))
+
+        cds =
+          (Map.get(p.battle, :cds) || [])
+          |> Enum.map(&%{&1 | turns: &1.turns - 1})
+          |> Enum.filter(&(&1.turns > 0))
+
+        {ok(), %{p | battle: Map.put(p.battle, :cds, cds)}}
+      end
     end
   end
 

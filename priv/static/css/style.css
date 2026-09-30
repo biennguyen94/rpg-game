@@ -353,3 +353,11 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 .item.ach.done .ic { filter: none; opacity: 1; }
 .mini-bar { height: 5px; border-radius: 99px; background: #0e0b12; border: 1px solid var(--line); overflow: hidden; margin: 4px 0 2px; }
 .mini-bar > i { display: block; height: 100%; background: var(--gold); }
+
+/* Hiệu ứng trạng thái */
+.fx-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 4px; }
+.me .fx-tags { justify-content: flex-start; }
+.fx-tag { font-size: 0.7rem; font-weight: 600; border-radius: 99px; padding: 1px 7px; border: 1px solid var(--line); background: rgba(0, 0, 0, 0.45); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fx-tag.bad { color: #f0a08f; border-color: #7a3a2e; }
+.fx-tag.good { color: #9fe0a8; border-color: #2e6a3a; }
+.item.locked { opacity: 0.55; }

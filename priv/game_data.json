@@ -16,13 +16,32 @@
         "agi": 0,
         "def": 0
       },
-      "skill": {
-        "id": "cleave",
-        "name": "Chém Cuồng Nộ",
-        "desc": "Gây 220% sát thương.",
-        "icon": "sword-spin",
-        "cooldown": 3
-      }
+      "skills": [
+        {
+          "id": "cleave",
+          "name": "Chém Cuồng Nộ",
+          "desc": "Gây 220% sát thương.",
+          "icon": "sword-spin",
+          "cooldown": 3,
+          "level": 1
+        },
+        {
+          "id": "stun_bash",
+          "name": "Đập Choáng",
+          "desc": "Gây 120% sát thương, làm quái choáng mất lượt (trùm có 50% kháng).",
+          "icon": "hammer-drop",
+          "cooldown": 4,
+          "level": 10
+        },
+        {
+          "id": "war_cry",
+          "name": "Gầm Chiến",
+          "desc": "Đánh thường và nổi cuồng nộ: tấn công +40% trong 3 lượt tiếp theo.",
+          "icon": "shouting",
+          "cooldown": 6,
+          "level": 25
+        }
+      ]
     },
     "rogue": {
       "name": "Thích Khách",
@@ -40,13 +59,32 @@
         "agi": 3,
         "def": 0
       },
-      "skill": {
-        "id": "backstab",
-        "name": "Đâm Lén",
-        "desc": "Chắc chắn chí mạng, xuyên 50% giáp.",
-        "icon": "backstab",
-        "cooldown": 3
-      }
+      "skills": [
+        {
+          "id": "backstab",
+          "name": "Đâm Lén",
+          "desc": "Chắc chắn chí mạng, xuyên 50% giáp.",
+          "icon": "backstab",
+          "cooldown": 3,
+          "level": 1
+        },
+        {
+          "id": "venom",
+          "name": "Lưỡi Độc",
+          "desc": "Gây 100% sát thương và tẩm độc: quái mất máu mỗi lượt trong 3 lượt.",
+          "icon": "dripping-knife",
+          "cooldown": 4,
+          "level": 10
+        },
+        {
+          "id": "shadow_step",
+          "name": "Ảnh Bộ",
+          "desc": "Gây 130% sát thương, né thêm 60% trong 2 lượt.",
+          "icon": "sprint",
+          "cooldown": 5,
+          "level": 25
+        }
+      ]
     },
     "knight": {
       "name": "Hiệp Sĩ",
@@ -64,13 +102,32 @@
         "agi": 0,
         "def": 1
       },
-      "skill": {
-        "id": "holy",
-        "name": "Khiên Thánh",
-        "desc": "Gây 130% sát thương và hồi 25% máu.",
-        "icon": "shield-reflect",
-        "cooldown": 4
-      }
+      "skills": [
+        {
+          "id": "holy",
+          "name": "Khiên Thánh",
+          "desc": "Gây 130% sát thương và hồi 25% máu.",
+          "icon": "shield-reflect",
+          "cooldown": 4,
+          "level": 1
+        },
+        {
+          "id": "guard",
+          "name": "Khiên Phản Kích",
+          "desc": "Gây 100% sát thương, giảm 50% sát thương nhận vào trong 2 lượt.",
+          "icon": "shield-bash",
+          "cooldown": 5,
+          "level": 10
+        },
+        {
+          "id": "judgement",
+          "name": "Phán Quyết",
+          "desc": "Gây 180% sát thương, làm quái suy yếu: tấn công -30% trong 3 lượt.",
+          "icon": "winged-sword",
+          "cooldown": 5,
+          "level": 25
+        }
+      ]
     }
   },
   "ZONES": [
@@ -100,7 +157,13 @@
         {
           "id": "spider",
           "name": "Nhện Độc",
-          "level": 4
+          "level": 4,
+          "on_hit": {
+            "id": "poison",
+            "chance": 0.25,
+            "turns": 3,
+            "power": 0.25
+          }
         }
       ],
       "boss": {
@@ -110,7 +173,12 @@
         "special": {
           "name": "Tru Trăng",
           "every": 3,
-          "mult": 1.8
+          "mult": 1.8,
+          "effect": {
+            "id": "weaken",
+            "turns": 3,
+            "power": 0.2
+          }
         }
       }
     },
@@ -154,7 +222,12 @@
         "special": {
           "name": "Bổ Rìu",
           "every": 3,
-          "mult": 2
+          "mult": 2,
+          "effect": {
+            "id": "bleed",
+            "turns": 3,
+            "power": 0.3
+          }
         }
       }
     },
@@ -173,7 +246,13 @@
         {
           "id": "ghoul",
           "name": "Quỷ Ăn Xác",
-          "level": 13
+          "level": 13,
+          "on_hit": {
+            "id": "weaken",
+            "chance": 0.25,
+            "turns": 3,
+            "power": 0.2
+          }
         },
         {
           "id": "wight",
@@ -183,7 +262,13 @@
         {
           "id": "vampire",
           "name": "Ma Cà Rồng",
-          "level": 16
+          "level": 16,
+          "on_hit": {
+            "id": "bleed",
+            "chance": 0.25,
+            "turns": 3,
+            "power": 0.25
+          }
         }
       ],
       "boss": {
@@ -193,7 +278,12 @@
         "special": {
           "name": "Lửa Âm Phủ",
           "every": 3,
-          "mult": 2.2
+          "mult": 2.2,
+          "effect": {
+            "id": "burn",
+            "turns": 3,
+            "power": 0.3
+          }
         }
       }
     },
@@ -222,7 +312,13 @@
         {
           "id": "manticore",
           "name": "Manticore",
-          "level": 22
+          "level": 22,
+          "on_hit": {
+            "id": "poison",
+            "chance": 0.25,
+            "turns": 3,
+            "power": 0.25
+          }
         }
       ],
       "boss": {
@@ -232,7 +328,12 @@
         "special": {
           "name": "Ném Đá",
           "every": 3,
-          "mult": 2.2
+          "mult": 2.2,
+          "effect": {
+            "id": "stun",
+            "turns": 1,
+            "power": 0
+          }
         }
       }
     },
@@ -246,17 +347,35 @@
         {
           "id": "basilisk",
           "name": "Tử Xà",
-          "level": 24
+          "level": 24,
+          "on_hit": {
+            "id": "stun",
+            "chance": 0.12,
+            "turns": 1,
+            "power": 0
+          }
         },
         {
           "id": "wyvern",
           "name": "Rồng Hai Chân",
-          "level": 25
+          "level": 25,
+          "on_hit": {
+            "id": "poison",
+            "chance": 0.25,
+            "turns": 3,
+            "power": 0.25
+          }
         },
         {
           "id": "hydra5",
           "name": "Rắn Năm Đầu",
-          "level": 27
+          "level": 27,
+          "on_hit": {
+            "id": "poison",
+            "chance": 0.3,
+            "turns": 3,
+            "power": 0.25
+          }
         },
         {
           "id": "death_knight",
@@ -271,7 +390,12 @@
         "special": {
           "name": "Hơi Thở Vàng",
           "every": 3,
-          "mult": 2.4
+          "mult": 2.4,
+          "effect": {
+            "id": "burn",
+            "turns": 3,
+            "power": 0.35
+          }
         }
       }
     },
@@ -285,12 +409,24 @@
         {
           "id": "ice_dragon",
           "name": "Băng Long",
-          "level": 30
+          "level": 30,
+          "on_hit": {
+            "id": "weaken",
+            "chance": 0.25,
+            "turns": 3,
+            "power": 0.2
+          }
         },
         {
           "id": "storm_dragon",
           "name": "Lôi Long",
-          "level": 32
+          "level": 32,
+          "on_hit": {
+            "id": "stun",
+            "chance": 0.12,
+            "turns": 1,
+            "power": 0
+          }
         },
         {
           "id": "bone_dragon",
@@ -306,7 +442,12 @@
         "special": {
           "name": "Hắc Hỏa",
           "every": 3,
-          "mult": 2.5
+          "mult": 2.5,
+          "effect": {
+            "id": "burn",
+            "turns": 3,
+            "power": 0.4
+          }
         }
       }
     }

@@ -185,14 +185,17 @@ defmodule HacLong.Game.Simulator do
   defp fight(p) do
     d = Engine.derived(p)
 
+    # kỹ năng mạnh nhất (mở muộn nhất) đang sẵn sàng
+    skill = p |> Engine.skills() |> Enum.reverse() |> Enum.find(&(Engine.cooldown(p, &1.id) == 0))
+
     action =
       cond do
         p.hp < d.maxHp * 0.35 and Engine.best_potion(p, d.maxHp - p.hp) -> "potion"
-        p.battle.skillCd == 0 -> "skill"
+        skill -> "skill"
         true -> "attack"
       end
 
-    {_, p} = Engine.act(p, action)
+    {_, p} = Engine.act(p, action, skill && skill.id)
     fight(p)
   end
 
