@@ -1,0 +1,40 @@
+{
+  "id": "mountain_boss",
+  "name": "Ngai Vua Khổng Lồ",
+  "zone": 3,
+  "floor": "floors/mountain",
+  "tiles": [
+    "RRRRRRRRRRRRRRR",
+    "R.............R",
+    "R.R.........R.R",
+    "R.............R",
+    "R.............R",
+    "R...R.....R...R",
+    "R.............R",
+    "R.............R",
+    "R.R.........R.R",
+    "R.............R",
+    "RRRRRRRARRRRRRR"
+  ],
+  "portals": [
+    {
+      "at": [
+        7,
+        10
+      ],
+      "to": "mountain_2",
+      "spawn": [
+        13,
+        1
+      ]
+    }
+  ],
+  "boss": {
+    "at": [
+      7,
+      3
+    ],
+    "respawn": 30
+  },
+  "spawns": []
+}

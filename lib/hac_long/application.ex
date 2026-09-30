@@ -12,8 +12,23 @@ defmodule HacLong.Application do
       HacLong.Repo,
       {DNSCluster, query: Application.get_env(:hac_long, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: HacLong.PubSub},
+      HacLong.RateLimit,
+      HacLong.Chat,
+      HacLong.WorldBoss,
       {Registry, keys: :unique, name: HacLong.Game.Registry},
       {DynamicSupervisor, name: HacLong.Game.SessionSupervisor, strategy: :one_for_one},
+      # mỗi bản đồ dùng chung (Làng, các vùng) một tiến trình
+      {Registry, keys: :unique, name: HacLong.World.Registry},
+      %{
+        id: HacLong.World.MapSupervisor,
+        type: :supervisor,
+        start:
+          {Supervisor, :start_link,
+           [
+             Enum.map(HacLong.World.Maps.shared_ids(), &HacLong.World.MapServer.child_spec/1),
+             [strategy: :one_for_one, name: HacLong.World.MapSupervisor]
+           ]}
+      },
       # Start to serve requests, typically the last entry
       HacLongWeb.Endpoint
     ]

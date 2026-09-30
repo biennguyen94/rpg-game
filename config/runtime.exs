@@ -20,6 +20,28 @@ if System.get_env("PHX_SERVER") do
   config :hac_long, HacLongWeb.Endpoint, server: true
 end
 
+# Chỉnh trùm thế giới khi chạy (vd. cho xuất hiện sớm để thử):
+#   WORLD_BOSS_FIRST_MINUTES=0.2 WORLD_BOSS_HP=5000 mix phx.server
+if config_env() != :test do
+  wb = Application.get_env(:hac_long, :world_boss, [])
+
+  wb =
+    [
+      first_after_minutes: {"WORLD_BOSS_FIRST_MINUTES", &String.to_float/1},
+      every_minutes: {"WORLD_BOSS_EVERY_MINUTES", &String.to_integer/1},
+      duration_minutes: {"WORLD_BOSS_DURATION_MINUTES", &String.to_integer/1},
+      hp: {"WORLD_BOSS_HP", &String.to_integer/1}
+    ]
+    |> Enum.reduce(wb, fn {key, {env, parse}}, acc ->
+      case System.get_env(env) do
+        nil -> acc
+        v -> Keyword.put(acc, key, parse.(v))
+      end
+    end)
+
+  config :hac_long, :world_boss, wb
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

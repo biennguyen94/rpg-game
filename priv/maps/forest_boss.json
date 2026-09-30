@@ -1,0 +1,40 @@
+{
+  "id": "forest_boss",
+  "name": "Hang Sói",
+  "zone": 0,
+  "floor": "floors/forest",
+  "tiles": [
+    "TTTTTTTTTTTTTTT",
+    "T.............T",
+    "T.T.........T.T",
+    "T.............T",
+    "T.............T",
+    "T...T.....T...T",
+    "T.............T",
+    "T.............T",
+    "T.T.........T.T",
+    "T.............T",
+    "TTTTTTTATTTTTTT"
+  ],
+  "portals": [
+    {
+      "at": [
+        7,
+        10
+      ],
+      "to": "forest_2",
+      "spawn": [
+        13,
+        1
+      ]
+    }
+  ],
+  "boss": {
+    "at": [
+      7,
+      3
+    ],
+    "respawn": 30
+  },
+  "spawns": []
+}

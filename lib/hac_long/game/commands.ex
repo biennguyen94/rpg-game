@@ -6,12 +6,25 @@ defmodule HacLong.Game.Commands do
   Client chỉ gửi *ý định* (tấn công, mua món X...), mọi con số đều do server tính.
   """
 
-  alias HacLong.Game.Engine
+  alias HacLong.Game.{Daily, Data, Engine, Quests, Tower}
+  alias HacLong.World
+  alias HacLong.World.Maps
 
   def run(nil, %{"act" => "create"} = c) do
     case Engine.new_player(c["name"], c["cls"]) do
-      {:ok, p} -> {%{ok: true, msg: "Chào mừng #{p.name}!"}, p}
-      {:error, msg} -> {%{ok: false, msg: msg}, nil}
+      {:ok, p} ->
+        {%{ok: true, msg: "Chào mừng #{p.name}!"},
+         p
+         |> Map.put(:pos, Maps.home_spawn())
+         |> Map.put(:waystones, [])
+         |> Map.put(:quests, Quests.empty())
+         |> Map.put(:victory_at, nil)
+         |> Map.put(:daily, nil)
+         |> Map.put(:tower, nil)
+         |> Map.put(:tower_best, 0)}
+
+      {:error, msg} ->
+        {%{ok: false, msg: msg}, nil}
     end
   end
 
@@ -21,19 +34,52 @@ defmodule HacLong.Game.Commands do
 
   def run(p, %{"act" => act} = c) do
     case act do
-      "rest" -> Engine.rest(p)
-      "hunt" -> Engine.start_battle(p, int(c["zone"]), false)
-      "boss" -> Engine.start_battle(p, int(c["zone"]), true)
-      a when a in ~w(attack skill potion flee) -> Engine.act(p, a)
-      "again" -> again(p)
-      "leave" -> Engine.leave_battle(p)
-      "alloc" -> Engine.allocate(p, c["stat"], int(c["n"] || 1))
-      "equip" -> Engine.equip(p, c["id"])
-      "unequip" -> Engine.unequip(p, c["slot"])
-      "use" -> Engine.use_potion(p, c["id"])
-      "sell" -> Engine.sell(p, c["id"])
-      "buy" -> Engine.buy(p, c["id"], int(c["n"] || 1))
-      _ -> invalid(p)
+      "rest" ->
+        rest(p)
+
+      a when a in ~w(attack skill potion flee) ->
+        Engine.act(p, a)
+
+      "leave" ->
+        Engine.leave_battle(p)
+
+      "alloc" ->
+        Engine.allocate(p, c["stat"], int(c["n"] || 1))
+
+      "equip" ->
+        Engine.equip(p, c["id"])
+
+      "unequip" ->
+        Engine.unequip(p, c["slot"])
+
+      "use" ->
+        Engine.use_potion(p, c["id"])
+
+      "sell" ->
+        sell(p, c["id"])
+
+      "buy" ->
+        buy(p, c["id"], int(c["n"] || 1))
+
+      "craft" ->
+        craft(p, c["id"])
+
+      "quest_accept" ->
+        at_npc(p, ["quests"], "Trưởng Làng", fn _ -> Quests.accept(p, c["id"]) end)
+
+      "quest_turnin" ->
+        at_npc(p, ["quests"], "Trưởng Làng", fn _ -> Quests.turn_in(p, c["id"]) end)
+
+      "tower_enter" ->
+        at_npc(p, ["tower"], "Người Gác Tháp ở Làng", fn _ ->
+          Tower.enter(p, int(c["floor"] || 1))
+        end)
+
+      "daily_claim" ->
+        at_npc(p, ["daily"], "Bảng Tin ở Làng", fn _ -> Daily.claim(p, int(c["i"])) end)
+
+      _ ->
+        invalid(p)
     end
   end
 
@@ -41,14 +87,52 @@ defmodule HacLong.Game.Commands do
 
   defp invalid(p), do: {%{ok: false, msg: "Thao tác không hợp lệ."}, p}
 
-  # Đánh tiếp ở cùng khu vực sau khi trận quái thường kết thúc.
-  defp again(%{battle: %{over: true, result: r, monster: %{boss: false}, zone: zi}} = p)
-       when r != "lose" do
-    {_, p} = Engine.leave_battle(p)
-    Engine.start_battle(p, zi, false)
+  @merchants ["shop", "herbalist"]
+
+  # Chạy `fun` nếu đang đứng cạnh NPC có vai trò phù hợp.
+  defp at_npc(p, roles, who, fun) do
+    case World.near_npc(p, roles) do
+      nil -> {%{ok: false, msg: "Hãy đến gặp #{who}."}, p}
+      npc -> fun.(npc)
+    end
   end
 
-  defp again(p), do: invalid(p)
+  defp rest(p), do: at_npc(p, ["inn"], "Chủ Quán Trọ ở Làng", fn _ -> Engine.rest(p) end)
+
+  defp buy(p, id, n) do
+    at_npc(p, @merchants, "Thợ Rèn hoặc Bà Lang", fn npc ->
+      if id in npc.stock,
+        do: Engine.buy(p, id, n),
+        else: {%{ok: false, msg: "#{npc.name} không bán món này."}, p}
+    end)
+  end
+
+  defp sell(p, id),
+    do: at_npc(p, @merchants, "Thợ Rèn hoặc Bà Lang", fn _ -> Engine.sell(p, id) end)
+
+  defp craft(p, id) do
+    at_npc(p, ["herbalist"], "Bà Lang", fn _ ->
+      case Data.recipe(id) do
+        nil ->
+          {%{ok: false, msg: "Không có công thức này."}, p}
+
+        r ->
+          if Enum.all?(r.needs, fn {item, n} -> Map.get(p.inv, item, 0) >= n end) do
+            inv =
+              Enum.reduce(r.needs, p.inv, fn {item, n}, inv ->
+                if inv[item] > n,
+                  do: Map.put(inv, item, inv[item] - n),
+                  else: Map.delete(inv, item)
+              end)
+
+            {%{ok: true, msg: "Pha được #{Data.item(r.out).name}."},
+             Engine.add_item(%{p | inv: inv}, r.out)}
+          else
+            {%{ok: false, msg: "Chưa đủ nguyên liệu."}, p}
+          end
+      end
+    end)
+  end
 
   defp int(n) when is_integer(n), do: n
 

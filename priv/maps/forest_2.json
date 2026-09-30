@@ -1,0 +1,89 @@
+{
+  "id": "forest_2",
+  "name": "Rừng Mê 2",
+  "zone": 0,
+  "floor": "floors/forest",
+  "tiles": [
+    "TTTTTTTTTTTTTATTTTTTTTTTTT",
+    "T......*.....::*.....*T..T",
+    "T..~~*....T..::.*.~....T.T",
+    "T~.....*.TT..::....~T....T",
+    "T..*......TTT::..........T",
+    "T.........TT.::.........TT",
+    "TTT......TTT:::..T.....TTT",
+    "T.........TT:::..TT....*.T",
+    "T..TT*....TT.::T.~TT.....T",
+    "T.TT*........::.T~...T.*.T",
+    "T..T......T.:::...~TTRT..T",
+    "T....T..RTTT.::....TTT~T.T",
+    "T....T...RTT.::...TTTTT..T",
+    "T...T..*RTTT.::....T..T..T",
+    "T..~.........::.*~~....T.T",
+    "T...~.....~..::.W.~~.....T",
+    "T..~.........::..........T",
+    "TTTTTTTTTTTTTATTTTTTTTTTTT"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "forest_1",
+      "spawn": [
+        13,
+        1
+      ]
+    },
+    {
+      "at": [
+        13,
+        0
+      ],
+      "to": "forest_boss",
+      "spawn": [
+        7,
+        9
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "monster": "jackal",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "giant_cockroach",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "spider",
+      "max": 3,
+      "respawn": 25
+    }
+  ],
+  "gather": [
+    {
+      "item": "herb",
+      "max": 2,
+      "respawn": 60
+    },
+    {
+      "item": "ore",
+      "max": 3,
+      "respawn": 90
+    }
+  ],
+  "waystone": {
+    "at": [
+      16,
+      15
+    ],
+    "spawn": [
+      16,
+      16
+    ]
+  }
+}

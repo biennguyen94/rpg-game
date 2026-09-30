@@ -236,3 +236,67 @@ input[type="text"], input[type="password"] {
 .btn.primary .ic { filter: brightness(0.3); }
 #tabs button { position: relative; }
 #tabs .points-dot { position: absolute; top: 4px; left: calc(50% + 6px); margin: 0; }
+
+/* Bản đồ */
+.map-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.map-top b { font-family: var(--display); font-size: 1.4rem; color: var(--gold); font-weight: 800; }
+.map-wrap { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: #0c0910; }
+#map-canvas { display: block; width: 100%; image-rendering: pixelated; touch-action: none; cursor: pointer; }
+.dpad {
+  display: grid; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(2, 48px);
+  gap: 6px; justify-content: center; margin: 10px 0 4px;
+  grid-template-areas: ". up ." "left down right";
+}
+.dpad .btn { padding: 0; font-size: 1.1rem; }
+.dpad [data-move="up"] { grid-area: up; }
+.dpad [data-move="left"] { grid-area: left; }
+.dpad [data-move="down"] { grid-area: down; }
+.dpad [data-move="right"] { grid-area: right; }
+.map-hint { text-align: center; }
+.map-wrap { position: relative; }
+.map-dialog {
+  position: absolute; left: 10px; right: 10px; bottom: 10px; max-height: calc(100% - 20px); overflow: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+.map-dialog .sprite { width: 48px; height: 48px; }
+.map-dialog .list { display: grid; gap: 6px; }
+.map-dialog .list .btn { justify-content: flex-start; }
+.ic.px { image-rendering: pixelated; }
+.npc-head .sprite { width: 56px; height: 56px; image-rendering: pixelated; }
+.item.quest { align-items: flex-start; }
+.item.quest .grow { display: grid; gap: 3px; }
+
+/* Thanh báo mất kết nối */
+#netbar {
+  position: fixed; left: 0; right: 0; top: 0; z-index: 20; text-align: center;
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 16px 6px;
+  background: #7a3328; color: #fbe3dc; font-size: 0.85rem; font-weight: 600;
+}
+#netbar[hidden] { display: none; }
+.pw-form { display: grid; gap: 8px; margin-bottom: 8px; }
+
+/* Chat */
+.chat { gap: 8px; margin-top: 10px; }
+.chat-log { max-height: 150px; overflow-y: auto; display: grid; gap: 3px; font-size: 0.88rem; overscroll-behavior: contain; }
+.chat-line { word-break: break-word; }
+.chat-line b { color: #b9d7ff; }
+.chat-line.mine b { color: var(--gold); }
+.chat-form { display: flex; gap: 8px; }
+.chat-form input { flex: 1; min-width: 0; }
+
+/* Bảng xếp hạng */
+.seg { display: flex; gap: 6px; }
+.seg .btn { flex: 1; padding: 6px 2px; font-size: 0.8rem; min-width: 0; }
+ol.board { list-style: none; display: grid; gap: 4px; margin: 0; padding: 0; }
+ol.board li { display: flex; align-items: baseline; gap: 10px; padding: 5px 8px; border-radius: 8px; background: #16121c; }
+ol.board li.me { box-shadow: inset 0 0 0 1px var(--gold); }
+ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weight: 700; }
+
+/* Trùm thế giới */
+.card.wb { border-color: #7a3328; background: linear-gradient(#2a1418, var(--ink-2)); margin-bottom: 10px; }
+.card.wb .sprite { width: 48px; height: 48px; }
+.card.wb .bar { margin-top: 4px; }
+.stage.world .sprite { width: 160px; height: 160px; }
+.chat-line.system { color: #f0b36a; font-weight: 600; }
+.map-top { flex-wrap: wrap; row-gap: 2px; }
+.map-top b { font-size: 1.25rem; }

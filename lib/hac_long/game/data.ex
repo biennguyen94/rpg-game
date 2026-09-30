@@ -11,6 +11,11 @@ defmodule HacLong.Game.Data do
     chỉ số còn lại tính trong `HacLong.Game.Engine.make_monster/2`.
   - `ITEMS`: `slot` là weapon | armor | shield | potion; `drop: true` là đồ chỉ rơi từ trùm.
   - `BOSS_DROPS`: đồ trùm rơi ra lần đầu bị hạ. `SHOP`: những món cửa hàng bán.
+  - `ITEMS` có `slot: "material"`: nguyên liệu (thu thập trên bản đồ), `sprite` là hình của nó.
+  - `RECIPES`: công thức pha chế ở NPC `npc`: `needs` (nguyên liệu → số lượng) ra một `out`.
+  - `QUESTS`: nhiệm vụ nhận ở Trưởng Làng. `type`: `kill` (hạ `count` con `target`),
+    `collect` (nộp `count` nguyên liệu `target`), `boss` (hạ trùm `target`). Nhận được khi
+    vùng `zone` đã mở và đã xong các nhiệm vụ trong `requires`.
 
   Khóa của các trường được chuyển thành atom; id (lớp, vật phẩm, trùm) giữ nguyên là chuỗi
   vì chúng đến từ client và được lưu trong database.
@@ -35,6 +40,20 @@ defmodule HacLong.Game.Data do
   @items by_id.(raw["ITEMS"])
   @boss_drops raw["BOSS_DROPS"]
   @shop raw["SHOP"]
+  @recipes atomize.(atomize, raw["RECIPES"])
+           |> Enum.map(
+             &Map.update!(&1, :needs, fn n ->
+               Map.new(n, fn {k, v} -> {Atom.to_string(k), v} end)
+             end)
+           )
+  @quests atomize.(atomize, raw["QUESTS"])
+          |> Enum.map(fn q ->
+            Map.update!(q, :reward, fn r ->
+              Map.update!(r, :items, fn i ->
+                Map.new(i, fn {k, v} -> {Atom.to_string(k), v} end)
+              end)
+            end)
+          end)
 
   def classes, do: @classes
   def class(id), do: Map.get(@classes, id)
@@ -46,4 +65,8 @@ defmodule HacLong.Game.Data do
   def item(id), do: Map.get(@items, id)
   def boss_drop(boss_id), do: Map.get(@boss_drops, boss_id)
   def shop, do: @shop
+  def recipes, do: @recipes
+  def recipe(id), do: Enum.find(@recipes, &(&1.id == id))
+  def quests, do: @quests
+  def quest(id), do: Enum.find(@quests, &(&1.id == id))
 end

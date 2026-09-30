@@ -1,0 +1,74 @@
+{
+  "id": "lair_1",
+  "name": "Hang Hắc Long 1",
+  "zone": 5,
+  "floor": "floors/lair",
+  "tiles": [
+    "SSSSSSSSSSSSSASSSSSSSSSSSS",
+    "SSRRRSSS...............S.S",
+    "SRRRRS...................S",
+    "SRRRS..................~~S",
+    "S..R........R.........~~~S",
+    "S.R~........R.........~..S",
+    "S.~~.............R.......S",
+    "S.R.RR.RR................S",
+    "S...SRRRR..............~.S",
+    "S...RSRRR.......~.......~S",
+    "S...S.R.........R~R.~~.R~S",
+    "S.....R.........RR...~~~RS",
+    "S....RRR........~.....~..S",
+    "S............S..~R.......S",
+    "S...............~RSR...R.S",
+    "S...............~SR.....RS",
+    "S......................R~S",
+    "SSSSSSSSSSSSSASSSSSSSSSSSS"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "village",
+      "spawn": [
+        23,
+        11
+      ]
+    },
+    {
+      "at": [
+        13,
+        0
+      ],
+      "to": "lair_2",
+      "spawn": [
+        13,
+        16
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "monster": "ice_dragon",
+      "max": 5,
+      "respawn": 25
+    },
+    {
+      "monster": "storm_dragon",
+      "max": 5,
+      "respawn": 25
+    }
+  ],
+  "gather": [
+    {
+      "item": "herb_rare",
+      "max": 3,
+      "respawn": 60
+    },
+    {
+      "item": "ore_rare",
+      "max": 1,
+      "respawn": 90
+    }
+  ]
+}

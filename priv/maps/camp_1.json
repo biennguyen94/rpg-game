@@ -1,0 +1,79 @@
+{
+  "id": "camp_1",
+  "name": "Trại Goblin 1",
+  "zone": 1,
+  "floor": "floors/camp",
+  "tiles": [
+    "YYYYYYYYYYYYYAYYYYYYYYYYYY",
+    "Y......::::..::..........Y",
+    "Y......::....::.........#Y",
+    "Y......::::..::........##Y",
+    "Y..#....#::::.YY........#Y",
+    "Y..R#...##.::..Y.........Y",
+    "Y.R..#.##..:::.Y.R.......Y",
+    "YR.........#:::YYYY......Y",
+    "Y.R.........::...Y.......Y",
+    "Y.........R::::YYY....#..Y",
+    "Y.......#R..:::YR......#.Y",
+    "Y.....R..#Y.::...R.R..YYYY",
+    "Y.....R..Y..::....RR##...Y",
+    "Y....RY....R:::..RR##....Y",
+    "YYY...Y...R..::.....#....Y",
+    "YRYYYY....Y..::..........Y",
+    "YR####.......::......Y...Y",
+    "YYYYYYYYYYYYYAYYYYYYYYYYYY"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "village",
+      "spawn": [
+        18,
+        1
+      ]
+    },
+    {
+      "at": [
+        13,
+        0
+      ],
+      "to": "camp_2",
+      "spawn": [
+        13,
+        16
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "monster": "kobold",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "goblin",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "gnoll",
+      "max": 3,
+      "respawn": 25
+    }
+  ],
+  "gather": [
+    {
+      "item": "herb",
+      "max": 3,
+      "respawn": 60
+    },
+    {
+      "item": "ore",
+      "max": 1,
+      "respawn": 90
+    }
+  ]
+}

@@ -6,7 +6,9 @@ defmodule HacLong.Game.Characters do
 
   import Ecto.Query
   alias HacLong.Repo
-  alias HacLong.Game.Character
+  alias HacLong.Game.{Character, Names}
+  alias HacLong.World
+  alias HacLong.World.Maps
 
   @save_version 1
 
@@ -19,7 +21,16 @@ defmodule HacLong.Game.Characters do
 
   @doc "Ghi đè toàn bộ trạng thái nhân vật (tạo mới nếu chưa có)."
   def save!(user_id, player) do
-    attrs = Map.take(player, Character.fields())
+    attrs =
+      player
+      |> Map.merge(%{
+        map_id: player.pos.map,
+        x: player.pos.x,
+        y: player.pos.y,
+        name_key: Names.key(player.name)
+      })
+      |> Map.take(Character.fields())
+
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     Repo.insert!(
@@ -29,6 +40,11 @@ defmodule HacLong.Game.Characters do
     )
 
     :ok
+  end
+
+  @doc "Tên đã có người khác dùng chưa (không phân biệt hoa thường)."
+  def name_taken?(name) do
+    Repo.exists?(from c in Character, where: c.name_key == ^Names.key(name))
   end
 
   def delete!(user_id) do
@@ -54,13 +70,83 @@ defmodule HacLong.Game.Characters do
       kills: c.kills,
       deaths: c.deaths,
       victory: c.victory,
-      battle: c.battle && atomize(c.battle)
+      battle: c.battle && atomize(c.battle),
+      pos: pos(c),
+      waystones: Enum.filter(c.waystones || [], &(&1 in Maps.waystone_ids())),
+      quests: quests(c.quests),
+      victory_at: c.victory_at,
+      daily: daily(c.daily),
+      tower: tower(c.tower),
+      tower_best: c.tower_best || 0
     }
   end
 
+  # Bỏ nhiệm vụ không còn trong dữ liệu game (đổi tên, xóa bớt).
+  defp quests(%{"active" => active, "done" => done}) do
+    known = MapSet.new(Enum.map(HacLong.Game.Data.quests(), & &1.id))
+
+    %{
+      active: Map.filter(active, fn {id, _} -> id in known end),
+      done: Enum.filter(done, &(&1 in known))
+    }
+  end
+
+  defp quests(_), do: HacLong.Game.Quests.empty()
+
+  defp daily(%{"date" => date, "tasks" => tasks}) do
+    %{
+      date: date,
+      tasks:
+        Enum.map(tasks, fn t ->
+          %{
+            kind: t["kind"],
+            target: t["target"],
+            zone: t["zone"],
+            count: t["count"],
+            progress: t["progress"],
+            claimed: t["claimed"],
+            name: t["name"],
+            reward: %{gold: t["reward"]["gold"], xp: t["reward"]["xp"]}
+          }
+        end)
+    }
+  end
+
+  defp daily(_), do: nil
+
+  # Trong tháp thì giữ vị trí (tầng tháp không có trong priv/maps nên valid_pos không biết).
+  defp pos(%Character{map_id: "tower", tower: %{}, x: x, y: y}), do: %{map: "tower", x: x, y: y}
+
+  defp pos(%Character{map_id: "tower"}), do: HacLong.World.Maps.home_spawn()
+
+  defp pos(c), do: World.valid_pos(%{map: c.map_id, x: c.x, y: c.y})
+
+  defp tower(%{"floor" => floor} = t) do
+    %{
+      floor: floor,
+      tiles: t["tiles"],
+      stairs: t["stairs"],
+      exit: t["exit"],
+      monsters:
+        Enum.map(t["monsters"], fn m ->
+          %{
+            id: m["id"],
+            kind: m["kind"],
+            name: m["name"],
+            level: m["level"],
+            x: m["x"],
+            y: m["y"],
+            elite: m["elite"]
+          }
+        end)
+    }
+  end
+
+  defp tower(_), do: nil
+
   # Tên các trường có trong trận đấu (trận, quái, nhật ký, phần thưởng).
   @battle_keys Map.new(
-                 ~w(zone monster turn skillCd log over result reward
+                 ~w(zone monster turn skillCd log over result reward encounter map mid world world_boss tower elite
                     id name level boss final special maxHp atk def crit dodge xp gold hp
                     every mult text kind items levels)a,
                  &{Atom.to_string(&1), &1}

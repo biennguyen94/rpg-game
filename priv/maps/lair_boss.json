@@ -1,0 +1,40 @@
+{
+  "id": "lair_boss",
+  "name": "Sào Huyệt Hắc Long",
+  "zone": 5,
+  "floor": "floors/lair",
+  "tiles": [
+    "SSSSSSSSSSSSSSS",
+    "S.............S",
+    "S.R.........R.S",
+    "S.............S",
+    "S.............S",
+    "S...R.....R...S",
+    "S.............S",
+    "S.............S",
+    "S.R.........R.S",
+    "S.............S",
+    "SSSSSSSASSSSSSS"
+  ],
+  "portals": [
+    {
+      "at": [
+        7,
+        10
+      ],
+      "to": "lair_2",
+      "spawn": [
+        13,
+        1
+      ]
+    }
+  ],
+  "boss": {
+    "at": [
+      7,
+      3
+    ],
+    "respawn": 30
+  },
+  "spawns": []
+}

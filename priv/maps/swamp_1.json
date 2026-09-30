@@ -1,0 +1,74 @@
+{
+  "id": "swamp_1",
+  "name": "Đầm Lầy Rồng 1",
+  "zone": 4,
+  "floor": "floors/swamp",
+  "tiles": [
+    "TTTTTTTTTTTTTATTTTTTTTTTTT",
+    "T........................T",
+    "T........................T",
+    "T...............~........T",
+    "T....~....T..............T",
+    "T..~~.~~.T.~....~.....~..T",
+    "T...~.......~......~...~.T",
+    "T..........T~~....~.....~T",
+    "T...........TT...~......~T",
+    "T........................T",
+    "T........................T",
+    "T.~~T.......T.........TT.T",
+    "T...T~......T....~~...TTTT",
+    "T~.~~.......T..~.~...TT~TT",
+    "T~~~T...~~......T..TTT~~~T",
+    "TTT~~T.TT~......TT...TT~TT",
+    "T~~~TT.T........~~....T~~T",
+    "TTTTTTTTTTTTTATTTTTTTTTTTT"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "village",
+      "spawn": [
+        23,
+        5
+      ]
+    },
+    {
+      "at": [
+        13,
+        0
+      ],
+      "to": "swamp_2",
+      "spawn": [
+        13,
+        16
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "monster": "basilisk",
+      "max": 5,
+      "respawn": 25
+    },
+    {
+      "monster": "wyvern",
+      "max": 5,
+      "respawn": 25
+    }
+  ],
+  "gather": [
+    {
+      "item": "herb_rare",
+      "max": 3,
+      "respawn": 60
+    },
+    {
+      "item": "ore_rare",
+      "max": 1,
+      "respawn": 90
+    }
+  ]
+}

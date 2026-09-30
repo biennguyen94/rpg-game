@@ -1,0 +1,40 @@
+{
+  "id": "graveyard_boss",
+  "name": "Hầm Mộ Pháp Sư",
+  "zone": 2,
+  "floor": "floors/graveyard",
+  "tiles": [
+    "SSSSSSSSSSSSSSS",
+    "S.............S",
+    "S.I.........I.S",
+    "S.............S",
+    "S.............S",
+    "S...I.....I...S",
+    "S.............S",
+    "S.............S",
+    "S.I.........I.S",
+    "S.............S",
+    "SSSSSSSASSSSSSS"
+  ],
+  "portals": [
+    {
+      "at": [
+        7,
+        10
+      ],
+      "to": "graveyard_2",
+      "spawn": [
+        13,
+        1
+      ]
+    }
+  ],
+  "boss": {
+    "at": [
+      7,
+      3
+    ],
+    "respawn": 30
+  },
+  "spawns": []
+}

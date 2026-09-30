@@ -10,6 +10,9 @@ defmodule HacLongWeb.Router do
     post "/register", AuthController, :register
     post "/login", AuthController, :login
     get "/me", AuthController, :me
+    post "/logout", AuthController, :logout
+    post "/logout_all", AuthController, :logout_all
+    post "/password", AuthController, :password
   end
 
   scope "/", HacLongWeb do

@@ -23,6 +23,14 @@ defmodule HacLong.Accounts.User do
     |> hash_password()
   end
 
+  def password_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:password])
+    |> validate_required([:password], message: "không được để trống")
+    |> validate_length(:password, min: 6, max: 72, message: "phải dài 6–72 ký tự")
+    |> hash_password()
+  end
+
   defp hash_password(%{valid?: true, changes: %{password: pw}} = cs) do
     cs |> put_change(:password_hash, Pbkdf2.hash_pwd_salt(pw)) |> delete_change(:password)
   end

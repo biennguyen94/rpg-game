@@ -1,0 +1,40 @@
+{
+  "id": "swamp_boss",
+  "name": "Tổ Kim Long",
+  "zone": 4,
+  "floor": "floors/swamp",
+  "tiles": [
+    "TTTTTTTTTTTTTTT",
+    "T.............T",
+    "T.~.........~.T",
+    "T.............T",
+    "T.............T",
+    "T...~.....~...T",
+    "T.............T",
+    "T.............T",
+    "T.~.........~.T",
+    "T.............T",
+    "TTTTTTTATTTTTTT"
+  ],
+  "portals": [
+    {
+      "at": [
+        7,
+        10
+      ],
+      "to": "swamp_2",
+      "spawn": [
+        13,
+        1
+      ]
+    }
+  ],
+  "boss": {
+    "at": [
+      7,
+      3
+    ],
+    "respawn": 30
+  },
+  "spawns": []
+}

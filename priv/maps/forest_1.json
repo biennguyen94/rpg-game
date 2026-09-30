@@ -1,0 +1,91 @@
+{
+  "id": "forest_1",
+  "name": "Rừng Mê 1",
+  "zone": 0,
+  "floor": "floors/forest",
+  "tiles": [
+    "TTTTTTTTTTTTTATTTTTTTTTTTT",
+    "TTTTTT.......::*::::.....T",
+    "TTTTT....~...::..:::.....T",
+    "TTTTT.....~..::.:::......T",
+    "T~T~T...~.......::.......T",
+    "T.~~...~......RR::..*....T",
+    "T.........~...~~::.TT....T",
+    "T.~~T......~~~.~::T...TT*T",
+    "T.TTTTT...T~.~..::.......T",
+    "T...T~T...T~....::.......T",
+    "T...~~*..T......::...*...T",
+    "T.*~~...........::.TT.*.TT",
+    "T...~T........*.::.T.....T",
+    "T..TTT..........::.~*....T",
+    "T*..T~~......::.::~~.....T",
+    "T.*..~.......::..RTT~....T",
+    "T...........*::.RTR......T",
+    "TTTTTTTTTTTTTATTTTTTTTTTTT"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "village",
+      "spawn": [
+        6,
+        1
+      ]
+    },
+    {
+      "at": [
+        13,
+        0
+      ],
+      "to": "forest_2",
+      "spawn": [
+        13,
+        16
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "monster": "bat",
+      "max": 5,
+      "respawn": 25
+    },
+    {
+      "monster": "jackal",
+      "max": 5,
+      "respawn": 25
+    }
+  ],
+  "gather": [
+    {
+      "item": "herb",
+      "max": 3,
+      "respawn": 60
+    },
+    {
+      "item": "ore",
+      "max": 1,
+      "respawn": 90
+    }
+  ],
+  "npcs": [
+    {
+      "id": "hunter",
+      "name": "Thợ Săn",
+      "sprite": "hunter",
+      "at": [
+        11,
+        16
+      ],
+      "role": "talk",
+      "lines": [
+        "Số nhỏ cạnh con quái là cấp của nó. Xanh là dễ, vàng là vừa sức, đỏ là tránh xa.",
+        "Đi sâu vào Rừng Mê 2 là có đá dịch chuyển, chạm vào để lần sau khỏi đi bộ.",
+        "Sói Xám ở trong hang cuối rừng. Cấp 5 hãy vào."
+      ]
+    }
+  ]
+}

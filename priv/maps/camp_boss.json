@@ -1,0 +1,40 @@
+{
+  "id": "camp_boss",
+  "name": "Lều Tướng Orc",
+  "zone": 1,
+  "floor": "floors/camp",
+  "tiles": [
+    "YYYYYYYYYYYYYYY",
+    "Y.............Y",
+    "Y.Y.........Y.Y",
+    "Y.............Y",
+    "Y.............Y",
+    "Y...Y.....Y...Y",
+    "Y.............Y",
+    "Y.............Y",
+    "Y.Y.........Y.Y",
+    "Y.............Y",
+    "YYYYYYYAYYYYYYY"
+  ],
+  "portals": [
+    {
+      "at": [
+        7,
+        10
+      ],
+      "to": "camp_2",
+      "spawn": [
+        13,
+        1
+      ]
+    }
+  ],
+  "boss": {
+    "at": [
+      7,
+      3
+    ],
+    "respawn": 30
+  },
+  "spawns": []
+}

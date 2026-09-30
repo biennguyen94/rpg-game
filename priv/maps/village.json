@@ -1,0 +1,248 @@
+{
+  "id": "village",
+  "name": "Làng",
+  "zone": null,
+  "floor": "tiles/grass",
+  "tiles": [
+    "TTTTTTATTTTTTTTTTTATTTTTT",
+    "T,,,,,:,,,,,,,,,,,:,,,,,T",
+    "T,####:,,,,,,,,,,,:####,T",
+    "T,####:,,*,,,,,*,,:####,T",
+    "T,####:::::::::::::####,T",
+    "A:::::::,,,,*,,,,,::::::A",
+    "T,,,,,:,,,~~~~~,,,:,,,,,T",
+    "T,*,,,:,,~~~~~~~,,:,,,*,T",
+    "T,,,,,:,,~~~~~~~,,:,,,,,T",
+    "T,,,,,:,,,~~~~~,,,:,,,,,T",
+    "T,####:,,,,,,,,,,,:####,T",
+    "A:::::::::::::::::::::::O",
+    "T,####,,,,,,:,,,,,,####,T",
+    "T,####,,*,,,:,,W*,,####,T",
+    "O,,,,,,,,,,,:,,,,,,,,,,,T",
+    "T,,,,,,,,,,,:,,,,,,,,,,,T",
+    "TTTTTTTTTTTTDTTTTTTTTTTTT"
+  ],
+  "portals": [
+    {
+      "at": [
+        12,
+        16
+      ],
+      "to": "home",
+      "spawn": [
+        5,
+        6
+      ]
+    },
+    {
+      "at": [
+        6,
+        0
+      ],
+      "to": "forest_1",
+      "spawn": [
+        13,
+        16
+      ]
+    },
+    {
+      "at": [
+        18,
+        0
+      ],
+      "to": "camp_1",
+      "spawn": [
+        13,
+        16
+      ]
+    },
+    {
+      "at": [
+        0,
+        5
+      ],
+      "to": "graveyard_1",
+      "spawn": [
+        13,
+        16
+      ]
+    },
+    {
+      "at": [
+        0,
+        11
+      ],
+      "to": "mountain_1",
+      "spawn": [
+        13,
+        16
+      ]
+    },
+    {
+      "at": [
+        24,
+        5
+      ],
+      "to": "swamp_1",
+      "spawn": [
+        13,
+        16
+      ]
+    },
+    {
+      "at": [
+        24,
+        11
+      ],
+      "to": "lair_1",
+      "spawn": [
+        13,
+        16
+      ]
+    },
+    {
+      "at": [
+        0,
+        14
+      ],
+      "to": "altar",
+      "spawn": [
+        10,
+        13
+      ]
+    }
+  ],
+  "waystone": {
+    "at": [
+      15,
+      13
+    ],
+    "spawn": [
+      15,
+      14
+    ]
+  },
+  "npcs": [
+    {
+      "id": "elder",
+      "name": "Trưởng Làng",
+      "sprite": "elder",
+      "at": [
+        12,
+        3
+      ],
+      "role": "quests",
+      "lines": [
+        "Hắc Long đã khủng bố vùng này quá lâu rồi. Làng cần người như cậu.",
+        "Việc gì làm xong thì quay lại đây báo ta, có thưởng hẳn hoi."
+      ]
+    },
+    {
+      "id": "blacksmith",
+      "name": "Thợ Rèn",
+      "sprite": "blacksmith",
+      "at": [
+        8,
+        12
+      ],
+      "role": "shop",
+      "stock": [
+        "dagger",
+        "broadsword",
+        "mace",
+        "battleaxe",
+        "greatsword",
+        "waraxe",
+        "leather",
+        "chain",
+        "scale",
+        "lamellar",
+        "breastplate",
+        "round",
+        "checked",
+        "spiked"
+      ],
+      "lines": [
+        "Vũ khí, giáp, khiên, cái gì cũng có. Đồ cũ ta cũng mua lại.",
+        "Mang quặng về đây, ta trả giá tốt."
+      ]
+    },
+    {
+      "id": "herbalist",
+      "name": "Bà Lang",
+      "sprite": "herbalist",
+      "at": [
+        16,
+        12
+      ],
+      "role": "herbalist",
+      "stock": [
+        "potion_s",
+        "potion_m",
+        "potion_l"
+      ],
+      "lines": [
+        "Có thảo dược thì ta pha thuốc cho, khỏi tốn tiền mua.",
+        "Thảo dược mọc ở các vùng quanh làng, cứ bước vào bụi cây mà hái."
+      ]
+    },
+    {
+      "id": "innkeeper",
+      "name": "Chủ Quán Trọ",
+      "sprite": "innkeeper",
+      "at": [
+        16,
+        2
+      ],
+      "role": "inn",
+      "lines": [
+        "Ngủ một đêm là khỏe lại ngay. Người mới thì ta không lấy tiền."
+      ]
+    },
+    {
+      "id": "girl",
+      "name": "Cô Bé Hái Hoa",
+      "sprite": "girl",
+      "at": [
+        4,
+        7
+      ],
+      "role": "talk",
+      "lines": [
+        "Cổng phía trên bên trái dẫn tới Rừng Mê, dễ nhất đó.",
+        "Đá dịch chuyển cạnh nhà Bà Lang. Chạm vào đá ở các vùng để nhớ đường về.",
+        "Ở Nhà có giếng nước, uống vào là hết mệt, không tốn đồng nào."
+      ]
+    },
+    {
+      "id": "board",
+      "name": "Bảng Tin",
+      "sprite": "board",
+      "at": [
+        14,
+        3
+      ],
+      "role": "daily",
+      "lines": [
+        "Việc vặt mỗi ngày của dân làng. Làm xong quay lại đây nhận thưởng.",
+        "Sáng mai sẽ có việc mới."
+      ]
+    },
+    {
+      "id": "tower_guard",
+      "name": "Người Gác Tháp",
+      "sprite": "tower_guard",
+      "at": [
+        21,
+        8
+      ],
+      "role": "tower",
+      "lines": [
+        "Tháp Vô Tận không có đỉnh. Leo được bao cao là tài của cậu.",
+        "Trong tháp máu không tự hồi đâu, mang đủ bình máu vào.",
+        "Vượt mỗi 10 tầng thì lần sau ta cho vào thẳng từ tầng đó."
+      ]
+    }
+  ],
+  "spawns": []
+}

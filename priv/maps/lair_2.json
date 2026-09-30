@@ -1,0 +1,84 @@
+{
+  "id": "lair_2",
+  "name": "Hang Hắc Long 2",
+  "zone": 5,
+  "floor": "floors/lair",
+  "tiles": [
+    "SSSSSSSSSSSSSASSSSSSSSSSSS",
+    "S.SSSRRRRRR..............S",
+    "S..RRRSR~RR.........~....S",
+    "S.~.~.R.~R........S.~R...S",
+    "S.......~...........~~...S",
+    "S..R.....~..............RS",
+    "S..RR...~SR~............RS",
+    "S.....RR.~RS~....SS......S",
+    "S......R...S....SS......RS",
+    "S.SRR.......S..........R.S",
+    "S.SRRR.................R.S",
+    "S...S....RRRR.........RR.S",
+    "S.SS.....~~R......S...R..S",
+    "S................S..R....S",
+    "S................S...RRS.S",
+    "S...............W......S.S",
+    "S........................S",
+    "SSSSSSSSSSSSSASSSSSSSSSSSS"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "lair_1",
+      "spawn": [
+        13,
+        1
+      ]
+    },
+    {
+      "at": [
+        13,
+        0
+      ],
+      "to": "lair_boss",
+      "spawn": [
+        7,
+        9
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "monster": "storm_dragon",
+      "max": 5,
+      "respawn": 25
+    },
+    {
+      "monster": "bone_dragon",
+      "max": 5,
+      "respawn": 25
+    }
+  ],
+  "gather": [
+    {
+      "item": "herb_rare",
+      "max": 2,
+      "respawn": 60
+    },
+    {
+      "item": "ore_rare",
+      "max": 3,
+      "respawn": 90
+    }
+  ],
+  "waystone": {
+    "at": [
+      16,
+      15
+    ],
+    "spawn": [
+      16,
+      16
+    ]
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "id": "swamp_2",
+  "name": "Đầm Lầy Rồng 2",
+  "zone": 4,
+  "floor": "floors/swamp",
+  "tiles": [
+    "TTTTTTTTTTTTTATTTTTTTTTTTT",
+    "T~~~~TTT.................T",
+    "TT~T~~~TT~~..............T",
+    "T~~TTT~~............T....T",
+    "T~T~~~~~~~...........T..~T",
+    "TT~~~~~T~......~.......~~T",
+    "T~~~~~~~.........~.....~.T",
+    "T~~T~~~~.~......~..~.....T",
+    "TT~~~T~..~....TTT..~.~...T",
+    "T~TT~~T...~...~T....~.TTTT",
+    "T~T~T~~TT.~...T.......T.TT",
+    "T~TTTTTTT.~..............T",
+    "T~TTTTTTT..~.............T",
+    "T~T~~~T...~~.............T",
+    "T~~~~T~~.................T",
+    "TTTT~~~...T.....W........T",
+    "TTT~~~~T.................T",
+    "TTTTTTTTTTTTTATTTTTTTTTTTT"
+  ],
+  "portals": [
+    {
+      "at": [
+        13,
+        17
+      ],
+      "to": "swamp_1",
+      "spawn": [
+        13,
+        1
+      ]
+    },
+    {
+      "at": [
+        13,
+        0
+      ],
+      "to": "swamp_boss",
+      "spawn": [
+        7,
+        9
+      ]
+    }
+  ],
+  "spawns": [
+    {
+      "monster": "wyvern",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "hydra5",
+      "max": 3,
+      "respawn": 25
+    },
+    {
+      "monster": "death_knight",
+      "max": 3,
+      "respawn": 25
+    }
+  ],
+  "gather": [
+    {
+      "item": "herb_rare",
+      "max": 2,
+      "respawn": 60
+    },
+    {
+      "item": "ore_rare",
+      "max": 3,
+      "respawn": 90
+    }
+  ],
+  "waystone": {
+    "at": [
+      16,
+      15
+    ],
+    "spawn": [
+      16,
+      16
+    ]
+  }
+}

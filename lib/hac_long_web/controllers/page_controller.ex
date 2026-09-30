@@ -2,6 +2,7 @@ defmodule HacLongWeb.PageController do
   use HacLongWeb, :controller
 
   alias HacLong.Game.{Data, Engine}
+  alias HacLong.World.Maps
 
   @doc """
   Trả về `priv/static/index.html` kèm dữ liệu game (`window.GAME_DATA`) để giao diện
@@ -26,7 +27,10 @@ defmodule HacLongWeb.PageController do
       ITEMS:
         Map.new(Data.items(), fn {id, it} -> {id, Map.put(it, :sell, Engine.sell_price(id))} end),
       SHOP: Data.shop(),
-      RULES: %{maxLevel: Engine.max_level(), pointsPerLevel: Engine.points_per_level()}
+      RECIPES: Data.recipes(),
+      QUESTS: Data.quests(),
+      RULES: %{maxLevel: Engine.max_level(), pointsPerLevel: Engine.points_per_level()},
+      WORLD: Maps.client_data()
     }
   end
 end

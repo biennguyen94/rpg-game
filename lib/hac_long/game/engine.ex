@@ -135,30 +135,53 @@ defmodule HacLong.Game.Engine do
   def damage(atk, dfn), do: max(1, round(atk * atk / (atk + dfn) * rand(0.9, 1.1)))
 
   # ---------- Chiến đấu ----------
+  @doc "Trận với một con quái ngẫu nhiên của vùng (dùng cho bot mô phỏng)."
   def start_battle(p, zi, boss?) do
     z = if is_integer(zi), do: Data.zone(zi)
 
+    with :ok <- can_fight(p, zi, z) do
+      # Quái thường: ưu tiên con không quá cấp người chơi + 1 để người mới không bị đánh úp.
+      spec =
+        if boss? do
+          z.boss
+        else
+          fair = Enum.filter(z.monsters, &(&1.level <= p.level + 1))
+          pick(if fair == [], do: [hd(z.monsters)], else: fair)
+        end
+
+      do_start_battle(p, zi, spec, boss?)
+    end
+  end
+
+  @doc "Trận với đúng con quái `spec` (người chơi vừa chạm vào nó trên bản đồ)."
+  def start_encounter(p, zi, spec, boss?) do
+    with :ok <- can_fight(p, zi, Data.zone(zi)), do: do_start_battle(p, zi, spec, boss?)
+  end
+
+  defp can_fight(p, zi, z) do
     cond do
       p.battle -> {err("Đang trong trận đấu."), p}
       z == nil or not zone_unlocked?(p, zi) -> {err("Khu vực chưa mở."), p}
       p.hp <= 0 -> {err("Bạn cần hồi máu trước."), p}
-      true -> do_start_battle(p, zi, z, boss?)
+      true -> :ok
     end
   end
 
-  defp do_start_battle(p, zi, z, boss?) do
-    # Quái thường: ưu tiên con không quá cấp người chơi + 1 để người mới không bị đánh úp.
-    spec =
-      if boss? do
-        z.boss
-      else
-        fair = Enum.filter(z.monsters, &(&1.level <= p.level + 1))
-        pick(if fair == [], do: [hd(z.monsters)], else: fair)
-      end
+  @doc "Trận với một con quái đã dựng sẵn `m` (trùm thế giới). `zi`: vùng lấy hình nền."
+  def start_with_monster(p, zi, m) do
+    cond do
+      p.battle -> {err("Đang trong trận đấu."), p}
+      p.hp <= 0 -> {err("Bạn cần hồi máu trước."), p}
+      true -> put_battle(p, zi, m, true)
+    end
+  end
 
+  defp do_start_battle(p, zi, spec, boss?) do
     m = make_monster(spec, boss?)
-    m = Map.put(m, :hp, m.maxHp)
+    put_battle(p, zi, Map.put(m, :hp, m.maxHp), boss?)
+  end
 
+  defp put_battle(p, zi, m, boss?) do
     battle = %{
       zone: zi,
       monster: m,
@@ -330,10 +353,14 @@ defmodule HacLong.Game.Engine do
     m = p.battle.monster
     p = %{p | kills: p.kills + 1, gold: p.gold + m.gold}
     reward = %{xp: m.xp, gold: m.gold, items: [], levels: 0}
-    p = log(p, "🏆 Bạn đã hạ #{m.name}! +#{m.xp} kinh nghiệm, +#{m.gold} vàng.", "win")
+
+    p =
+      if m[:world],
+        do: log(p, "🏆 #{m.name} gục ngã dưới đòn của bạn!", "win"),
+        else: log(p, "🏆 Bạn đã hạ #{m.name}! +#{m.xp} kinh nghiệm, +#{m.gold} vàng.", "win")
 
     {p, reward} =
-      if not m.boss and chance(0.12) do
+      if not m.boss and !m[:world] and chance(0.12) do
         id =
           cond do
             m.level >= 20 -> "potion_l"
