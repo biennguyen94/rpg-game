@@ -33,6 +33,9 @@ mix test           # chạy test (cần PostgreSQL)
 - Đồ có chỉ số ngẫu nhiên rơi từ quái (Tốt, Hiếm, Sử Thi)
 - Sổ tay quái vật: hạ đủ mốc mỗi loài thì đánh loài đó mạnh hơn
 - Chuyển sinh ở cấp 50: về cấp 1 với điểm tiềm năng cộng thêm
+- Ngày và đêm theo giờ Việt Nam; ban đêm có quái Bóng Đêm
+- Rương Báu ở Thợ Rèn (ra đồ ngẫu nhiên), Rương Gia Truyền ở Nhà mở mỗi ngày
+- Bang hội: lập/vào bang, chat bang, quỹ bang lên cấp, bảng xếp hạng bang
 - Lên cấp nhận 3 điểm tiềm năng để cộng vào Sức mạnh, Thể lực, Nhanh nhẹn, Phòng thủ
 - NPC trong Làng: Trưởng Làng giao nhiệm vụ, Thợ Rèn bán vũ khí/giáp/khiên, Bà Lang bán và pha
   thuốc, Chủ Quán Trọ cho nghỉ; mua bán phải đến gặp họ. 2 món đồ hiếm chỉ rơi từ trùm
@@ -113,6 +116,9 @@ lib/hac_long/game/fishing.ex        Câu cá
 lib/hac_long/game/achievements.ex   Thành tựu và danh hiệu
 lib/hac_long/game/gear.ex           Đồ có chỉ số ngẫu nhiên
 lib/hac_long/game/bestiary.ex       Sổ tay quái vật
+lib/hac_long/game/chests.ex         Rương Báu, Rương Gia Truyền
+lib/hac_long/world/clock.ex         Ngày và đêm
+lib/hac_long/guilds.ex              Bang hội
 lib/hac_long/game/names.ex          Kiểm tra và chuẩn hóa tên nhân vật
 lib/hac_long/game/simulator.ex      Bot chơi thử để kiểm tra cân bằng
 lib/hac_long/world.ex               Đi lại trên bản đồ, qua cổng, chạm quái, kết thúc trận
@@ -167,15 +173,16 @@ lúc hạ từng trùm.
 | join `"game"` | → `{username, user_id, admin, blocked, mail, player}` (`player` là `null` nếu chưa tạo nhân vật; `blocked` là `[{id, name}]` người đã chặn; `mail` là số thư chưa mở) |
 | push `"cmd"` | `{act, ...}` → `{ok, msg?, result?, player}` |
 | server push `"player"` | `{player}` khi nhân vật đổi từ tab khác |
-| server push `"map"` | `{map, monsters, nodes, players}` của bản đồ đang đứng, mỗi khi có thay đổi |
-| push `"chat"` | `{text}` → ok hoặc `{msg}` lỗi (cả khi bị cấm chat); server đẩy `"chat"` `{id, uid, name, title, map, text, at}` cho mọi người (trừ người đã chặn `uid`), `"chat_history"` lúc mới vào |
+| server push `"map"` | `{map, phase, monsters, nodes, players}` (`phase`: dawn/day/dusk/night; quái Bóng Đêm có `rare: true`) của bản đồ đang đứng, mỗi khi có thay đổi |
+| push `"chat"` | `{text}` → ok hoặc `{msg}` lỗi (cả khi bị cấm chat); server đẩy `"chat"` `{id, uid, name, title, tag, map, text, at, guild?}` cho mọi người (trừ người đã chặn `uid`), `"chat_history"` lúc mới vào |
 | push `"block"`, `"unblock"` | `{uid}` → `{blocked}`: chặn/bỏ chặn chat của một người |
 | push `"report"` | `{id}` (id tin chat) → ok hoặc `{msg}` lỗi; tối đa 10 lần/10 phút |
+| push `"guild"` | `{op, ...}`: `list {q}`, `info`, `join {id}`, `cancel {id}`, `accept`/`reject`/`kick`/`promote`/`demote`/`transfer {uid}`, `leave`, `disband`, `settings {open?, notice?}` → `{guild, msg}` (hoặc `{guilds, requested}` với `list`); server đẩy `"guild"` `{guild}` khi bang của mình đổi. Chat bang: push `"chat"` `{text, to: "guild"}` |
 | push `"mail"` | → `{mails: [{id, subject, body, gold, xp, items, claimed, at}], unread}`; server đẩy `"mail"` `{unread}` khi có thư mới hoặc vừa mở thư |
 | push `"admin"` | Chỉ admin. `{op, ...}`: `reports`, `lookup {name}`, `resolve {id, action: dismiss/mute/ban, minutes}`, `mute`/`ban {uid, minutes?, reason?}` (không có `minutes` là vĩnh viễn), `unmute`/`unban {uid}`, `announce {text}`, `gift {uid | all: true, subject, body?, gold?, xp?, items?}`, `world_boss` |
 | server push `"world_boss"` | `{alive, name, hp, maxHp, endsAt, nextAt, now, fighters, top}` khi trùm thế giới thay đổi |
 | server push `"notice"` | `{msg}`: thông báo riêng (vd. nhận thưởng trùm thế giới) |
-| push `"leaderboard"` | → `{level, kills, dragon, tower, me}` (mỗi bảng 10 người kèm `title`, `me` là hạng theo cấp) |
+| push `"leaderboard"` | → `{level, kills, dragon, tower, guild, me}` (mỗi bảng 10 người kèm `title`, `me` là hạng theo cấp) |
 
 Các `act`: `create {name, cls}`, `reset`, `move {dir, confirm?}` (`up`/`down`/`left`/`right`;
 bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: true` để đấu),
@@ -184,14 +191,16 @@ bước vào trùm thì nhận `confirm: "boss"`, gửi lại với `confirm: tr
 `unequip {slot}`, `use {id}` (`equip`, `sell`, `upgrade` nhận cả id đồ ngẫu nhiên `#...`), `rebirth`
 (Trưởng Làng, cấp 50), `mail_claim {id}` (mở thư, nhận quà), `title_set {id}` (`null` để
 bỏ danh hiệu), `fish_cast` (đứng cạnh nước; trả `wait` mili giây tới lúc cá cắn và `window`),
-`fish_reel`. Bước vào NPC thì nhận `npc: id`; các lệnh sau phải đứng cạnh
+`fish_reel`, `chest_open` (Rương Gia Truyền ở Nhà), `chest_buy {tier}` (Thợ Rèn: wood/silver/gold),
+`guild_create {name, tag}`, `guild_donate {amount}`. Bước vào NPC thì nhận `npc: id`; các lệnh sau phải đứng cạnh
 đúng NPC: `buy {id, n}`, `sell {id}` (Thợ Rèn, Bà Lang), `upgrade {slot}` (Thợ Rèn), `craft {id}` (Bà Lang), `rest`
 (Chủ Quán Trọ), `quest_accept {id}`, `quest_turnin {id}` (Trưởng Làng), `daily_claim {i}`
 (Bảng Tin), `tower_enter {floor}` (Người Gác Tháp).
 
 Trạng thái nhân vật có `pos: {map, x, y}`, `waystones` (các đá đã ghi nhớ),
 `quests: {active: {id: số_đã_hạ}, done: [id]}`, `daily: {date, tasks}`, `upgrades: {id_đồ: cấp}`,
-`fish_caught`, `gear: [{uid, base, rarity, bonus}]` (đồ ngẫu nhiên; `view.gear` có tên, chỉ số,
+`guild` (bang đang ở: `{id, name, tag, level, role}`, không lưu trong bảng characters),
+`chest_day`, `fish_caught`, `gear: [{uid, base, rarity, bonus}]` (đồ ngẫu nhiên; `view.gear` có tên, chỉ số,
 giá bán), `bestiary: {id_quái: số}`, `rebirths`, `battle.effects: {player, monster}` (hiệu ứng
 `[{id, turns, power}]`), `battle.cds` (hồi chiêu `[{id, turns}]`), `achievements: [id]`, `title` (id thành tựu làm danh hiệu), `view.achievements`
 (`[{id, done, have}]`), `view.forge` (đồ đang mặc, cấp nâng và giá lên cấp tiếp), `tutorial` (bước
@@ -209,6 +218,8 @@ export PHX_HOST=game.example.com
 MIX_ENV=prod mix do compile, ecto.migrate
 MIX_ENV=prod PHX_SERVER=true mix phx.server
 ```
+
+Ép buổi trong ngày để thử: `TIME_OF_DAY=night mix phx.server` (dawn, day, dusk, night).
 
 Trùm thế giới chỉnh bằng `config :hac_long, :world_boss` hoặc biến môi trường
 `WORLD_BOSS_FIRST_MINUTES`, `WORLD_BOSS_EVERY_MINUTES`, `WORLD_BOSS_DURATION_MINUTES`,

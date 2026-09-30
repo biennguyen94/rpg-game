@@ -7,14 +7,12 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 
 Ước lượng công sức: nhỏ (vài giờ), vừa (khoảng một ngày), lớn (nhiều ngày).
 
-1. **Ngày và đêm** (nhỏ) và **chỗ tiêu vàng** (nhỏ–vừa): đồ rơi làm vàng thừa cuối game tăng
-   gấp đôi (mô phỏng ~11.000–15.000 vàng); cần thêm thứ đáng mua (rương, trang trí nhà, chợ).
-2. **Bang hội** (lớn), **tổ đội** (vừa–lớn): giữ người chơi lâu dài.
-3. **Rương** (nhỏ), **trang trí nhà** (vừa–lớn), **nhân vật mặc đúng đồ** (vừa),
-   **thú cưng** (vừa).
-4. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
+1. **Tổ đội** (vừa–lớn): đánh chung một trận, chia kinh nghiệm; hợp với bang hội vừa làm.
+2. **Trang trí nhà** (vừa–lớn), **nhân vật mặc đúng đồ** (vừa), **thú cưng** (vừa): thêm chỗ
+   tiêu vàng lâu dài (hiện có Rương Báu và quỹ bang).
+3. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
    **chợ giữa người chơi** (lớn).
-5. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
+4. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
 
 ---
 
@@ -102,9 +100,11 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   nên không nhận đôi. Thưởng trùm thế giới lúc không online gửi qua đây; quản trị viên tặng quà
   cho một người hoặc mọi người.
   - [ ] Nhận tiền khi bán được đồ ở chợ (khi có chợ).
-- [ ] **Bang hội**: lập/vào bang, kênh chat riêng của bang, quỹ bang, bảng xếp hạng bang (vd.
-  tổng sát thương lên trùm thế giới). Có trong kế hoạch ban đầu ("chat, clan, PvP") nhưng bị
-  sót khi viết lộ trình này.
+- [x] **Bang hội** (`HacLong.Guilds`): lập bang 5.000 vàng (tên, ký hiệu không trùng); bang mở
+  vào ngay, bang đóng thì xin vào; bang chủ / phó bang / thành viên (phong, nhường, mời ra, rời,
+  giải tán); góp quỹ lên cấp (tối đa 5: thêm chỗ, +2% kinh nghiệm mỗi cấp từ cấp 2); kênh chat
+  bang; ký hiệu bang cạnh tên trong chat; bảng xếp hạng bang theo quỹ.
+  - [ ] Bảng xếp hạng bang theo sát thương lên trùm thế giới; nhiệm vụ bang.
 - [ ] **Tổ đội**: mời người khác vào nhóm, đánh chung một trận với một con quái, chia kinh
   nghiệm; việc hằng ngày và nhiệm vụ tính cho cả nhóm. Hiện ngoài trùm thế giới thì ai cũng
   đánh một mình.
@@ -119,15 +119,20 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [x] **Giai đoạn 2**: mỗi vùng gồm 2 bản đồ quái (bản đồ 2 mạnh hơn) và một phòng trùm; di
   chuyển mượt; đá dịch chuyển; hỏi xác nhận trước khi đấu trùm.
 - [x] **Giai đoạn 3**: NPC ở Làng thay tab Cửa hàng; điểm thu thập; nhiệm vụ.
-- [ ] **Giai đoạn 4**: trang trí nhà, rương mở mỗi ngày một lần. (Trùm thế giới trên bản đồ,
-  dự tính cho giai đoạn này, đã làm ở mục D.)
+- [ ] **Giai đoạn 4**: trang trí nhà. (Rương mở mỗi ngày một lần và trùm thế giới, dự tính cho
+  giai đoạn này, đã làm.)
+- [x] **Rương** (`HacLong.Game.Chests`): Rương Gia Truyền ở Nhà mở mỗi ngày một lần (vàng, bình
+  máu, nguyên liệu, 20% kèm đồ); Thợ Rèn bán Rương Gỗ/Bạc/Vàng ra đồ chỉ số ngẫu nhiên, giá gấp
+  2/4/8 lần giá bán lại vũ khí tốt nhất cùng cấp nên mua về bán lại luôn lỗ. Mô phỏng: bot mua
+  rương tiêu 7.000–16.000 vàng mỗi ván.
 - [x] **Câu cá** (`HacLong.Game.Fishing`): đứng cạnh nước bất kỳ (hồ Làng, Rừng Mê, Đầm Lầy,
   Hang Rồng) bấm Câu cá; phao chìm sau 3–8 giây, giật trong 1 giây mới được (server tính giờ).
   Cá Diếc, Cá Chép, Lươn Điện ở vùng sâu, Cá Chép Vàng rất hiếm, và ủng cũ. Tiền câu cá ngang
   đánh quái lúc đầu game nhưng không có kinh nghiệm.
   - [ ] Công thức nấu cá ở Bà Lang; việc hằng ngày câu cá.
-- [ ] **Ngày và đêm**: bản đồ tối dần theo giờ thật (giờ Việt Nam); ban đêm có quái hiếm xuất
-  hiện, rơi nhiều đồ hơn.
+- [x] **Ngày và đêm** (`HacLong.World.Clock`): bình minh, ngày, hoàng hôn, đêm theo giờ Việt
+  Nam; bản đồ ngoài trời tối dần, quanh nhân vật vẫn sáng. Ban đêm 12% quái mới sinh là quái
+  Bóng Đêm (mạnh gấp rưỡi, thưởng gấp rưỡi, 25% rơi đồ). Ép buổi để thử bằng `TIME_OF_DAY`.
 
 ## F. Hình ảnh và âm thanh
 
