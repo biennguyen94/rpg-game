@@ -8,15 +8,19 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 Ước lượng công sức: nhỏ (vài giờ), vừa (khoảng một ngày), lớn (nhiều ngày).
 
 1. **CI chạy `mix test` trên GitHub Actions** (nhỏ). Repo chưa có kiểm tra tự động nào.
-2. **Đọc `X-Forwarded-For` khi chạy sau proxy** (nhỏ). Không có thì giới hạn đăng nhập theo IP
+2. **Mô phỏng cân bằng có nhiệm vụ** (vừa): cho bot làm nhiệm vụ, việc hằng ngày, tháp, trùm
+   thế giới để đo các nguồn thưởng mới trước khi thêm tính năng cho thêm thưởng.
+3. **Đọc `X-Forwarded-For` khi chạy sau proxy** (nhỏ). Không có thì giới hạn đăng nhập theo IP
    tính chung mọi người thành IP của proxy.
-3. **Đồ có chỉ số ngẫu nhiên** (vừa) và **thêm kỹ năng theo cấp** (vừa): trận đánh hiện gần
-   như chỉ là bấm kỹ năng rồi tấn công, và đồ đạc chỉ là mua món tốt hơn.
-4. **Hiệu ứng trạng thái** (vừa), **chuyển sinh** (nhỏ–vừa).
-5. **Chặn/báo cáo người chat xấu** (nhỏ–vừa).
-6. **Rương** (nhỏ), **trang trí nhà** (vừa–lớn).
-7. **PvP bất đồng bộ** (vừa), **chợ giữa người chơi** (lớn).
-8. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
+4. **Đồ có chỉ số ngẫu nhiên** (vừa), **công dụng cho quặng** (nhỏ–vừa, Thợ Rèn nâng cấp đồ
+   bằng quặng) và **thêm kỹ năng theo cấp** (vừa): trận đánh hiện gần như chỉ là bấm kỹ năng
+   rồi tấn công, và đồ đạc chỉ là mua món tốt hơn.
+5. **Hiệu ứng trạng thái** (vừa), **chuyển sinh** (nhỏ–vừa).
+6. **Chặn/báo cáo người chat xấu** (nhỏ–vừa).
+7. **Rương** (nhỏ), **trang trí nhà** (vừa–lớn).
+8. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
+   **chợ giữa người chơi** (lớn).
+9. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
 
 ---
 
