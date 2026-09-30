@@ -32,6 +32,9 @@ defmodule HacLongWeb.Endpoint do
     plug Phoenix.Ecto.CheckRepoStatus, otp_app: :hac_long
   end
 
+  # IP thật khi chạy sau proxy (dùng cho giới hạn đăng nhập theo IP)
+  plug HacLongWeb.RemoteIp
+
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 

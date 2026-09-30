@@ -107,8 +107,8 @@ defmodule HacLongWeb.AuthController do
   defp disconnect(user),
     do: HacLongWeb.Endpoint.broadcast("user_socket:#{user.id}", "disconnect", %{})
 
-  # Địa chỉ IP của người gọi. Nếu chạy sau proxy (nginx, load balancer) cần thêm plug
-  # đọc X-Forwarded-For (vd. RemoteIp) để có IP thật.
+  # Địa chỉ IP của người gọi (đã tính X-Forwarded-For nếu có proxy tin cậy, xem
+  # HacLongWeb.RemoteIp).
   defp ip(conn), do: conn.remote_ip |> :inet.ntoa() |> to_string()
 
   defp session(user), do: %{token: Accounts.sign_token(user), username: user.username}
