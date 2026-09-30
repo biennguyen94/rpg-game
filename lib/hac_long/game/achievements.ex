@@ -142,6 +142,14 @@ defmodule HacLong.Game.Achievements do
       title: "Thần Binh"
     },
     %{
+      id: "epic",
+      name: "Của Hiếm",
+      desc: "Nhặt được một món đồ Sử Thi.",
+      stat: :epic,
+      goal: 1,
+      title: "Kẻ May Mắn"
+    },
+    %{
       id: "scale",
       name: "Vảy Cổ Long",
       desc: "Có Vảy Cổ Long từ trùm thế giới.",
@@ -187,6 +195,7 @@ defmodule HacLong.Game.Achievements do
   def value(p, :gold_fish), do: min(1, Map.get(p.inv, "fish_gold", 0))
   def value(p, :scale), do: min(1, Map.get(p.inv, "dragon_scale", 0))
   def value(p, :gold), do: p.gold
+  def value(p, :epic), do: min(1, Enum.count(Map.get(p, :gear) || [], &(&1.rarity == 3)))
   def value(p, :deaths), do: p.deaths
 
   def value(p, :forge),

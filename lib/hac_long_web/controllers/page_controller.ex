@@ -30,7 +30,11 @@ defmodule HacLongWeb.PageController do
       RECIPES: Data.recipes(),
       QUESTS: Data.quests(),
       ACHIEVEMENTS: Achievements.client_data(),
-      RULES: %{maxLevel: Engine.max_level(), pointsPerLevel: Engine.points_per_level()},
+      RULES: %{
+        maxLevel: Engine.max_level(),
+        pointsPerLevel: Engine.points_per_level(),
+        gearBag: HacLong.Game.Gear.max_bag()
+      },
       WORLD: Maps.client_data()
     }
   end

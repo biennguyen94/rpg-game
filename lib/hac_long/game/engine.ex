@@ -8,7 +8,7 @@ defmodule HacLong.Game.Engine do
   để test cố định được kết quả.
   """
 
-  alias HacLong.Game.{Data, Rng}
+  alias HacLong.Game.{Data, Gear, Rng}
 
   @save_version 1
   @points_per_level 3
@@ -56,6 +56,7 @@ defmodule HacLong.Game.Engine do
           equip: %{weapon: "club", armor: "vest", shield: nil},
           inv: %{"potion_s" => 3},
           upgrades: %{},
+          gear: [],
           fish_caught: 0,
           achievements: [],
           title: nil,
@@ -72,10 +73,11 @@ defmodule HacLong.Game.Engine do
   end
 
   def derived(p) do
-    s = p.stats
-    w = Data.item(p.equip.weapon)
-    a = Data.item(p.equip.armor)
-    sh = p.equip.shield && Data.item(p.equip.shield)
+    # chỉ số cộng thêm của đồ ngẫu nhiên đang mặc
+    s = Map.merge(p.stats, Gear.bonus_stats(p), fn _, a, b -> a + b end)
+    w = Gear.item(p, p.equip.weapon)
+    a = Gear.item(p, p.equip.armor)
+    sh = Gear.item(p, p.equip.shield)
 
     up = fn id -> if id, do: upgrade_bonus(p, id), else: 0 end
 
@@ -111,8 +113,14 @@ defmodule HacLong.Game.Engine do
       forge:
         for {slot, id} <- p.equip, id != nil, into: %{} do
           {slot,
-           %{id: id, level: upgrade_level(p, id), cost: upgrade_cost(id, upgrade_level(p, id))}}
-        end
+           %{
+             id: id,
+             level: upgrade_level(p, id),
+             cost: upgrade_cost(Gear.item(p, id), upgrade_level(p, id))
+           }}
+        end,
+      # đồ ngẫu nhiên (cả món đang mặc) đã tính tên, chỉ số, giá bán
+      gear: Map.new(Map.get(p, :gear) || [], &{&1.uid, Gear.resolve(&1)})
     }
   end
 
@@ -661,6 +669,8 @@ defmodule HacLong.Game.Engine do
     {p, reward} =
       if m.boss and m.id not in p.bosses, do: first_boss_kill(p, m, reward), else: {p, reward}
 
+    {p, reward} = gear_drop(p, m, reward)
+
     {levels, p} = gain_xp(p, m.xp)
 
     p =
@@ -675,6 +685,26 @@ defmodule HacLong.Game.Engine do
 
     p = put_in(p.battle.reward, %{reward | levels: levels})
     finish(p, "win")
+  end
+
+  # Đồ có chỉ số ngẫu nhiên (xem `Gear`).
+  defp gear_drop(p, m, reward) do
+    with true <- chance(Gear.drop_chance(m)),
+         %{} = g <- Gear.roll(m.level) do
+      it = Gear.resolve(g)
+      label = "#{it.name} (#{Gear.rarity_names()[g.rarity]})"
+
+      case Gear.add(p, g) do
+        {p, :kept} ->
+          {log(p, "🎁 Nhặt được #{label}!", "win"), Map.put(reward, :gear, [label])}
+
+        {p, {:sold, gold}} ->
+          {log(p, "🎁 Nhặt được #{label}, túi đầy nên bán luôn được #{gold} vàng.", "good"),
+           Map.put(reward, :gear, [label])}
+      end
+    else
+      _ -> {p, reward}
+    end
   end
 
   defp first_boss_kill(p, m, reward) do
@@ -757,7 +787,7 @@ defmodule HacLong.Game.Engine do
 
   @doc "Tấn công/phòng thủ cộng thêm: mỗi cấp +8% chỉ số gốc của món đồ (ít nhất +1)."
   def upgrade_bonus(p, id) do
-    case {upgrade_level(p, id), Data.item(id)} do
+    case {upgrade_level(p, id), Gear.item(p, id)} do
       {0, _} -> 0
       {_, nil} -> 0
       {l, it} -> l * max(1, round((it[:atk] || it[:def] || 0) * 0.08))
@@ -765,13 +795,14 @@ defmodule HacLong.Game.Engine do
   end
 
   @doc """
-  Giá nâng món `id` từ cấp `level` lên cấp tiếp theo: `%{gold, items}` hoặc `nil` nếu đã tối
-  đa. Đồ dưới cấp 17 dùng Quặng Sắt, từ cấp 17 dùng Mithril; cấp cuối cần thêm Vảy Cổ Long.
+  Giá nâng món đồ (id đồ thường hoặc thông tin món đồ) từ cấp `level` lên cấp tiếp theo:
+  `%{gold, items}` hoặc `nil` nếu đã tối đa. Đồ dưới cấp 17 dùng Quặng Sắt, từ cấp 17 dùng
+  Mithril; cấp cuối cần thêm Vảy Cổ Long.
   """
-  def upgrade_cost(_id, level) when level >= @max_upgrade, do: nil
+  def upgrade_cost(_item, level) when level >= @max_upgrade, do: nil
+  def upgrade_cost(id, level) when is_binary(id), do: upgrade_cost(Data.item(id), level)
 
-  def upgrade_cost(id, level) do
-    it = Data.item(id)
+  def upgrade_cost(it, level) do
     n = level + 1
     ore = if (it[:level] || 1) >= 17, do: "ore_rare", else: "ore"
     items = %{ore => n}
@@ -782,7 +813,8 @@ defmodule HacLong.Game.Engine do
   def upgrade(p, slot) do
     id = slot in ~w(weapon armor shield) && p.equip[String.to_existing_atom(slot)]
     level = if id, do: upgrade_level(p, id), else: 0
-    cost = id && upgrade_cost(id, level)
+    it = id && Gear.item(p, id)
+    cost = it && upgrade_cost(it, level)
 
     cond do
       !id ->
@@ -792,7 +824,7 @@ defmodule HacLong.Game.Engine do
         {err("Đang trong trận."), p}
 
       cost == nil ->
-        {err("#{Data.item(id).name} đã nâng cấp tối đa."), p}
+        {err("#{it.name} đã nâng cấp tối đa."), p}
 
       p.gold < cost.gold ->
         {err("Cần #{cost.gold} vàng."), p}
@@ -817,7 +849,7 @@ defmodule HacLong.Game.Engine do
 
         p = Map.put(p, :upgrades, Map.put(upgrades(p), id, level + 1))
         p = %{p | hp: round(hp_ratio * derived(p).maxHp)}
-        {ok("Đã nâng #{Data.item(id).name} lên +#{level + 1}."), p}
+        {ok("Đã nâng #{it.name} lên +#{level + 1}."), p}
     end
   end
 
@@ -864,6 +896,23 @@ defmodule HacLong.Game.Engine do
     floor(if(price == 0, do: 200, else: price) * 0.4)
   end
 
+  def sell(p, "#" <> _ = uid) do
+    case Gear.find(p, uid) do
+      nil ->
+        {err("Không có món này."), p}
+
+      g ->
+        if Gear.equipped?(p, uid) do
+          {err("Đang mặc món này."), p}
+        else
+          it = Gear.resolve(g)
+          p = %{Gear.remove(p, uid) | gold: p.gold + it.sell}
+          p = Map.put(p, :upgrades, Map.delete(upgrades(p), uid))
+          {ok("Đã bán #{it.name} được #{it.sell} vàng."), p}
+        end
+    end
+  end
+
   def sell(p, id) do
     if Map.get(p.inv, id, 0) > 0 and Data.item(id) do
       g = sell_price(id)
@@ -879,10 +928,12 @@ defmodule HacLong.Game.Engine do
   end
 
   def equip(p, id) do
-    it = Data.item(id)
+    it = Gear.item(p, id)
+    gear? = Gear.instance?(id)
+    owned = if gear?, do: it != nil and not Gear.equipped?(p, id), else: Map.get(p.inv, id, 0) > 0
 
     cond do
-      it == nil or Map.get(p.inv, id, 0) <= 0 or it.slot not in ~w(weapon armor shield) ->
+      it == nil or not owned or it.slot not in ~w(weapon armor shield) ->
         {err("Không trang bị được."), p}
 
       it[:level] && p.level < it.level ->
@@ -892,15 +943,19 @@ defmodule HacLong.Game.Engine do
         slot = String.to_existing_atom(it.slot)
         hp_ratio = p.hp / derived(p).maxHp
         old = p.equip[slot]
-        p = take_item(p, id)
-        p = if old, do: add_item(p, old), else: p
+
+        # đồ ngẫu nhiên luôn nằm trong `gear`, chỉ đồ thường mới lấy ra/cất vào `inv`
+        p = if gear?, do: p, else: take_item(p, id)
+        p = if old && not Gear.instance?(old), do: add_item(p, old), else: p
         p = %{p | equip: Map.put(p.equip, slot, id)}
         {ok("Đã trang bị #{it.name}."), %{p | hp: round(hp_ratio * derived(p).maxHp)}}
     end
   end
 
   def unequip(p, "shield") when p.equip.shield != nil do
-    {ok("Đã tháo khiên."), %{add_item(p, p.equip.shield) | equip: %{p.equip | shield: nil}}}
+    old = p.equip.shield
+    p = if Gear.instance?(old), do: p, else: add_item(p, old)
+    {ok("Đã tháo khiên."), %{p | equip: %{p.equip | shield: nil}}}
   end
 
   def unequip(p, _slot), do: {err("Không tháo được."), p}

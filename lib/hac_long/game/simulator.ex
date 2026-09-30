@@ -13,7 +13,7 @@ defmodule HacLong.Game.Simulator do
     Vảy Cổ Long của trùm thế giới).
   """
 
-  alias HacLong.Game.{Daily, Data, Engine, Quests}
+  alias HacLong.Game.{Daily, Data, Engine, Gear, Quests}
 
   @alloc %{
     "warrior" => ~w(str str vit),
@@ -216,7 +216,7 @@ defmodule HacLong.Game.Simulator do
   defp forge(p, st) do
     Enum.reduce(~w(weapon armor shield), p, fn slot, p ->
       id = p.equip[String.to_existing_atom(slot)]
-      cost = id && Engine.upgrade_cost(id, Engine.upgrade_level(p, id))
+      cost = id && Engine.upgrade_cost(Gear.item(p, id), Engine.upgrade_level(p, id))
 
       spare? =
         cost && not Map.has_key?(cost.items, "dragon_scale") && p.gold >= cost.gold + 100 &&
@@ -233,20 +233,29 @@ defmodule HacLong.Game.Simulator do
     end)
   end
 
+  # giá trị món đồ với bot: tấn công/phòng thủ + nâng cấp + điểm chỉ số cộng thêm (×2)
   defp worn(_p, nil), do: 0
-  defp worn(p, id), do: value(id) + Engine.upgrade_bonus(p, id)
+
+  defp worn(p, id) do
+    it = Gear.item(p, id)
+
+    (it[:atk] || 0) + (it[:def] || 0) + Engine.upgrade_bonus(p, id) +
+      2 * Enum.sum(Map.values(it[:bonus] || %{}))
+  end
 
   defp shop_up(p) do
     p =
       Enum.reduce(~w(weapon armor shield), p, fn slot, p ->
         cur = p.equip[String.to_existing_atom(slot)]
 
-        # đồ rơi trong túi tốt hơn thì mặc luôn
+        # đồ rơi trong túi (cả đồ chỉ số ngẫu nhiên) tốt hơn thì mặc luôn
         owned =
-          Enum.find(Map.keys(p.inv), fn id ->
-            it = Data.item(id)
-            it.slot == slot and it.level <= p.level and value(id) > worn(p, cur)
+          (Map.keys(p.inv) ++ Enum.map(Gear.bag(p), & &1.uid))
+          |> Enum.filter(fn id ->
+            it = Gear.item(p, id)
+            it.slot == slot and (it[:level] || 1) <= p.level and worn(p, id) > worn(p, cur)
           end)
+          |> Enum.max_by(&worn(p, &1), fn -> nil end)
 
         best =
           Data.shop()

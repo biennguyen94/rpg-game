@@ -361,3 +361,12 @@ ol.board .rank { width: 1.6em; text-align: right; color: var(--gold); font-weigh
 .fx-tag.bad { color: #f0a08f; border-color: #7a3a2e; }
 .fx-tag.good { color: #9fe0a8; border-color: #2e6a3a; }
 .item.locked { opacity: 0.55; }
+
+/* Đồ chỉ số ngẫu nhiên: màu theo độ hiếm */
+.rar-1 { color: #8fd18f; }
+.rar-2 { color: #7fb6ff; }
+.rar-3 { color: #d59cff; }
+.ic.rar-ic-1 { filter: drop-shadow(0 0 3px #4f9f4f); }
+.ic.rar-ic-2 { filter: drop-shadow(0 0 3px #3f7fe0); }
+.ic.rar-ic-3 { filter: drop-shadow(0 0 4px #a45ee0); }
+.gear-drop { color: var(--gold); font-weight: 600; }

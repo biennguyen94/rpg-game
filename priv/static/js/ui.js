@@ -36,7 +36,7 @@
   const asset = (path) => 'assets/' + path;
   const icon = (name, cls) => `<img class="ic ${cls || ''}" src="${asset('icons/' + name + '.svg')}" alt="">`;
   // Hình vật phẩm: nguyên liệu dùng ảnh PNG (`sprite`), còn lại dùng icon SVG.
-  const itemIcon = (it) => (it.sprite ? `<img class="ic lg px" src="${asset(it.sprite + '.png')}" alt="">` : icon(it.icon, 'lg'));
+  const itemIcon = (it, rarity) => (it.sprite ? `<img class="ic lg px" src="${asset(it.sprite + '.png')}" alt="">` : icon(it.icon, 'lg' + (rarity ? ` rar-ic-${rarity}` : '')));
   const sprite = (id, cls, alt) => `<img class="sprite ${cls || ''}" src="${asset('monsters/' + id + '.png')}" alt="${esc(alt || '')}">`;
 
   let toastTimer;
@@ -601,12 +601,22 @@
 
   // Tên món đồ kèm cấp nâng cấp (+1…+5) nếu có.
   const upLevel = (id) => (P.upgrades && P.upgrades[id]) || 0;
-  const itemName = (id) => ITEMS[id].name + (upLevel(id) ? ` <span class="up-lv">+${upLevel(id)}</span>` : '');
+  // Món đồ theo id: đồ thường trong ITEMS, đồ chỉ số ngẫu nhiên (id bắt đầu bằng #) do server gửi.
+  const isGear = (id) => typeof id === 'string' && id[0] === '#';
+  const itemOf = (id) => (isGear(id) ? P.view.gear[id] : ITEMS[id]);
+  const RARITY = { 1: 'Tốt', 2: 'Hiếm', 3: 'Sử Thi' };
+  const itemName = (id) => {
+    const it = itemOf(id);
+    const name = it.rarity ? `<span class="rar-${it.rarity}">${esc(it.name)}</span>` : it.name;
+    return name + (upLevel(id) ? ` <span class="up-lv">+${upLevel(id)}</span>` : '');
+  };
+  const bonusText = (it) => (it.bonus ? Object.entries(it.bonus).sort((a, b) => b[1] - a[1]).map(([k, v]) => `+${v} ${STAT_INFO[k][0]}`).join(', ') : '');
 
   function itemStat(it, id) {
     const b = id ? P.view.bonus[id] || 0 : 0;
-    if (it.atk) return `Tấn công +${it.atk}${b ? ` <span class="up">+${b}</span>` : ''}`;
-    if (it.def) return `Phòng thủ +${it.def}${b ? ` <span class="up">+${b}</span>` : ''}`;
+    const extra = it.bonus ? ` · <span class="rar-${it.rarity}">${RARITY[it.rarity]}: ${bonusText(it)}</span>` : '';
+    if (it.atk) return `Tấn công +${it.atk}${b ? ` <span class="up">+${b}</span>` : ''}${extra}`;
+    if (it.def) return `Phòng thủ +${it.def}${b ? ` <span class="up">+${b}</span>` : ''}${extra}`;
     if (it.heal) return `Hồi ${it.heal} máu`;
     return '';
   }
@@ -644,7 +654,7 @@
         <h3>Trang bị</h3>
         <div class="list">
           ${[['weapon', 'Vũ khí'], ['armor', 'Giáp'], ['shield', 'Khiên']].map(([slot, label]) => {
-            const id = P.equip[slot], it = id ? ITEMS[id] : null;
+            const id = P.equip[slot], it = id ? itemOf(id) : null;
             return `<div class="item">
               ${it ? icon(it.icon, 'lg') : `<span class="ic lg"></span>`}
               <div class="grow"><div class="small muted">${label}</div><div class="name">${it ? itemName(id) : 'Trống'}</div>${it ? `<div class="small muted">${itemStat(it, id)}</div>` : ''}</div>
@@ -693,26 +703,27 @@
   // ---------- Túi đồ ----------
   function compare(it, id) {
     const curId = P.equip[it.slot];
-    const v = (x) => (x ? (ITEMS[x].atk || 0) + (ITEMS[x].def || 0) + (P.view.bonus[x] || 0) : 0);
+    // như bot mô phỏng: mỗi điểm chỉ số cộng thêm tính bằng 2 tấn công/phòng thủ
+    const v = (x) => { const t = x && itemOf(x); return t ? (t.atk || 0) + (t.def || 0) + (P.view.bonus[x] || 0) + 2 * Object.values(t.bonus || {}).reduce((a, b) => a + b, 0) : 0; };
     const diff = v(id) - v(curId);
     return diff > 0 ? `<span class="up">▲ ${diff}</span>` : '';
   }
 
   function viewBag() {
     const ids = Object.keys(P.inv).filter((id) => P.inv[id] > 0);
-    const gear = ids.filter((id) => !['potion', 'material'].includes(ITEMS[id].slot));
+    const gear = ids.filter((id) => !['potion', 'material'].includes(ITEMS[id].slot)).concat(bagGear());
     const pots = ids.filter((id) => ITEMS[id].slot === 'potion');
     const mats = ids.filter((id) => ITEMS[id].slot === 'material');
     const d = P.view.derived;
     const rowFor = (id) => {
-      const it = ITEMS[id], n = P.inv[id];
+      const it = itemOf(id), n = isGear(id) ? 1 : P.inv[id];
       const low = it.level && P.level < it.level;
       const main = it.slot === 'potion'
         ? `<button class="btn" data-act="use" data-id="${id}" ${P.hp >= d.maxHp ? 'disabled' : ''}>Dùng</button>`
         : it.slot === 'material' ? ''
         : `<button class="btn primary" data-act="equip" data-id="${id}" ${low ? 'disabled' : ''}>Trang bị</button>`;
       return `<div class="item">
-        ${itemIcon(it)}
+        ${itemIcon(it, it.rarity)}
         <div class="grow">
           <div class="name">${itemName(id)}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div>
           <div class="small muted">${it.slot === 'material' ? it.desc : itemStat(it, id)} ${['potion', 'material'].includes(it.slot) ? '' : compare(it, id)}${low ? ` · <span style="color:var(--bad)">Cần cấp ${it.level}</span>` : ''}</div>
@@ -730,7 +741,7 @@
         ${mats.length ? `<div class="list">${mats.map(rowFor).join('')}</div>` : `<p class="small muted">Bước vào bụi cây để hái Thảo Dược, vào mỏ đá để đào quặng. Mang cho Bà Lang pha thuốc hoặc bán cho Thợ Rèn.</p>`}
       </div>
       <div class="card">
-        <h3>Trang bị trong túi</h3>
+        <div class="row"><h3 class="grow">Trang bị trong túi</h3>${bagGear().length ? `<span class="small muted num">Đồ hiếm ${bagGear().length}/${RULES.gearBag}</span>` : ''}</div>
         ${gear.length ? `<div class="list">${gear.map(rowFor).join('')}</div>` : `<p class="small muted">Đồ bạn mua hoặc nhặt được sẽ nằm ở đây. Đồ đang mặc xem ở tab Nhân vật.</p>`}
       </div>
       <p class="small muted">Muốn bán đồ thì gặp Thợ Rèn hoặc Bà Lang trong Làng.</p>`;
@@ -756,12 +767,16 @@
     </div>`;
   }
 
+  // đồ chỉ số ngẫu nhiên trong túi (không đang mặc), hiếm trước
+  const bagGear = () => Object.values(P.view.gear).filter((g) => !Object.values(P.equip).includes(g.uid))
+    .sort((a, b) => b.rarity - a.rarity || (b.level || 0) - (a.level || 0)).map((g) => g.uid);
+
   function sellCard() {
-    const ids = Object.keys(P.inv).filter((id) => P.inv[id] > 0);
+    const ids = Object.keys(P.inv).filter((id) => P.inv[id] > 0).concat(bagGear());
     return `<div class="card"><h3>Bán đồ</h3>
       ${ids.length ? `<div class="list">${ids.map((id) => {
-        const it = ITEMS[id], n = P.inv[id];
-        return `<div class="item">${itemIcon(it)}<div class="grow"><div class="name">${itemName(id)}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div></div>
+        const it = itemOf(id), n = isGear(id) ? 1 : P.inv[id];
+        return `<div class="item">${itemIcon(it, it.rarity)}<div class="grow"><div class="name">${itemName(id)}${n > 1 ? ` <span class="muted num">×${n}</span>` : ''}</div></div>
           <button class="btn" data-act="sell" data-id="${id}" aria-label="Bán ${it.name}">Bán ${fmt(it.sell)}</button></div>`;
       }).join('')}</div>` : '<p class="small muted">Túi trống. Đồ đang mặc không bán được.</p>'}
     </div>`;
@@ -771,7 +786,7 @@
     const rows = [['weapon', 'Vũ khí'], ['armor', 'Giáp'], ['shield', 'Khiên']].map(([slot, label]) => {
       const f = P.view.forge[slot];
       if (!f) return '';
-      const it = ITEMS[f.id], c = f.cost;
+      const it = itemOf(f.id), c = f.cost;
       const need = c ? Object.entries(c.items) : [];
       const ok = c && P.gold >= c.gold && need.every(([id, n]) => (P.inv[id] || 0) >= n);
       const step = it.atk || it.def ? Math.max(1, Math.round((it.atk || it.def) * 0.08)) : 0;
@@ -950,6 +965,7 @@
         <div class="card result ${r}">
           <h2>${title}</h2>
           ${rw ? `<p class="num">+${fmt(rw.xp)} kinh nghiệm · +${fmt(rw.gold)} vàng${rw.items.length ? ' · ' + rw.items.map((id) => ITEMS[id].name).join(', ') : ''}</p>` : ''}
+          ${rw && rw.gear ? `<p class="gear-drop">🎁 ${rw.gear.map(esc).join(', ')}</p>` : ''}
           ${rw && rw.levels ? `<p style="color:var(--gold);font-weight:600">Lên cấp ${P.level}! Vào tab Nhân vật để cộng điểm.</p>` : ''}
           <div class="btn-row">
             <button class="btn primary" data-act="leave">${r === 'lose' ? `${icon('village')} Về nhà` : `${icon('walk')} Tiếp tục`}</button>

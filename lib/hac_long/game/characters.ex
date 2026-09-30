@@ -79,10 +79,14 @@ defmodule HacLong.Game.Characters do
       tower: tower(c.tower),
       tower_best: c.tower_best || 0,
       tutorial: c.tutorial,
-      upgrades: Map.filter(c.upgrades || %{}, fn {id, _} -> HacLong.Game.Data.item(id) end),
+      upgrades:
+        Map.filter(c.upgrades || %{}, fn {id, _} ->
+          HacLong.Game.Data.item(id) || HacLong.Game.Gear.instance?(id)
+        end),
       fish_caught: c.fish_caught || 0,
       achievements: c.achievements || [],
-      title: c.title
+      title: c.title,
+      gear: HacLong.Game.Gear.load(c.gear)
     }
   end
 
@@ -154,7 +158,7 @@ defmodule HacLong.Game.Characters do
                  ~w(zone monster turn skillCd cds effects player turns power on_hit effect chance
                     log over result reward encounter map mid world world_boss tower elite
                     id name level boss final special maxHp atk def crit dodge xp gold hp
-                    every mult text kind items levels)a,
+                    every mult text kind items levels gear)a,
                  &{Atom.to_string(&1), &1}
                )
 
