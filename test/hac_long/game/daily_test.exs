@@ -14,9 +14,12 @@ defmodule HacLong.Game.DailyTest do
     assert Daily.seconds_left(~U[2026-10-01 16:59:00Z]) == 60
   end
 
-  test "mỗi ngày 3 việc cố định theo tên và ngày, lấy từ vùng đã mở" do
+  test "mỗi ngày 4 việc cố định theo tên và ngày, lấy từ vùng đã mở" do
     p = Daily.ensure(player(), "2026-10-01")
-    assert [%{kind: "kill"}, %{kind: "zone"}, %{kind: "gather"}] = p.daily.tasks
+
+    assert [%{kind: "kill"}, %{kind: "zone"}, %{kind: "gather"}, %{kind: "fish"}] =
+             p.daily.tasks
+
     assert Enum.all?(p.daily.tasks, &(&1.zone == 0 and &1.progress == 0 and not &1.claimed))
     assert Enum.all?(p.daily.tasks, &(&1.reward.gold > 0 and &1.reward.xp > 0))
     kill = hd(p.daily.tasks)
@@ -40,7 +43,7 @@ defmodule HacLong.Game.DailyTest do
 
   test "tiến độ, nhận thưởng một lần ở Bảng Tin" do
     p = Daily.ensure(player(), "2026-10-01")
-    [kill, zone, gather] = p.daily.tasks
+    [kill, zone, gather, fish] = p.daily.tasks
 
     p = Enum.reduce(1..kill.count, p, fn _, p -> Daily.on_kill(p, kill.target, 0) end)
 
@@ -50,6 +53,11 @@ defmodule HacLong.Game.DailyTest do
     assert Enum.at(p.daily.tasks, 2).progress == gather.count
     assert Daily.ready?(p)
 
+    # câu cá: cá thật mới tính, giày cũ thì không
+    p = Enum.reduce(1..fish.count, p, fn _, p -> Daily.on_fish(p) end)
+    assert Enum.at(p.daily.tasks, 3).progress == fish.count
+    assert fish.reward.gold > 0
+
     board = %{p | pos: %{map: "village", x: 14, y: 4}}
     far = %{p | pos: %{map: "village", x: 12, y: 15}}
 
@@ -58,6 +66,7 @@ defmodule HacLong.Game.DailyTest do
 
     {%{ok: true}, claimed} = Commands.run(board, %{"act" => "daily_claim", "i" => 0})
     assert claimed.gold == p.gold + kill.reward.gold
+    assert claimed.daily_done == 1
 
     assert {%{ok: false, msg: "Đã nhận thưởng rồi."}, _} =
              Commands.run(claimed, %{"act" => "daily_claim", "i" => 0})
@@ -73,5 +82,15 @@ defmodule HacLong.Game.DailyTest do
 
     assert {%{ok: false}, _} = Commands.run(board, %{"act" => "daily_claim", "i" => 7})
     assert {%{ok: false}, _} = Commands.run(board, %{"act" => "daily_claim", "i" => "x"})
+  end
+
+  test "câu được cá thì tính việc hằng ngày, vớt giày cũ thì không" do
+    p = Daily.ensure(player(), HacLong.Game.Daily.today(DateTime.utc_now()))
+    fish = Enum.find(p.daily.tasks, &(&1.kind == "fish"))
+    assert fish.progress == 0
+    {%{ok: true}, p1} = HacLong.Game.Fishing.land(p, "fish_small")
+    assert Enum.find(p1.daily.tasks, &(&1.kind == "fish")).progress == 1
+    {%{ok: true}, p2} = HacLong.Game.Fishing.land(p, "old_boot")
+    assert Enum.find(p2.daily.tasks, &(&1.kind == "fish")).progress == 0
   end
 end

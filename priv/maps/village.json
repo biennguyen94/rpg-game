@@ -243,6 +243,74 @@
         "Trong tháp máu không tự hồi đâu, mang đủ bình máu vào.",
         "Vượt mỗi 10 tầng thì lần sau ta cho vào thẳng từ tầng đó."
       ]
+    },
+    {
+      "id": "carpenter",
+      "name": "Thợ Mộc",
+      "sprite": "carpenter",
+      "at": [
+        4,
+        14
+      ],
+      "role": "carpenter",
+      "lines": [
+        "Tượng, cây cảnh, đài phun nước... nhà đẹp thì ở mới sướng.",
+        "Nhà càng tiện nghi, nghỉ ngơi càng mau lại sức mà đi săn."
+      ]
+    },
+    {
+      "id": "pet_keeper",
+      "name": "Người Nuôi Thú",
+      "sprite": "pet_keeper",
+      "at": [
+        21,
+        14
+      ],
+      "role": "pets",
+      "lines": [
+        "Mấy đứa nhỏ này ngoan lắm, dắt theo đi săn là có ích ngay.",
+        "Mỗi con một tài, cậu cứ chọn con hợp ý."
+      ]
+    },
+    {
+      "id": "merchant",
+      "name": "Chủ Chợ",
+      "sprite": "merchant",
+      "at": [
+        7,
+        15
+      ],
+      "role": "market",
+      "lines": [
+        "Ai có đồ tốt thì mang ra đây rao, ai cần thì vào mua. Chợ lấy 5% phí thôi.",
+        "Bán được thì tiền gửi về hộp thư, khỏi phải ngồi chờ."
+      ]
+    },
+    {
+      "id": "cook",
+      "name": "Bác Đầu Bếp",
+      "sprite": "cook",
+      "at": [
+        3,
+        9
+      ],
+      "role": "cook",
+      "lines": [
+        "Cá tươi, rau thơm, lửa to: ăn vào đánh quái khỏe cả buổi!"
+      ]
+    },
+    {
+      "id": "festival",
+      "name": "Người Tổ Chức Hội",
+      "sprite": "festival",
+      "at": [
+        9,
+        5
+      ],
+      "role": "event",
+      "lines": [
+        "Mùa nào lễ nấy! Mang quà lễ hội tới đây đổi thưởng nhé."
+      ]
     }
   ],
   "spawns": []

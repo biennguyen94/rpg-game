@@ -46,6 +46,9 @@ defmodule HacLong.World.MapServer do
 
   def leave(map_id, uid), do: GenServer.call(via(map_id), {:leave, uid})
 
+  @doc "Đổi thông tin người khác thấy (tên, cấp, ngoại hình...) của người đang ở bản đồ."
+  def update(map_id, uid, info), do: GenServer.call(via(map_id), {:update, uid, info})
+
   @doc """
   Người chơi bước sang ô `{x, y}` (đã kiểm tra địa hình). Trả về:
   `:ok` (đã đi), `{:engage, quái}` (ô có quái, quái đã bị khóa cho người này, người
@@ -58,6 +61,9 @@ defmodule HacLong.World.MapServer do
 
   @doc "Trận thắng: quái biến mất và hẹn giờ hồi lại."
   def defeat(map_id, uid, mid), do: GenServer.call(via(map_id), {:defeat, uid, mid})
+
+  @doc "Người giữ quái rời trận chung nhưng đồng đội vẫn đánh: chuyển quái cho `to`."
+  def reassign(map_id, from, mid, to), do: GenServer.call(via(map_id), {:reassign, from, mid, to})
 
   @doc "Trận thua hoặc bỏ chạy: nhả quái ra."
   def release(map_id, uid, mid), do: GenServer.call(via(map_id), {:release, uid, mid})
@@ -111,6 +117,13 @@ defmodule HacLong.World.MapServer do
 
   def handle_call({:leave, uid}, _from, s), do: {:reply, :ok, remove_player(s, uid)}
 
+  def handle_call({:update, uid, info}, _from, s) do
+    case s.players[uid] do
+      nil -> {:reply, :ok, s}
+      pl -> {:reply, :ok, changed(put_in(s.players[uid], Map.merge(pl, info)))}
+    end
+  end
+
   def handle_call({:step, uid, pos, confirm?}, _from, s) do
     case node_at(s, pos) do
       nil -> step_monster(s, uid, pos, confirm?)
@@ -130,6 +143,13 @@ defmodule HacLong.World.MapServer do
 
       _ ->
         {:reply, :ok, s}
+    end
+  end
+
+  def handle_call({:reassign, from, mid, to}, _from, s) do
+    case s.monsters[mid] do
+      %{busy: ^from} -> {:reply, :ok, changed(put_in(s.monsters[mid].busy, to))}
+      _ -> {:reply, :ok, s}
     end
   end
 
@@ -209,7 +229,7 @@ defmodule HacLong.World.MapServer do
         {:reply, {:engage, public(m)}, s}
 
       %{} = m ->
-        {:reply, {:busy, public(m)}, s}
+        {:reply, {:busy, Map.put(public(m), :owner, m.busy)}, s}
 
       nil ->
         s = if s.players[uid], do: put_in(s.players[uid].pos, pos), else: s
@@ -377,7 +397,17 @@ defmodule HacLong.World.MapServer do
       players:
         Enum.map(s.players, fn {uid, p} ->
           {x, y} = p.pos
-          %{id: uid, name: p.name, cls: p.cls, level: p.level, x: x, y: y}
+
+          %{
+            id: uid,
+            name: p.name,
+            cls: p.cls,
+            level: p.level,
+            look: p[:look],
+            tag: p[:tag],
+            x: x,
+            y: y
+          }
         end)
     }
   end

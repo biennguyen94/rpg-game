@@ -8,7 +8,7 @@ defmodule HacLong.Game.Engine do
   để test cố định được kết quả.
   """
 
-  alias HacLong.Game.{Bestiary, Data, Gear, Rng}
+  alias HacLong.Game.{Bestiary, Crafting, Data, Events, Gear, Home, Pets, Rng}
 
   @save_version 1
   @points_per_level 3
@@ -62,6 +62,16 @@ defmodule HacLong.Game.Engine do
           bestiary: %{},
           rebirths: 0,
           chest_day: nil,
+          pet: nil,
+          pets: [],
+          pet_xp: %{},
+          daily_done: 0,
+          boss_top: 0,
+          food: nil,
+          crafting: %{cook: 0, smith: 0},
+          festival: 0,
+          furniture: %{},
+          decor: [],
           fish_caught: 0,
           achievements: [],
           title: nil,
@@ -86,16 +96,21 @@ defmodule HacLong.Game.Engine do
 
     up = fn id -> if id, do: upgrade_bonus(p, id), else: 0 end
 
+    # thú cưng đang dắt theo cộng phần trăm
+    # thú cưng đang dắt theo và món đang ăn cộng phần trăm
+    pet = fn key -> 1 + Pets.bonus(p, key) + Crafting.food_bonus(p, key) end
+
     %{
-      maxHp: round(40 + s.vit * 12 + p.level * 10),
+      maxHp: round((40 + s.vit * 12 + p.level * 10) * pet.(:hp)),
       atk:
         round(
-          s.str * 2.2 + s.agi * 0.9 + if(w, do: w.atk, else: 0) + up.(p.equip.weapon) + p.level
+          (s.str * 2.2 + s.agi * 0.9 + if(w, do: w.atk, else: 0) + up.(p.equip.weapon) + p.level) *
+            pet.(:atk)
         ),
       def:
         round(
-          s.def * 1.6 + if(a, do: a.def, else: 0) + if(sh, do: sh.def, else: 0) +
-            up.(p.equip.armor) + up.(p.equip.shield) + p.level * 0.5
+          (s.def * 1.6 + if(a, do: a.def, else: 0) + if(sh, do: sh.def, else: 0) +
+             up.(p.equip.armor) + up.(p.equip.shield) + p.level * 0.5) * pet.(:def)
         ),
       crit: clamp(0.04 + s.agi * 0.008, 0, 0.6),
       critMult: min(2.5, 1.6 + s.agi * 0.006),
@@ -113,6 +128,8 @@ defmodule HacLong.Game.Engine do
       xpToNext: xp_to_next(p.level),
       restCost: rest_cost(p),
       unlocked: Enum.map(0..(Data.zone_count() - 1), &zone_unlocked?(p, &1)),
+      look: look(p),
+      comfort: Home.comfort(p),
       # cộng thêm của đồ đã nâng cấp (để client so sánh đồ) và giá nâng cấp đồ đang mặc
       bonus: upgrades(p) |> Map.keys() |> Map.new(&{&1, upgrade_bonus(p, &1)}),
       forge:
@@ -438,9 +455,65 @@ defmodule HacLong.Game.Engine do
             |> on_hit.(dmg)
           end
 
+        p = pet_bite(p, d)
         if p.battle.monster.hp <= 0, do: win(p), else: monster_turn(p, d)
     end
   end
+
+  # Thú cưng đi theo thỉnh thoảng cắn thêm (khi quái còn sống)
+  defp pet_bite(p, d) do
+    m = p.battle.monster
+
+    bite =
+      if m.hp > 0 and Map.get(p, :pet),
+        do: Pets.bite(p, damage(d.atk, m.def), Rng.uniform()),
+        else: 0
+
+    if bite > 0 do
+      sk = Pets.active_skill(p)
+      bite = if sk && sk.id == "rend", do: bite * 2, else: bite
+      what = if sk && sk.id == "rend", do: "#{sk.name}: ", else: ""
+
+      p
+      |> update_in([:battle, :monster, :hp], &max(0, &1 - bite))
+      |> log("🐾 #{Pets.name(p)} #{what}cắn thêm #{bite} sát thương.", "hit")
+      |> pet_skill(sk, d, bite)
+    else
+      p
+    end
+  end
+
+  # kỹ năng riêng của thú (từ cấp 5), dùng khi thú cắn
+  defp pet_skill(p, %{id: "heal"} = sk, d, _bite) do
+    healed = min(d.maxHp - p.hp, max(1, round(d.maxHp * 0.05)))
+
+    if healed > 0,
+      do: %{p | hp: p.hp + healed} |> log("🐾 #{sk.name}: hồi #{healed} máu.", "good"),
+      else: p
+  end
+
+  defp pet_skill(p, %{id: "bash"} = sk, _d, _bite) do
+    p
+    |> put_effect(:monster, "weaken", 2, 0.15)
+    |> log("🐾 #{sk.name}: #{p.battle.monster.name} bị suy yếu.", "good")
+  end
+
+  defp pet_skill(p, %{id: "pickpocket"} = sk, _d, _bite) do
+    gold = max(1, p.battle.monster.level * 3)
+    %{p | gold: p.gold + gold} |> log("🐾 #{sk.name}: móc được #{gold} vàng.", "good")
+  end
+
+  defp pet_skill(p, %{id: "venom"} = sk, _d, bite) do
+    if p.battle.monster.hp > 0 do
+      p
+      |> put_effect(:monster, "poison", 3, max(1, round(bite * 0.5)))
+      |> log("🐾 #{sk.name}: #{p.battle.monster.name} trúng độc.", "good")
+    else
+      p
+    end
+  end
+
+  defp pet_skill(p, _sk, _d, _bite), do: p
 
   # Trả về {nhân_vật, tấn_công, phòng_thủ_quái, chí_mạng?, hệ_số, tên, hàm_sau_khi_trúng}.
   defp strike_with(p, nil, _d, atk, dfn, crit),
@@ -649,18 +722,56 @@ defmodule HacLong.Game.Engine do
     end
   end
 
+  # lễ hội: quái thường có thể rơi vật phẩm lễ hội, trùm rơi 3 cái
+  defp event_drop(p, _m, nil, reward), do: {p, reward}
+
+  defp event_drop(p, m, event, reward) do
+    n =
+      cond do
+        m.boss or m[:world] -> 3
+        chance(Events.drop_chance()) -> 1
+        true -> 0
+      end
+
+    if n > 0 do
+      name = Data.item(event.token).name
+      p = p |> add_item(event.token, n) |> log("#{event.icon} Nhặt được #{name} ×#{n}.", "good")
+      {p, %{reward | items: reward.items ++ [event.token]}}
+    else
+      {p, reward}
+    end
+  end
+
+  @doc "Kết thúc trận bằng chiến thắng dù quái chưa hết máu ở trận này (đồng đội hạ quái)."
+  def finish_win(%{battle: %{over: false}} = p) do
+    p |> put_in([:battle, :monster, :hp], 0) |> win()
+  end
+
+  def finish_win(p), do: {ok(), p}
+
   defp win(p) do
     m = p.battle.monster
-    p = %{p | kills: p.kills + 1, gold: p.gold + m.gold}
-    reward = %{xp: m.xp, gold: m.gold, items: [], levels: 0}
+    # thú cưng (vàng, kinh nghiệm) và nhà trang trí (kinh nghiệm) cộng thêm
+    event = if m[:pvp], do: nil, else: Events.current()
+    gold = round(m.gold * (1 + Pets.bonus(p, :gold) + Crafting.food_bonus(p, :gold)))
+
+    xp =
+      round(
+        m.xp *
+          (1 + Pets.bonus(p, :xp) + Home.xp_bonus(p) + Crafting.food_bonus(p, :xp) +
+             Events.xp_bonus(event))
+      )
+
+    p = %{p | kills: p.kills + 1, gold: p.gold + gold}
+    reward = %{xp: xp, gold: gold, items: [], levels: 0}
 
     p =
       if m[:world],
         do: log(p, "🏆 #{m.name} gục ngã dưới đòn của bạn!", "win"),
-        else: log(p, "🏆 Bạn đã hạ #{m.name}! +#{m.xp} kinh nghiệm, +#{m.gold} vàng.", "win")
+        else: log(p, "🏆 Bạn đã hạ #{m.name}! +#{xp} kinh nghiệm, +#{gold} vàng.", "win")
 
     {p, reward} =
-      if not m.boss and !m[:world] and chance(0.12) do
+      if not m.boss and !m[:world] and !m[:pvp] and chance(0.12) do
         id =
           cond do
             m.level >= 20 -> "potion_l"
@@ -674,13 +785,18 @@ defmodule HacLong.Game.Engine do
         {p, reward}
       end
 
+    {p, reward} = event_drop(p, m, event, reward)
+
     {p, reward} =
       if m.boss and m.id not in p.bosses, do: first_boss_kill(p, m, reward), else: {p, reward}
 
     {p, reward} = gear_drop(p, m, reward)
 
     {p, reward} =
-      case Bestiary.record(p, m) do
+      case !m[:pvp] && Bestiary.record(p, m) do
+        false ->
+          {p, reward}
+
         {p, nil} ->
           {p, reward}
 
@@ -692,7 +808,25 @@ defmodule HacLong.Game.Engine do
            %{reward | gold: reward.gold + mark.gold}}
       end
 
-    {levels, p} = gain_xp(p, m.xp)
+    {p, pet_up} = if m[:pvp], do: {p, nil}, else: Pets.gain(p, m.boss || m[:world] == true)
+
+    p =
+      cond do
+        pet_up == Pets.skill_level() ->
+          log(
+            p,
+            "🐾 #{Pets.name(p)} lên cấp #{pet_up}, học được #{Pets.skill(p.pet).name}!",
+            "win"
+          )
+
+        pet_up ->
+          log(p, "🐾 #{Pets.name(p)} lên cấp #{pet_up}!", "win")
+
+        true ->
+          p
+      end
+
+    {levels, p} = gain_xp(p, xp)
 
     p =
       if levels > 0,
@@ -767,7 +901,7 @@ defmodule HacLong.Game.Engine do
   end
 
   defp finish(p, result) do
-    p = update_in(p.battle, &%{&1 | over: true, result: result})
+    p = update_in(p.battle, &%{&1 | over: true, result: result}) |> Crafting.tick()
     {%{ok: true, result: result}, p}
   end
 
@@ -795,6 +929,24 @@ defmodule HacLong.Game.Engine do
       p = if levels > 0, do: %{p | hp: derived(p).maxHp}, else: p
       {levels, p}
     end
+  end
+
+  # ---------- Ngoại hình ----------
+
+  @doc """
+  Ngoại hình để vẽ nhân vật (và gửi cho người khác trên bản đồ): lớp tóc theo lớp nhân vật,
+  lớp hình của vũ khí, giáp, khiên đang mặc (`doll` trong dữ liệu đồ) và thú cưng đang dắt.
+  """
+  def look(p) do
+    doll = fn id -> (it = Gear.item(p, id)) && it[:doll] end
+
+    %{
+      hair: Data.class(p.cls)[:hair],
+      weapon: doll.(p.equip.weapon),
+      armor: doll.(p.equip.armor),
+      shield: doll.(p.equip.shield),
+      pet: Map.get(p, :pet)
+    }
   end
 
   # ---------- Nâng cấp đồ (Thợ Rèn) ----------

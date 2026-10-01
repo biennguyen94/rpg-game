@@ -6,7 +6,22 @@ defmodule HacLong.Game.Commands do
   Client chỉ gửi *ý định* (tấn công, mua món X...), mọi con số đều do server tính.
   """
 
-  alias HacLong.Game.{Achievements, Chests, Daily, Data, Engine, Fishing, Quests, Tower, Tutorial}
+  alias HacLong.Game.{
+    Achievements,
+    Chests,
+    Crafting,
+    Daily,
+    Data,
+    Engine,
+    Events,
+    Fishing,
+    Home,
+    Pets,
+    Quests,
+    Tower,
+    Tutorial
+  }
+
   alias HacLong.World
   alias HacLong.World.Maps
 
@@ -54,7 +69,19 @@ defmodule HacLong.Game.Commands do
         Engine.unequip(p, c["slot"])
 
       "use" ->
-        Engine.use_potion(p, c["id"])
+        case Data.item(c["id"]) do
+          %{slot: "food"} -> Crafting.eat(p, c["id"])
+          _ -> Engine.use_potion(p, c["id"])
+        end
+
+      "cook" ->
+        at_npc(p, ["cook"], "Bác Đầu Bếp ở Làng", fn _ -> Crafting.cook(p, c["id"]) end)
+
+      "smith" ->
+        at_npc(p, ["shop"], "Thợ Rèn ở Làng", fn _ -> Crafting.smith(p, c["slot"]) end)
+
+      "event_exchange" ->
+        at_npc(p, ["event"], "Người Tổ Chức Hội ở Làng", fn _ -> Events.exchange(p, c["id"]) end)
 
       "sell" ->
         sell(p, c["id"])
@@ -73,6 +100,24 @@ defmodule HacLong.Game.Commands do
 
       "fish_reel" ->
         Fishing.reel(p, System.monotonic_time(:millisecond))
+
+      "pet_buy" ->
+        at_npc(p, ["pets"], "Người Nuôi Thú ở Làng", fn _ -> Pets.buy(p, c["id"]) end)
+
+      "pet_tame" ->
+        at_npc(p, ["pets"], "Người Nuôi Thú ở Làng", fn _ -> Pets.tame(p, c["id"]) end)
+
+      "pet_choose" ->
+        Pets.choose(p, c["id"])
+
+      "decor_buy" ->
+        at_npc(p, ["carpenter"], "Thợ Mộc ở Làng", fn _ -> Home.buy(p, c["id"]) end)
+
+      "decor_place" ->
+        Home.place(p, c["id"], int(c["x"]), int(c["y"]))
+
+      "decor_take" ->
+        Home.take(p, int(c["x"]), int(c["y"]))
 
       "chest_buy" ->
         at_npc(p, ["shop"], "Thợ Rèn ở Làng", fn _ -> Chests.buy(p, c["tier"]) end)
@@ -140,7 +185,7 @@ defmodule HacLong.Game.Commands do
   defp craft(p, id) do
     at_npc(p, ["herbalist"], "Bà Lang", fn _ ->
       case Data.recipe(id) do
-        nil ->
+        r when r == nil or r.npc != "herbalist" ->
           {%{ok: false, msg: "Không có công thức này."}, p}
 
         r ->

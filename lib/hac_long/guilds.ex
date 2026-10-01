@@ -71,7 +71,8 @@ defmodule HacLong.Guilds do
           fund: g.fund,
           open: g.open,
           notice: g.notice,
-          leader_id: g.leader_id
+          leader_id: g.leader_id,
+          boss_damage: g.boss_damage
         }
     )
   end
@@ -158,7 +159,9 @@ defmodule HacLong.Guilds do
           xp_bonus: xp_bonus(lv),
           members: members,
           role: me && me.role,
-          requests: if(staff?, do: requests(gid), else: [])
+          requests: if(staff?, do: requests(gid), else: []),
+          quest: HacLong.GuildQuests.current(gid),
+          boss_damage: g.boss_damage
         })
     end
   end

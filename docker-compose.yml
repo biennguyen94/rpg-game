@@ -1,0 +1,44 @@
+# Hắc Long: game + PostgreSQL. Xem docs/DEPLOY.md.
+#   cp .env.example .env   # rồi sửa các giá trị
+#   docker compose up -d --build
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hac_long
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?đặt POSTGRES_PASSWORD trong .env}
+      POSTGRES_DB: hac_long
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hac_long -d hac_long"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # không mở cổng database ra ngoài
+
+  app:
+    build: .
+    image: hac_long:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://hac_long:${POSTGRES_PASSWORD}@db/hac_long
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?đặt SECRET_KEY_BASE trong .env}
+      PHX_HOST: ${PHX_HOST:?đặt PHX_HOST (IP hoặc domain) trong .env}
+      PHX_SCHEME: ${PHX_SCHEME:-https}
+      PHX_URL_PORT: ${PHX_URL_PORT:-}
+      CHECK_ORIGIN: ${CHECK_ORIGIN:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      PHX_IPV6: ${PHX_IPV6:-}
+      PORT: "4000"
+      POOL_SIZE: "10"
+    ports:
+      # APP_BIND=127.0.0.1 khi đã có TLS proxy trên cùng máy (chỉ proxy vào được cổng 4000)
+      - "${APP_BIND:-0.0.0.0}:${APP_PORT:-4000}:4000"
+
+volumes:
+  db:

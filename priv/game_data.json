@@ -41,7 +41,8 @@
           "cooldown": 6,
           "level": 25
         }
-      ]
+      ],
+      "hair": "hair/knot_red"
     },
     "rogue": {
       "name": "Thích Khách",
@@ -84,7 +85,8 @@
           "cooldown": 5,
           "level": 25
         }
-      ]
+      ],
+      "hair": "hair/elf_black"
     },
     "knight": {
       "name": "Hiệp Sĩ",
@@ -127,7 +129,8 @@
           "cooldown": 5,
           "level": 25
         }
-      ]
+      ],
+      "hair": "hair/brown1"
     }
   },
   "ZONES": [
@@ -459,7 +462,8 @@
       "icon": "wood-club",
       "atk": 3,
       "price": 0,
-      "level": 1
+      "level": 1,
+      "doll": "hand1/club_slant"
     },
     "dagger": {
       "name": "Dao Găm",
@@ -467,7 +471,8 @@
       "icon": "broad-dagger",
       "atk": 7,
       "price": 60,
-      "level": 3
+      "level": 3,
+      "doll": "hand1/dagger"
     },
     "broadsword": {
       "name": "Kiếm Sắt",
@@ -475,7 +480,8 @@
       "icon": "broadsword",
       "atk": 13,
       "price": 220,
-      "level": 7
+      "level": 7,
+      "doll": "hand1/broadsword"
     },
     "mace": {
       "name": "Chùy Gai",
@@ -483,7 +489,8 @@
       "icon": "spiked-mace",
       "atk": 21,
       "price": 650,
-      "level": 12
+      "level": 12,
+      "doll": "hand1/morningstar"
     },
     "battleaxe": {
       "name": "Rìu Chiến",
@@ -491,7 +498,8 @@
       "icon": "battle-axe",
       "atk": 31,
       "price": 1600,
-      "level": 17
+      "level": 17,
+      "doll": "hand1/battleaxe"
     },
     "greatsword": {
       "name": "Đại Kiếm",
@@ -499,7 +507,8 @@
       "icon": "two-handed-sword",
       "atk": 44,
       "price": 3600,
-      "level": 22
+      "level": 22,
+      "doll": "hand1/great_sword_slant"
     },
     "waraxe": {
       "name": "Rìu Song Nhận",
@@ -507,7 +516,8 @@
       "icon": "war-axe",
       "atk": 60,
       "price": 7500,
-      "level": 27
+      "level": 27,
+      "doll": "hand1/axe_double"
     },
     "relic": {
       "name": "Thánh Kiếm Diệt Long",
@@ -516,7 +526,8 @@
       "atk": 82,
       "price": 0,
       "level": 30,
-      "drop": true
+      "drop": true,
+      "doll": "hand1/heavy_sword"
     },
     "vest": {
       "name": "Áo Da Mỏng",
@@ -524,7 +535,8 @@
       "icon": "leather-vest",
       "def": 2,
       "price": 0,
-      "level": 1
+      "level": 1,
+      "doll": "body/shirt_vest"
     },
     "leather": {
       "name": "Giáp Da",
@@ -532,7 +544,8 @@
       "icon": "leather-armor",
       "def": 5,
       "price": 70,
-      "level": 3
+      "level": 3,
+      "doll": "body/leather_jacket"
     },
     "chain": {
       "name": "Giáp Xích",
@@ -540,7 +553,8 @@
       "icon": "chain-mail",
       "def": 10,
       "price": 260,
-      "level": 7
+      "level": 7,
+      "doll": "body/leather_metal"
     },
     "scale": {
       "name": "Giáp Vảy",
@@ -548,7 +562,8 @@
       "icon": "scale-mail",
       "def": 16,
       "price": 700,
-      "level": 12
+      "level": 12,
+      "doll": "body/dragonsc_brown"
     },
     "lamellar": {
       "name": "Giáp Lá",
@@ -556,7 +571,8 @@
       "icon": "lamellar",
       "def": 24,
       "price": 1700,
-      "level": 17
+      "level": 17,
+      "doll": "body/half_plate"
     },
     "breastplate": {
       "name": "Giáp Ngực Thép",
@@ -564,7 +580,8 @@
       "icon": "breastplate",
       "def": 34,
       "price": 3800,
-      "level": 22
+      "level": 22,
+      "doll": "body/bplate_metal1"
     },
     "round": {
       "name": "Khiên Tròn",
@@ -572,7 +589,8 @@
       "icon": "round-shield",
       "def": 3,
       "price": 90,
-      "level": 4
+      "level": 4,
+      "doll": "hand2/buckler_round"
     },
     "checked": {
       "name": "Khiên Hiệp Sĩ",
@@ -580,7 +598,8 @@
       "icon": "checked-shield",
       "def": 7,
       "price": 450,
-      "level": 10
+      "level": 10,
+      "doll": "hand2/shield_knight_rw"
     },
     "spiked": {
       "name": "Khiên Gai",
@@ -588,7 +607,8 @@
       "icon": "spiked-shield",
       "def": 12,
       "price": 1500,
-      "level": 17
+      "level": 17,
+      "doll": "hand2/shield_kite2"
     },
     "dragonshield": {
       "name": "Khiên Vảy Rồng",
@@ -597,7 +617,8 @@
       "def": 20,
       "price": 0,
       "level": 24,
-      "drop": true
+      "drop": true,
+      "doll": "hand2/lshield_gold"
     },
     "potion_s": {
       "name": "Bình Máu Nhỏ",
@@ -653,21 +674,21 @@
       "slot": "material",
       "sprite": "items/fish_small",
       "price": 10,
-      "desc": "Câu ở hồ nước. Bán cho Bà Lang hoặc Thợ Rèn."
+      "desc": "Câu ở hồ nước. Bà Lang nấu 2 con thành Bình Máu Nhỏ."
     },
     "fish_carp": {
       "name": "Cá Chép",
       "slot": "material",
       "sprite": "items/fish_carp",
       "price": 25,
-      "desc": "Câu ở hồ nước. Bán được giá khá."
+      "desc": "Câu ở hồ nước. Bà Lang nấu 2 con thành Bình Máu Vừa."
     },
     "fish_eel": {
       "name": "Lươn Điện",
       "slot": "material",
       "sprite": "items/fish_eel",
       "price": 60,
-      "desc": "Chỉ có ở Đầm Lầy và Hang Rồng."
+      "desc": "Chỉ có ở Đầm Lầy và Hang Rồng. Bà Lang nấu 2 con thành Bình Máu Lớn."
     },
     "fish_gold": {
       "name": "Cá Chép Vàng",
@@ -689,6 +710,88 @@
       "sprite": "nodes/dragon_scale",
       "price": 1000,
       "desc": "Chiến lợi phẩm từ trùm thế giới. Bán được giá cao."
+    },
+    "cha_ca": {
+      "name": "Chả Cá",
+      "slot": "food",
+      "sprite": "food/cha_ca",
+      "price": 20,
+      "food": {
+        "buff": {
+          "atk": 0.1
+        },
+        "battles": 5
+      },
+      "desc": "Tấn công +10% trong 5 trận."
+    },
+    "banh_mi_ca": {
+      "name": "Bánh Mì Cá",
+      "slot": "food",
+      "sprite": "food/banh_mi_ca",
+      "price": 40,
+      "food": {
+        "buff": {
+          "def": 0.12
+        },
+        "battles": 5
+      },
+      "desc": "Phòng thủ +12% trong 5 trận."
+    },
+    "banh_xeo_luon": {
+      "name": "Bánh Xèo Lươn",
+      "slot": "food",
+      "sprite": "food/banh_xeo_luon",
+      "price": 120,
+      "food": {
+        "buff": {
+          "hp": 0.12,
+          "atk": 0.08
+        },
+        "battles": 8
+      },
+      "desc": "Máu tối đa +12%, tấn công +8% trong 8 trận."
+    },
+    "mam_co": {
+      "name": "Mâm Cỗ Cá Vàng",
+      "slot": "food",
+      "sprite": "food/mam_co",
+      "price": 600,
+      "food": {
+        "buff": {
+          "xp": 0.2,
+          "gold": 0.1
+        },
+        "battles": 10
+      },
+      "desc": "Kinh nghiệm +20%, vàng +10% trong 10 trận."
+    },
+    "moon_cake": {
+      "name": "Bánh Trung Thu",
+      "slot": "material",
+      "sprite": "items/moon_cake",
+      "price": 1,
+      "desc": "Quà Tết Trung Thu. Mang tới Người Tổ Chức Hội đổi quà."
+    },
+    "pumpkin_candy": {
+      "name": "Kẹo Bí Ngô",
+      "slot": "material",
+      "sprite": "items/pumpkin_candy",
+      "price": 1,
+      "desc": "Quà lễ hội Bí Ngô. Mang tới Người Tổ Chức Hội đổi quà."
+    },
+    "gift_box": {
+      "name": "Hộp Quà Giáng Sinh",
+      "slot": "material",
+      "sprite": "items/gift_box",
+      "price": 1,
+      "desc": "Quà Giáng Sinh. Mang tới Người Tổ Chức Hội đổi quà."
+    },
+    "lucky_apple": {
+      "name": "Quả Lộc",
+      "slot": "material",
+      "sprite": "items/lucky_apple",
+      "price": 1,
+      "desc": "Lộc đầu xuân. Mang tới Người Tổ Chức Hội đổi quà."
     }
   },
   "BOSS_DROPS": {
@@ -738,6 +841,70 @@
         "herb_rare": 2
       },
       "npc": "herbalist"
+    },
+    {
+      "id": "cook_small",
+      "out": "potion_s",
+      "needs": {
+        "fish_small": 2
+      },
+      "npc": "herbalist"
+    },
+    {
+      "id": "cook_carp",
+      "out": "potion_m",
+      "needs": {
+        "fish_carp": 2
+      },
+      "npc": "herbalist"
+    },
+    {
+      "id": "cook_eel",
+      "out": "potion_l",
+      "needs": {
+        "fish_eel": 2
+      },
+      "npc": "herbalist"
+    },
+    {
+      "id": "cook_cha_ca",
+      "out": "cha_ca",
+      "needs": {
+        "fish_small": 2,
+        "herb": 1
+      },
+      "npc": "cook",
+      "level": 1
+    },
+    {
+      "id": "cook_banh_mi_ca",
+      "out": "banh_mi_ca",
+      "needs": {
+        "fish_carp": 1,
+        "herb": 2
+      },
+      "npc": "cook",
+      "level": 1
+    },
+    {
+      "id": "cook_banh_xeo_luon",
+      "out": "banh_xeo_luon",
+      "needs": {
+        "fish_eel": 1,
+        "herb_rare": 1
+      },
+      "npc": "cook",
+      "level": 3
+    },
+    {
+      "id": "cook_mam_co",
+      "out": "mam_co",
+      "needs": {
+        "fish_gold": 1,
+        "herb_rare": 2
+      },
+      "npc": "cook",
+      "level": 5
     }
   ],
   "QUESTS": [
@@ -1046,6 +1213,243 @@
           "potion_l": 3
         }
       }
+    }
+  ],
+  "PETS": [
+    {
+      "id": "sheep",
+      "name": "Cừu Bông",
+      "price": 1500,
+      "bonus": {
+        "hp": 0.05
+      },
+      "desc": "Máu tối đa +5%.",
+      "skill": {
+        "id": "heal",
+        "name": "Liếm Vết Thương",
+        "desc": "Khi cắn, hồi cho chủ 5% máu tối đa."
+      }
+    },
+    {
+      "id": "hound",
+      "name": "Chó Săn",
+      "price": 3000,
+      "bonus": {
+        "atk": 0.04
+      },
+      "desc": "Tấn công +4%.",
+      "skill": {
+        "id": "rend",
+        "name": "Cắn Xé",
+        "desc": "Cú cắn gây gấp đôi sát thương."
+      }
+    },
+    {
+      "id": "hog",
+      "name": "Heo Hồng",
+      "price": 3000,
+      "bonus": {
+        "def": 0.05
+      },
+      "desc": "Phòng thủ +5%.",
+      "skill": {
+        "id": "bash",
+        "name": "Húc Ngã",
+        "desc": "Khi cắn, quái bị suy yếu: tấn công -15% trong 2 lượt."
+      }
+    },
+    {
+      "id": "quokka",
+      "name": "Sóc Túi",
+      "price": 5000,
+      "bonus": {
+        "gold": 0.1
+      },
+      "desc": "Vàng từ quái +10%.",
+      "skill": {
+        "id": "pickpocket",
+        "name": "Móc Túi",
+        "desc": "Khi cắn, móc được vàng bằng cấp quái × 3."
+      }
+    },
+    {
+      "id": "butterfly",
+      "name": "Bướm Lửa",
+      "price": 8000,
+      "bonus": {
+        "xp": 0.05
+      },
+      "desc": "Kinh nghiệm +5%.",
+      "skill": {
+        "id": "venom",
+        "name": "Phấn Độc",
+        "desc": "Khi cắn, quái trúng độc 3 lượt."
+      }
+    },
+    {
+      "id": "hippogriff",
+      "name": "Bằng Mã Lửa",
+      "price": 40000,
+      "bonus": {
+        "atk": 0.05,
+        "hp": 0.05
+      },
+      "desc": "Tấn công +5%, máu tối đa +5%.",
+      "skill": {
+        "id": "rend",
+        "name": "Cắn Xé",
+        "desc": "Cú cắn gây gấp đôi sát thương."
+      }
+    }
+  ],
+  "FURNITURE": [
+    {
+      "id": "plant",
+      "name": "Chậu Cây",
+      "price": 300,
+      "comfort": 1
+    },
+    {
+      "id": "lantern",
+      "name": "Đèn Lồng",
+      "price": 500,
+      "comfort": 1
+    },
+    {
+      "id": "crystal",
+      "name": "Quả Cầu Pha Lê",
+      "price": 1200,
+      "comfort": 2
+    },
+    {
+      "id": "tree_gold",
+      "name": "Cây Thu Vàng",
+      "price": 1500,
+      "comfort": 2
+    },
+    {
+      "id": "tree_red",
+      "name": "Cây Phong Đỏ",
+      "price": 1500,
+      "comfort": 2
+    },
+    {
+      "id": "statue_sword",
+      "name": "Bia Kiếm",
+      "price": 2000,
+      "comfort": 3
+    },
+    {
+      "id": "statue_cat",
+      "name": "Tượng Mèo",
+      "price": 2500,
+      "comfort": 3
+    },
+    {
+      "id": "statue_angel",
+      "name": "Tượng Thiên Thần",
+      "price": 4000,
+      "comfort": 4
+    },
+    {
+      "id": "statue_princess",
+      "name": "Tượng Công Chúa",
+      "price": 4000,
+      "comfort": 4
+    },
+    {
+      "id": "statue_dragon",
+      "name": "Tượng Rồng",
+      "price": 6000,
+      "comfort": 5
+    },
+    {
+      "id": "fountain",
+      "name": "Đài Phun Nước",
+      "price": 8000,
+      "comfort": 6
+    },
+    {
+      "id": "disco",
+      "name": "Quả Cầu Nhảy Múa",
+      "price": 10000,
+      "comfort": 6
+    },
+    {
+      "id": "golden_statue",
+      "name": "Tượng Vàng",
+      "price": 15000,
+      "comfort": 8
+    },
+    {
+      "id": "lamp_festival",
+      "name": "Đèn Kéo Quân",
+      "price": 0,
+      "comfort": 6,
+      "event": "mid_autumn"
+    },
+    {
+      "id": "statue_snail",
+      "name": "Tượng Ốc Ma",
+      "price": 0,
+      "comfort": 6,
+      "event": "pumpkin"
+    },
+    {
+      "id": "fountain_sparkle",
+      "name": "Đài Phun Lấp Lánh",
+      "price": 0,
+      "comfort": 8,
+      "event": "christmas"
+    },
+    {
+      "id": "statue_elephant",
+      "name": "Tượng Voi Chúc Phúc",
+      "price": 0,
+      "comfort": 8,
+      "event": "tet"
+    }
+  ],
+  "EVENTS": [
+    {
+      "id": "mid_autumn",
+      "name": "Tết Trung Thu",
+      "icon": "🏮",
+      "from": "09-15",
+      "to": "10-10",
+      "token": "moon_cake",
+      "decor": "lamp_festival",
+      "desc": "Đêm hội trăng rằm: quái rơi Bánh Trung Thu, kinh nghiệm +10%."
+    },
+    {
+      "id": "pumpkin",
+      "name": "Lễ Hội Bí Ngô",
+      "icon": "🎃",
+      "from": "10-25",
+      "to": "11-07",
+      "token": "pumpkin_candy",
+      "decor": "statue_snail",
+      "desc": "Ma quỷ đi chơi: quái rơi Kẹo Bí Ngô, kinh nghiệm +10%."
+    },
+    {
+      "id": "christmas",
+      "name": "Giáng Sinh",
+      "icon": "🎄",
+      "from": "12-15",
+      "to": "01-02",
+      "token": "gift_box",
+      "decor": "fountain_sparkle",
+      "desc": "Mùa đông an lành: quái rơi Hộp Quà, kinh nghiệm +10%."
+    },
+    {
+      "id": "tet",
+      "name": "Tết Nguyên Đán",
+      "icon": "🧧",
+      "from": "01-20",
+      "to": "02-20",
+      "token": "lucky_apple",
+      "decor": "statue_elephant",
+      "desc": "Xuân về: quái rơi Quả Lộc, kinh nghiệm +10%."
     }
   ]
 }

@@ -14,7 +14,7 @@ defmodule HacLong.Game.Fishing do
   Số cá đã câu được lưu ở `fish_caught` (cho thành tựu).
   """
 
-  alias HacLong.Game.{Data, Engine, Rng}
+  alias HacLong.Game.{Daily, Data, Engine, Rng}
   alias HacLong.World.Maps
 
   @wait 3_000..8_000
@@ -86,9 +86,12 @@ defmodule HacLong.Game.Fishing do
     end
   end
 
-  defp catch_fish(p) do
-    id = roll(pool(p.pos.map))
+  defp catch_fish(p), do: land(p, roll(pool(p.pos.map)))
+
+  @doc "Đưa con `id` vừa câu được vào túi (tách riêng để kiểm thử)."
+  def land(p, id) do
     p = p |> Engine.add_item(id) |> Map.put(:fish_caught, Map.get(p, :fish_caught, 0) + 1)
+    p = if id == "old_boot", do: p, else: Daily.on_fish(p)
     name = Data.item(id).name
 
     msg =

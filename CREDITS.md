@@ -28,6 +28,23 @@ Tác giả:
   village, walk, war-axe, wood-club
 - **Willdabeast** (http://wjbstories.blogspot.com): chain-mail, round-shield
 
+## Nhân vật mặc đồ, thú cưng, đồ trang trí (`priv/static/assets/doll/`, `pets/`, `decor/`)
+
+Cũng từ bộ tile Dungeon Crawl Stone Soup ở trên (CC0): các lớp nhân vật trong `player/` (thân,
+quần, giày, tóc, giáp, vũ khí, khiên), thú (`mon/animals`, `mon/hippogriff`), tượng, đài phun
+nước, cây, đồ vật (`dngn/`, `item/misc`, `mon/fungi_plants`), NPC Thợ Mộc (`deep_dwarf`) và
+Người Nuôi Thú (`halfling`). Đã đối chiếu từng file với danh sách chưa rõ giấy phép
+(`TILES_UNDER_UNKNOWN_LICENSE.md`) và chỉ dùng file không có trong danh sách đó.
+
+## Món ăn, quà lễ hội, NPC mới (`food/`, `items/`, `decor/`, `npcs/`)
+
+Cũng từ bộ tile Dungeon Crawl Stone Soup ở trên (CC0), đã đối chiếu với danh sách chưa rõ giấy
+phép: món ăn (`item/food`: meat_ration, bread_ration, pizza, fruit), quà lễ hội
+(`item/food/lump_of_royal_jelly`, `item/food/orange`, `item/misc/misc_box`, `item/food/apple`),
+đồ trang trí lễ hội (`item/misc/misc_lamp`, `dngn/statues/statue_snail`,
+`dngn/statues/statue_elephant`, `dngn/sparkling_fountain`), NPC Bác Đầu Bếp (`mon/human`) và
+Người Tổ Chức Hội (`mon/unique/eustachio`).
+
 ## Hình cá, rương (`priv/static/assets/items/`)
 
 - `fish_gold.png` (giant_goldfish), `fish_eel.png` (electric_eel), `old_boot.png` (boots1_brown):

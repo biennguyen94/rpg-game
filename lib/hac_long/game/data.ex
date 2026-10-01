@@ -15,6 +15,11 @@ defmodule HacLong.Game.Data do
   - `BOSS_DROPS`: đồ trùm rơi ra lần đầu bị hạ. `SHOP`: những món cửa hàng bán.
   - `ITEMS` có `slot: "material"`: nguyên liệu (thu thập trên bản đồ), `sprite` là hình của nó.
   - `RECIPES`: công thức pha chế ở NPC `npc`: `needs` (nguyên liệu → số lượng) ra một `out`.
+  - `ITEMS` vũ khí/giáp/khiên có `doll`: lớp hình (trong `priv/static/assets/doll`) vẽ lên
+    nhân vật khi mặc món đó; `CLASSES` có `hair` (lớp tóc).
+  - `PETS`: thú cưng bán ở Người Nuôi Thú; `bonus` là phần trăm cộng thêm (`hp`, `atk`, `def`,
+    `gold` từ quái, `xp`).
+  - `FURNITURE`: đồ trang trí nhà bán ở Thợ Mộc; `comfort` là điểm tiện nghi.
   - `QUESTS`: nhiệm vụ nhận ở Trưởng Làng. `type`: `kill` (hạ `count` con `target`),
     `collect` (nộp `count` nguyên liệu `target`), `boss` (hạ trùm `target`). Nhận được khi
     vùng `zone` đã mở và đã xong các nhiệm vụ trong `requires`.
@@ -41,6 +46,9 @@ defmodule HacLong.Game.Data do
   @zones atomize.(atomize, raw["ZONES"])
   @items by_id.(raw["ITEMS"])
   @boss_drops raw["BOSS_DROPS"]
+  @pets atomize.(atomize, raw["PETS"])
+  @furniture atomize.(atomize, raw["FURNITURE"])
+  @events atomize.(atomize, raw["EVENTS"])
   @shop raw["SHOP"]
   @recipes atomize.(atomize, raw["RECIPES"])
            |> Enum.map(
@@ -73,6 +81,12 @@ defmodule HacLong.Game.Data do
   def shop, do: @shop
   def recipes, do: @recipes
   def recipe(id), do: Enum.find(@recipes, &(&1.id == id))
+  def pets, do: @pets
+  def pet(id), do: Enum.find(@pets, &(&1.id == id))
+  def events, do: @events
+  def event(id), do: Enum.find(@events, &(&1.id == id))
+  def furniture, do: @furniture
+  def furniture(id), do: Enum.find(@furniture, &(&1.id == id))
   def quests, do: @quests
   def quest(id), do: Enum.find(@quests, &(&1.id == id))
 end

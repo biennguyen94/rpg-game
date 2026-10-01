@@ -89,9 +89,33 @@ defmodule HacLong.Game.Characters do
       gear: HacLong.Game.Gear.load(c.gear),
       bestiary: c.bestiary || %{},
       rebirths: c.rebirths || 0,
-      chest_day: c.chest_day
+      chest_day: c.chest_day,
+      pets: Enum.filter(c.pets || [], &HacLong.Game.Pets.data/1),
+      pet: if(c.pet && HacLong.Game.Pets.data(c.pet), do: c.pet),
+      pet_xp: c.pet_xp || %{},
+      daily_done: c.daily_done || 0,
+      boss_top: c.boss_top || 0,
+      food: food(c.food),
+      crafting: %{
+        cook: (c.crafting || %{})["cook"] || 0,
+        smith: (c.crafting || %{})["smith"] || 0
+      },
+      festival: c.festival || 0,
+      furniture:
+        Map.filter(c.furniture || %{}, fn {id, _} -> HacLong.Game.Data.furniture(id) end),
+      decor:
+        for d <- c.decor || [], HacLong.Game.Data.furniture(d["id"]) do
+          %{id: d["id"], x: d["x"], y: d["y"]}
+        end
     }
   end
+
+  # món ăn đang có tác dụng (bỏ nếu món không còn trong dữ liệu)
+  defp food(%{"id" => id, "left" => left}) when is_integer(left) and left > 0 do
+    if HacLong.Game.Data.item(id), do: %{id: id, left: left}
+  end
+
+  defp food(_), do: nil
 
   # Bỏ nhiệm vụ không còn trong dữ liệu game (đổi tên, xóa bớt).
   defp quests(%{"active" => active, "done" => done}) do
@@ -161,7 +185,8 @@ defmodule HacLong.Game.Characters do
                  ~w(zone monster turn skillCd cds effects player turns power on_hit effect chance
                     log over result reward encounter map mid world world_boss tower elite
                     id name level boss final special maxHp atk def crit dodge xp gold hp
-                    every mult text kind items levels gear night)a,
+                    every mult text kind items levels gear night shared joined pvp look hair weapon armor
+                    shield pet deaths)a,
                  &{Atom.to_string(&1), &1}
                )
 

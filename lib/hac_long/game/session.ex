@@ -26,10 +26,11 @@ defmodule HacLong.Game.Session do
     Names,
     Quests,
     Tower,
+    TradeOffer,
     Tutorial
   }
 
-  alias HacLong.{Guilds, Mailbox, World, WorldBoss}
+  alias HacLong.{Arena, GuildQuests, Guilds, Mailbox, Market, Party, World, WorldBoss}
 
   @idle_timeout :timer.minutes(10)
   @flush_ms 5_000
@@ -56,6 +57,21 @@ defmodule HacLong.Game.Session do
   đánh trùm (nếu có) và trao thưởng; người chơi không online thì vẫn nhận (lưu database).
   """
   def world_boss_end(user_id, info), do: call(user_id, {:world_boss_end, info})
+
+  @doc """
+  Đồng đội vừa hạ con quái đang đánh chung (gọi từ `HacLong.Party`). `info`:
+  `%{key, n, xp, gold, killer}`. Trận của người này (nếu còn đánh) kết thúc bằng chiến thắng.
+  """
+  def shared_end(user_id, info), do: call(user_id, {:shared_end, info})
+
+  @doc """
+  Giao dịch trực tiếp (gọi từ `HacLong.Trade`): lấy những món trong `offer` ra khỏi nhân vật
+  (biết sẽ nhận về `incoming` món đồ hiếm). Trả về `{:ok, gói_hàng}` hoặc `{:error, lý_do}`.
+  """
+  def trade_take(user_id, offer, incoming), do: call(user_id, {:trade_take, offer, incoming})
+
+  @doc "Giao dịch trực tiếp: nhận gói hàng (từ `trade_take/3` của người kia)."
+  def trade_give(user_id, goods), do: call(user_id, {:trade_give, goods})
 
   @doc "Bang của người chơi vừa đổi: Session đang chạy thì nạp lại (không chạy thì thôi)."
   def refresh_guild(user_id) do
@@ -116,6 +132,7 @@ defmodule HacLong.Game.Session do
     p = with_guild(s.player, s.user_id)
     s = %{s | player: p}
     broadcast(s, p, nil)
+    if map_size(s.tabs) > 0, do: World.refresh(p, s.user_id)
     Phoenix.PubSub.broadcast(HacLong.PubSub, topic(s.user_id), {:guild, p.guild})
     {:noreply, s, timeout(s)}
   end
@@ -170,6 +187,47 @@ defmodule HacLong.Game.Session do
     end
   end
 
+  defp handle({:shared_end, info}, _from, %{player: %{battle: %{over: false} = b}} = s) do
+    if b[:encounter][:shared] == info.key do
+      old = s.player
+      p = shared_reward(old, info)
+      {_, p} = Engine.finish_win(p)
+      log = p.battle.log ++ [%{text: "Đồng đội ra đòn kết liễu!", kind: "info"}]
+      p = put_in(p.battle.log, Enum.take(log, -60))
+      p = battle_over(s, old, p)
+      s = save(s, p)
+      broadcast(s, p, nil)
+      track_guild(old, p, nil)
+      reply(:ok, s)
+    else
+      reply(:ok, s)
+    end
+  end
+
+  defp handle({:shared_end, _info}, _from, s), do: reply(:ok, s)
+
+  defp handle({:trade_take, _offer, _incoming}, _from, %{player: nil} = s),
+    do: reply({:error, "Chưa có nhân vật."}, s)
+
+  defp handle({:trade_take, offer, incoming}, _from, s) do
+    case TradeOffer.take(s.player, offer, incoming) do
+      {:ok, p, goods} ->
+        s = save(s, p)
+        broadcast(s, p, nil)
+        reply({:ok, goods}, s)
+
+      err ->
+        reply(err, s)
+    end
+  end
+
+  defp handle({:trade_give, goods}, _from, %{player: p} = s) when p != nil do
+    p = TradeOffer.give(p, goods)
+    s = save(s, p)
+    broadcast(s, p, nil)
+    reply(:ok, s)
+  end
+
   defp handle({:world_boss_end, _info}, _from, %{player: nil} = s), do: reply(:ok, s)
 
   defp handle({:world_boss_end, info}, _from, s) do
@@ -187,6 +245,12 @@ defmodule HacLong.Game.Session do
               else: "#{WorldBoss.name()} đã bay đi."
             )
           ),
+        else: p
+
+    # lọt top 3 sát thương (cho thành tựu), kể cả khi không online
+    p =
+      if info.reward && info.reward[:top],
+        do: Map.put(p, :boss_top, (Map.get(p, :boss_top) || 0) + 1),
         else: p
 
     {p, notice} =
@@ -294,6 +358,40 @@ defmodule HacLong.Game.Session do
     end
   end
 
+  # Chợ: rao bán, mua, rút về; đồ và vàng đổi trong cùng transaction với bảng chợ.
+  defp run_command(%{player: p} = s, %{"act" => act} = cmd, origin)
+       when p != nil and act in ["market_sell", "market_buy", "market_cancel"] do
+    save = &Characters.save!(s.user_id, &1)
+
+    result =
+      cond do
+        p.battle ->
+          {:error, "Đang trong trận đấu."}
+
+        World.near_npc(p, ["market"]) == nil ->
+          {:error, "Hãy đến gặp Chủ Chợ ở Làng."}
+
+        act == "market_sell" ->
+          Market.list(s.user_id, p, cmd["id"], cmd["count"] || 1, cmd["price"], save)
+
+        act == "market_buy" ->
+          Market.buy(s.user_id, p, cmd["listing"], save)
+
+        true ->
+          Market.cancel(s.user_id, p, cmd["listing"], save)
+      end
+
+    case result do
+      {:ok, msg, player} ->
+        s = cancel_flush(%{s | player: player, dirty: false})
+        broadcast(s, player, origin)
+        reply({%{ok: true, msg: msg}, player}, s)
+
+      {:error, msg} ->
+        reply({%{ok: false, msg: msg}, p}, s)
+    end
+  end
+
   defp run_command(s, cmd, origin), do: run_command_(s, cmd, origin)
 
   defp run_command_(s, cmd, origin) do
@@ -308,13 +406,42 @@ defmodule HacLong.Game.Session do
     s =
       if player != old do
         broadcast(s, player, origin)
+        # đổi đồ, lên cấp, dắt thú khác: người cùng bản đồ thấy ngay
+        if player && old && map_size(s.tabs) > 0 && World.info(player) != World.info(old),
+          do: World.refresh(player, s.user_id)
+
         if player, do: save(s, player), else: delete(s)
       else
         s
       end
 
     Enum.each(notes, &notify(s, &1))
+    track_guild(old, player, result)
     reply({result, player}, s)
+  end
+
+  # Góp tiến độ nhiệm vụ bang (không chờ: ghi database ngoài tiến trình này).
+  defp track_guild(old, %{guild: %{id: gid}} = new, result) when old != nil do
+    events =
+      %{
+        "kill" => new.kills - old.kills,
+        "fish" => (Map.get(new, :fish_caught) || 0) - (Map.get(old, :fish_caught) || 0),
+        "gather" => if(is_map(result) and result[:gather], do: 1, else: 0),
+        "boss" => if(zone_boss_win?(old, new), do: 1, else: 0)
+      }
+      |> Map.filter(fn {_, n} -> n > 0 end)
+
+    if events != %{}, do: Task.start(fn -> GuildQuests.progress(gid, events) end)
+    :ok
+  end
+
+  defp track_guild(_old, _new, _result), do: :ok
+
+  defp zone_boss_win?(old, new) do
+    b = new.battle
+
+    b && b.over && b.result == "win" && b.monster.boss && !b.monster[:world] &&
+      !b.monster[:pvp] && !(old.battle && old.battle.over)
   end
 
   # Hướng dẫn người mới và thành tựu: tính lại sau mỗi thay đổi, trả về các thông báo mới.
@@ -334,8 +461,25 @@ defmodule HacLong.Game.Session do
   # mới nhất, sau lượt đánh báo sát thương vừa gây.
   @strikes ~w(attack skill potion flee)
 
-  defp run(s, %{battle: %{over: false}} = p, %{"act" => act} = cmd) when act in @strikes do
-    if World.world_battle?(p), do: world_strike(s, p, cmd), else: Commands.run(p, cmd)
+  defp run(s, %{battle: %{over: false} = b} = p, %{"act" => act} = cmd) when act in @strikes do
+    cond do
+      World.world_battle?(p) -> world_strike(s, p, cmd)
+      key = b[:encounter][:shared] -> shared_strike(s, p, cmd, key)
+      true -> Commands.run(p, cmd)
+    end
+  end
+
+  # Thách đấu (đấu trường): đối thủ là bản sao chỉ số dựng từ database.
+  defp run(s, p, %{"act" => "pvp_challenge"} = cmd) do
+    with nil <- p.battle && {:error, "Đang trong trận đấu."},
+         true <- p.hp > 0 || {:error, "Bạn cần hồi máu trước."},
+         {:ok, m} <- Arena.challenge(s.user_id, cmd["uid"]) do
+      {r, p2} = Engine.start_with_monster(p, 1, m)
+      enc = %{pvp: m.pvp, hp: p.hp, gold: p.gold, deaths: p.deaths}
+      {Map.put(r, :msg, "Thách đấu #{m.name}!"), put_in(p2.battle[:encounter], enc)}
+    else
+      {:error, msg} -> {%{ok: false, msg: msg}, p}
+    end
   end
 
   defp run(_s, p, cmd), do: Commands.run(p, cmd)
@@ -373,6 +517,51 @@ defmodule HacLong.Game.Session do
         end
     end
   end
+
+  # Trận đánh chung với tổ đội: máu quái ở HacLong.Party, thưởng chia theo số người.
+  defp shared_strike(s, p, cmd, key) do
+    case Party.fight(key) do
+      # không có tổ đội hoặc mọi người khác đã rời: đánh như thường
+      nil ->
+        Commands.run(p, cmd)
+
+      f ->
+        p = p |> put_in([:battle, :monster, :hp], f.hp) |> shared_reward(f)
+        {result, p2} = Commands.run(p, cmd)
+        dealt = if p2.battle, do: f.hp - p2.battle.monster.hp, else: 0
+
+        case dealt > 0 && Party.hit(key, s.user_id, dealt) do
+          false ->
+            {result, p2}
+
+          {:alive, left} ->
+            {result, put_in(p2.battle.monster.hp, left)}
+
+          {:killed, _n} ->
+            if p2.battle.over, do: {result, p2}, else: shared_win(p2)
+
+          # đồng đội vừa hạ trước
+          :gone ->
+            shared_win(p2)
+        end
+    end
+  end
+
+  defp shared_win(p) do
+    {r, p} = Engine.finish_win(p)
+    {Map.put(r, :result, "win"), p}
+  end
+
+  # thưởng mỗi người = thưởng gốc × 1,2 / số người (một người thì giữ nguyên)
+  defp shared_reward(p, %{n: n, xp: xp, gold: gold}) when n > 1 do
+    k = 1.2 / n
+
+    p
+    |> put_in([:battle, :monster, :xp], round(xp * k))
+    |> put_in([:battle, :monster, :gold], round(gold * k))
+  end
+
+  defp shared_reward(p, _), do: p
 
   defp end_world_battle(%{battle: %{over: false}} = p, result, text) do
     b = p.battle
@@ -426,22 +615,7 @@ defmodule HacLong.Game.Session do
     cond do
       # trận vừa kết thúc: cập nhật quái trên bản đồ, gục ngã thì về Nhà
       player && old && old.battle && not old.battle.over && player.battle && player.battle.over ->
-        player = player |> Tower.after_battle() |> World.finish_encounter(s.user_id)
-
-        # lần đầu hạ Hắc Long: ghi lại thời điểm cho bảng xếp hạng
-        player =
-          if player.victory and not old.victory,
-            do: Map.put(player, :victory_at, DateTime.truncate(DateTime.utc_now(), :second)),
-            else: player
-
-        if player.battle.result == "win" do
-          player
-          |> guild_xp()
-          |> Quests.on_kill(player.battle.monster.id)
-          |> Daily.on_kill(player.battle.monster.id, player.battle.zone)
-        else
-          player
-        end
+        battle_over(s, old, player)
 
       cmd["act"] == "create" and player && old == nil ->
         if map_size(s.tabs) > 0, do: World.enter(player, s.user_id)
@@ -458,6 +632,59 @@ defmodule HacLong.Game.Session do
 
       true ->
         player
+    end
+  end
+
+  # Trận đấu trường xong: đổi điểm; thua thì không mất gì (máu, vàng như trước trận).
+  defp battle_over(s, _old, %{battle: %{encounter: %{pvp: target} = enc} = b} = player) do
+    r = Arena.finish(s.user_id, target, b.result)
+
+    player =
+      if r.won,
+        do: %{player | gold: player.gold + r.gold},
+        else: %{player | hp: max(1, enc.hp), gold: enc.gold, deaths: enc.deaths}
+
+    sign = fn d -> if d >= 0, do: "+#{d}", else: "#{d}" end
+
+    text =
+      if r.won,
+        do: "🏟 Thắng! Điểm đấu trường #{sign.(r.delta)}, thưởng #{r.gold} vàng.",
+        else: "🏟 Thua trận đấu trường (điểm #{sign.(r.delta)}). Không mất vàng."
+
+    reward = %{xp: 0, gold: r.gold, items: [], levels: 0}
+
+    player = %{
+      player
+      | battle: %{b | reward: reward, log: Enum.take(b.log ++ [%{text: text, kind: "win"}], -60)}
+    }
+
+    Phoenix.PubSub.broadcast(
+      HacLong.PubSub,
+      topic(target),
+      {:notice,
+       "🏟 #{player.name} thách đấu bạn ở đấu trường và #{if r.won, do: "thắng", else: "thua"} (điểm của bạn #{sign.(r.their_delta)})."}
+    )
+
+    player
+  end
+
+  # Trận vừa kết thúc: cập nhật quái trên bản đồ, gục ngã thì về Nhà, tính nhiệm vụ...
+  defp battle_over(s, old, player) do
+    player = player |> Tower.after_battle() |> World.finish_encounter(s.user_id)
+
+    # lần đầu hạ Hắc Long: ghi lại thời điểm cho bảng xếp hạng
+    player =
+      if player.victory and not old.victory,
+        do: Map.put(player, :victory_at, DateTime.truncate(DateTime.utc_now(), :second)),
+        else: player
+
+    if player.battle.result == "win" do
+      player
+      |> guild_xp()
+      |> Quests.on_kill(player.battle.monster.id)
+      |> Daily.on_kill(player.battle.monster.id, player.battle.zone)
+    else
+      player
     end
   end
 

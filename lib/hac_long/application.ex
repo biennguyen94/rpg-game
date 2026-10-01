@@ -15,6 +15,8 @@ defmodule HacLong.Application do
       HacLong.RateLimit,
       HacLong.Chat,
       HacLong.WorldBoss,
+      HacLong.Party,
+      HacLong.Trade,
       {Registry, keys: :unique, name: HacLong.Game.Registry},
       {DynamicSupervisor, name: HacLong.Game.SessionSupervisor, strategy: :one_for_one},
       # mỗi bản đồ dùng chung (Làng, các vùng) một tiến trình

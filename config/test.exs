@@ -38,3 +38,6 @@ config :hac_long, :world_boss,
   every_minutes: nil,
   duration_minutes: 30,
   hp: 20_000
+
+# sự kiện theo mùa tắt trong test (test sự kiện tự bật)
+config :hac_long, :event, "none"

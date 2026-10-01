@@ -82,19 +82,41 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
-  port = String.to_integer(System.get_env("PORT") || "4000")
+  # Địa chỉ người chơi gõ vào trình duyệt (xem docs/DEPLOY.md):
+  # - có domain và TLS proxy: PHX_HOST=game.example.com (mặc định https, cổng 443)
+  # - chỉ có IP, không TLS: PHX_HOST=203.0.113.10 PHX_SCHEME=http PHX_URL_PORT=4000
+  # Kết nối WebSocket chỉ được nhận từ trang có host trùng PHX_HOST; cần thêm host khác
+  # (vd. vừa IP vừa domain) thì liệt kê ở CHECK_ORIGIN="https://game.example.com,http://203.0.113.10:4000".
+  # biến đặt nhưng để trống (docker compose) coi như không đặt
+  env = fn name ->
+    case System.get_env(name) do
+      nil -> nil
+      v -> if String.trim(v) == "", do: nil, else: String.trim(v)
+    end
+  end
+
+  host = env.("PHX_HOST") || "example.com"
+  port = String.to_integer(env.("PORT") || "4000")
+  scheme = env.("PHX_SCHEME") || "https"
+
+  url_port =
+    String.to_integer(env.("PHX_URL_PORT") || if(scheme == "https", do: "443", else: "80"))
+
+  check_origin =
+    case env.("CHECK_ORIGIN") do
+      nil -> true
+      list -> String.split(list, ",", trim: true) |> Enum.map(&String.trim/1)
+    end
 
   config :hac_long, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :hac_long, HacLongWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
+    url: [host: host, port: url_port, scheme: scheme],
+    check_origin: check_origin,
     http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://hexdocs.pm/bandit/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
-      ip: {0, 0, 0, 0, 0, 0, 0, 0},
+      # Nghe trên mọi địa chỉ IPv4. Container Docker thường không có IPv6 (nghe IPv6 thì lỗi
+      # :eafnosupport); máy có IPv6 muốn nghe cả IPv6 thì đặt PHX_IPV6=true.
+      ip: if(env.("PHX_IPV6") in ~w(true 1), do: {0, 0, 0, 0, 0, 0, 0, 0}, else: {0, 0, 0, 0}),
       port: port
     ],
     secret_key_base: secret_key_base

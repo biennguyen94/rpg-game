@@ -7,12 +7,8 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 
 Ước lượng công sức: nhỏ (vài giờ), vừa (khoảng một ngày), lớn (nhiều ngày).
 
-1. **Tổ đội** (vừa–lớn): đánh chung một trận, chia kinh nghiệm; hợp với bang hội vừa làm.
-2. **Trang trí nhà** (vừa–lớn), **nhân vật mặc đúng đồ** (vừa), **thú cưng** (vừa): thêm chỗ
-   tiêu vàng lâu dài (hiện có Rương Báu và quỹ bang).
-3. **Chạm vào người chơi khác** (nhỏ, lối vào cho hai việc sau), **PvP bất đồng bộ** (vừa),
-   **chợ giữa người chơi** (lớn).
-4. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
+1. **Đóng gói app Android** (PWA: nhỏ, Capacitor: vừa).
+2. Các việc còn mở trong từng mục dưới đây (bot mô phỏng tháp và trùm thế giới).
 
 ---
 
@@ -62,7 +58,9 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   diệt rồng, cấp, nhiệm vụ, đá dịch chuyển, tháp, câu cá, rèn +5, Vảy Cổ Long, vàng, số lần
   gục ngã), tính từ trạng thái nhân vật nên người cũ nhận ngay; 15 cái cho danh hiệu, chọn ở tab
   Nhân vật, hiện cạnh tên trong chat và bảng xếp hạng.
-  - [ ] Thành tựu cần đếm thêm: top 3 trùm thế giới, số việc hằng ngày đã làm.
+  - [x] Thêm 7 thành tựu (tổng 33, 25 cho danh hiệu): lọt top 3 sát thương trùm thế giới (1 và
+    10 lần, đếm ở `boss_top`), làm xong 10 và 100 việc hằng ngày (`daily_done`), thuần phục một
+    loài, thú cấp 5 và cấp tối đa.
 - [x] **Sổ tay quái vật** (`HacLong.Game.Bestiary`): đếm số con đã hạ của 30 loài; 25 con thì
   +5% sát thương lên loài đó, 100 con +10%, mỗi mốc thưởng vàng. Thẻ ở tab Hành trình, loài
   chưa gặp hiện bóng đen.
@@ -92,24 +90,36 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [x] **Chặn/báo cáo người chat xấu**: bấm tên trong khung chat để báo cáo tin đó (quản trị
   viên xử lý ở tab Quản trị) hoặc chặn người đó (không thấy chat của họ nữa; bỏ chặn trong thẻ
   Dữ liệu ở tab Làng).
-- [ ] **PvP bất đồng bộ**: đánh với bản sao chỉ số của người chơi khác (đấu trường).
-- [ ] **Chợ giữa người chơi**: rao bán đồ; phải dùng transaction trong database để không bị
-  nhân đôi đồ.
+- [x] **PvP bất đồng bộ** (`HacLong.Arena`, bảng `pvp`): đánh với bản sao chỉ số của người khác
+  (đọc từ database, họ không cần online, mặc đúng đồ); điểm Elo cho cả hai; thắng thêm ít vàng,
+  thua không mất gì; 15 trận mỗi ngày; đối thủ gợi ý gần điểm; bảng xếp hạng đấu trường.
+- [x] **Chợ giữa người chơi** (`HacLong.Market`, Chủ Chợ trong Làng): rao bán đồ thường hoặc đồ
+  chỉ số ngẫu nhiên (giữ cấp nâng), mua, rút về. Mua trong transaction khóa dòng hàng nên không
+  nhân đôi đồ; người bán nhận tiền qua hộp thư, trừ 5% phí.
 - [x] **Hộp thư** (`HacLong.Mailbox`): thư hệ thống kèm quà (vàng, kinh nghiệm, đồ); nút phong
   bì trên HUD có số thư chưa mở. Mở thư là nhận quà, trong cùng transaction với lần ghi nhân vật
   nên không nhận đôi. Thưởng trùm thế giới lúc không online gửi qua đây; quản trị viên tặng quà
   cho một người hoặc mọi người.
-  - [ ] Nhận tiền khi bán được đồ ở chợ (khi có chợ).
+  - [x] Nhận tiền khi bán được đồ ở chợ.
 - [x] **Bang hội** (`HacLong.Guilds`): lập bang 5.000 vàng (tên, ký hiệu không trùng); bang mở
   vào ngay, bang đóng thì xin vào; bang chủ / phó bang / thành viên (phong, nhường, mời ra, rời,
   giải tán); góp quỹ lên cấp (tối đa 5: thêm chỗ, +2% kinh nghiệm mỗi cấp từ cấp 2); kênh chat
   bang; ký hiệu bang cạnh tên trong chat; bảng xếp hạng bang theo quỹ.
-  - [ ] Bảng xếp hạng bang theo sát thương lên trùm thế giới; nhiệm vụ bang.
-- [ ] **Tổ đội**: mời người khác vào nhóm, đánh chung một trận với một con quái, chia kinh
-  nghiệm; việc hằng ngày và nhiệm vụ tính cho cả nhóm. Hiện ngoài trùm thế giới thì ai cũng
-  đánh một mình.
-- [ ] **Chạm vào người chơi khác** để xem thông tin, mời PvP hoặc giao dịch (hiện người chơi
-  đi xuyên qua nhau, chạm vào không có gì).
+  - [x] Bảng xếp hạng bang theo sát thương lên trùm thế giới (`HacLong.GuildQuests`, cột
+    `boss_damage`; cộng cả khi trùm bay đi).
+  - [x] Nhiệm vụ bang mỗi tuần (thứ Hai 0 giờ giờ Việt Nam): hạ quái, hái/đào, câu cá hoặc hạ
+    trùm vùng, mục tiêu theo số thành viên. Cả bang góp tiến độ; xong thì quỹ bang +3.000, mỗi
+    thành viên 800 vàng và 1.500 kinh nghiệm qua hộp thư, báo trong chat bang.
+- [x] **Tổ đội** (`HacLong.Party`, giữ trong bộ nhớ): mời người đang online (tối đa 3), kênh chat
+  tổ đội, thẻ tổ đội có máu từng người. Đồng đội chạm vào con quái mình đang đánh thì vào cùng
+  trận, máu quái chung; quái gục thì mọi người cùng thắng, được tính nhiệm vụ/việc hằng
+  ngày/sổ tay; thưởng mỗi người = gốc × 1,2 / số người.
+- [x] **Chạm vào người chơi khác**: xem cấp, lớp, bang, danh hiệu, đồ đang mặc, điểm đấu trường;
+  mời tổ đội, thách đấu, chặn chat.
+- [x] **Giao dịch trực tiếp** (`HacLong.Trade`, giữ trong bộ nhớ): chạm vào người đang online →
+  Giao dịch; hai bên bỏ đồ thường, đồ chỉ số ngẫu nhiên (giữ cấp nâng), vàng vào bảng; đổi món
+  của bên nào thì cả hai phải xác nhận lại; cả hai xác nhận thì đổi (thiếu đồ hay túi đầy thì
+  không đổi, trả lại, mở lại bảng). Đóng tab thì hủy.
 
 ## E. Bản đồ ô vuông
 
@@ -119,8 +129,14 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
 - [x] **Giai đoạn 2**: mỗi vùng gồm 2 bản đồ quái (bản đồ 2 mạnh hơn) và một phòng trùm; di
   chuyển mượt; đá dịch chuyển; hỏi xác nhận trước khi đấu trùm.
 - [x] **Giai đoạn 3**: NPC ở Làng thay tab Cửa hàng; điểm thu thập; nhiệm vụ.
-- [ ] **Giai đoạn 4**: trang trí nhà. (Rương mở mỗi ngày một lần và trùm thế giới, dự tính cho
-  giai đoạn này, đã làm.)
+- [x] **Giai đoạn 4**: trang trí nhà, rương mở mỗi ngày một lần, trùm thế giới.
+- [x] **Trang trí nhà** (`HacLong.Game.Home`): Thợ Mộc trong Làng bán 13 món (chậu cây, đèn lồng,
+  tượng, cây, đài phun nước, tượng vàng...); về Nhà bấm Trang trí, chọn món rồi chạm ô để đặt,
+  chạm đồ đã đặt để cất. Đồ chặn đường, không được chắn lối; mỗi 10 điểm tiện nghi +1% kinh
+  nghiệm mỗi trận (tối đa +5%).
+- [x] **Thăm nhà** (`HacLong.Homes`): nút Thăm nhà ở bảng người chơi và danh sách bang; xem
+  nhà đã trang trí (chủ nhà và thú đứng trước cửa), điểm tiện nghi; Khen nhà mỗi nhà một lần,
+  chủ nhà được báo.
 - [x] **Rương** (`HacLong.Game.Chests`): Rương Gia Truyền ở Nhà mở mỗi ngày một lần (vàng, bình
   máu, nguyên liệu, 20% kèm đồ); Thợ Rèn bán Rương Gỗ/Bạc/Vàng ra đồ chỉ số ngẫu nhiên, giá gấp
   2/4/8 lần giá bán lại vũ khí tốt nhất cùng cấp nên mua về bán lại luôn lỗ. Mô phỏng: bot mua
@@ -129,7 +145,8 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   Hang Rồng) bấm Câu cá; phao chìm sau 3–8 giây, giật trong 1 giây mới được (server tính giờ).
   Cá Diếc, Cá Chép, Lươn Điện ở vùng sâu, Cá Chép Vàng rất hiếm, và ủng cũ. Tiền câu cá ngang
   đánh quái lúc đầu game nhưng không có kinh nghiệm.
-  - [ ] Công thức nấu cá ở Bà Lang; việc hằng ngày câu cá.
+  - [x] Bà Lang nấu 2 con cá thành bình máu (Cá Diếc → nhỏ, Cá Chép → vừa, Lươn Điện → lớn);
+    việc hằng ngày thứ tư "Câu N con cá" (ủng cũ không tính).
 - [x] **Ngày và đêm** (`HacLong.World.Clock`): bình minh, ngày, hoàng hôn, đêm theo giờ Việt
   Nam; bản đồ ngoài trời tối dần, quanh nhân vật vẫn sáng. Ban đêm 12% quái mới sinh là quái
   Bóng Đêm (mạnh gấp rưỡi, thưởng gấp rưỡi, 25% rơi đồ). Ép buổi để thử bằng `TIME_OF_DAY`.
@@ -140,12 +157,45 @@ Chi tiết kỹ thuật của từng phần nằm trong `README.md` và tài li�
   file: đánh, chí mạng, trượt, bị đánh, kỹ năng, thắng/thua, lên cấp, mua bán, hái/đào, qua
   cổng, rèn, pha thuốc, nhiệm vụ, thư mới, câu cá, thành tựu. Bật/tắt và âm lượng ở tab Hành
   trình.
-  - [ ] Nhạc nền nhẹ (cần bộ nhạc CC0 hoặc tự tổng hợp).
-- [ ] **Nhân vật mặc đúng đồ đang trang bị**: ghép hình áo giáp, vũ khí, khiên lên hình nhân
-  vật (bộ tile Dungeon Crawl có sẵn các phần này ở `player/`, phải đối chiếu danh sách chưa rõ
-  giấy phép như các hình khác). Hiện ai cũng cùng một hình.
-- [ ] **Thú cưng**: thuần phục quái đã hạ nhiều lần, cho đi theo sau nhân vật trên bản đồ, có
-  thể hỗ trợ đánh.
+  - [x] Nhạc nền tự tổng hợp (không cần file): hợp âm nền, bè trầm, giai điệu ngũ cung đi dạo
+    ngẫu nhiên, có tiếng vang nhẹ. Bảy không khí: Làng, Nhà, vùng hoang, đêm, tháp, trận đánh,
+    trùm (có trống); đổi ở đầu ô nhịp sau. Bật/tắt và âm lượng riêng; ẩn tab thì tạm dừng.
+- [x] **Nhân vật mặc đúng đồ đang trang bị** (`priv/static/js/doll.js`): ghép thân, quần, giày,
+  tóc theo lớp nhân vật, giáp, vũ khí, khiên (`doll` trong dữ liệu đồ, lớp hình từ `player/`
+  của Dungeon Crawl, đã đối chiếu danh sách chưa rõ giấy phép). Hiện ở HUD, tab Nhân vật, trận
+  đánh và trên bản đồ; người cùng bản đồ thấy đồ của nhau (`look` gửi kèm trạng thái bản đồ).
+- [x] **Thú cưng** (`HacLong.Game.Pets`): Người Nuôi Thú trong Làng bán 6 con (Cừu Bông, Chó
+  Săn, Heo Hồng, Sóc Túi, Bướm Lửa, Bằng Mã Lửa), mỗi con cộng một ít máu/tấn công/phòng thủ/
+  vàng/kinh nghiệm. Thú đang dắt đi sau nhân vật một ô, người khác cũng thấy; đổi ở tab Nhân vật.
+  - [x] Thú đang dắt có 35% cắn thêm (25% sát thương một đòn thường) sau mỗi đòn của nhân vật.
+  - [x] **Cấp thú** (tối đa 10): thắng trận khi dắt theo thì thú được tính một trận (trùm: 5);
+    cấp L cần 5 × L × (L - 1) trận. Mỗi cấp: chỉ số cộng thêm +10%, tỷ lệ cắn +2%, sức cắn +2%.
+    Cấp 5 học kỹ năng riêng, dùng khi cắn: Liếm Vết Thương (hồi 5% máu), Cắn Xé (gấp đôi cú
+    cắn, Chó Săn, Bằng Mã Lửa và thú thuần), Húc Ngã (quái suy yếu), Móc Túi (vàng), Phấn Độc
+    (quái trúng độc).
+  - [x] Hạ đủ 100 con một loài quái thường thì thuần phục ở Người Nuôi Thú (1.000 + cấp × 100
+    vàng): thú thuần đi theo như thú cưng, +3% tấn công.
+
+## H. Mùa, nghề, bạn bè
+
+- [x] **Lễ hội theo mùa** (`HacLong.Game.Events`, `EVENTS` trong `game_data.json`): Tết Trung Thu
+  (15/9–10/10), Lễ Hội Bí Ngô (25/10–7/11), Giáng Sinh (15/12–2/1), Tết Nguyên Đán (20/1–20/2,
+  gần đúng vì Tết âm lịch đổi ngày). Trong mùa: quái thường 20% rơi quà lễ hội, trùm rơi 3,
+  kinh nghiệm +10%, tên lễ hội trên bản đồ. Người Tổ Chức Hội đổi quà: đồ trang trí chỉ có trong
+  mùa (30), túi quà ra đồ ngẫu nhiên (12), 3 bình máu lớn (6), vàng (3). Ngoài mùa thì báo lễ
+  hội sắp tới. Thử bằng `EVENT=<id>`.
+- [x] **Nghề** (`HacLong.Game.Crafting`, cấp 1–5 theo số lần làm: 5/15/30/50):
+  - Nấu ăn ở Bác Đầu Bếp: Chả Cá (tấn công), Bánh Mì Cá (phòng thủ), Bánh Xèo Lươn (máu, tấn
+    công, cần cấp 3), Mâm Cỗ Cá Vàng (kinh nghiệm, vàng, cần cấp 5). Ăn ngoài trận, có tác dụng
+    5–10 trận (bỏ chạy, thua cũng tính), mỗi lúc một món.
+  - Rèn đồ ở Thợ Rèn: chọn vũ khí/giáp/khiên, tốn quặng + vàng (cấp × 15), ra đồ chỉ số ngẫu
+    nhiên hợp cấp; Sử Thi 6% mỗi cấp nghề, Hiếm 50%.
+- [x] **Bạn bè và tin riêng** (`HacLong.Friends`): kết bạn theo tên hoặc từ bảng người chơi,
+  nhận/từ chối/rút lời mời, xóa bạn; tối đa 50 bạn; người đã chặn mình thì không mời được. Tin
+  riêng chỉ giữa bạn bè, lưu lại, đến ngay nếu người kia online, đếm tin chưa đọc (số trên nút
+  👥 ở HUD).
+- [x] Thành tựu mới: Đầu Bếp Làng, Thợ Cả (nghề cấp tối đa), Người Đi Hội (đổi quà lễ hội 10
+  lần).
 
 ## G. Khác
 

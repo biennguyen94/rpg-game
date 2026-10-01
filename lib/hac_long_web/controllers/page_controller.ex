@@ -29,6 +29,8 @@ defmodule HacLongWeb.PageController do
       SHOP: Data.shop(),
       RECIPES: Data.recipes(),
       QUESTS: Data.quests(),
+      PETS: Data.pets(),
+      FURNITURE: Data.furniture(),
       ACHIEVEMENTS: Achievements.client_data(),
       RULES: %{
         maxLevel: Engine.max_level(),
@@ -37,7 +39,13 @@ defmodule HacLongWeb.PageController do
         rebirthPoints: Engine.rebirth_points(),
         maxRebirths: Engine.max_rebirths(),
         guildCost: HacLong.Guilds.create_cost(),
-        guildMinDonate: HacLong.Guilds.min_donate()
+        guildMinDonate: HacLong.Guilds.min_donate(),
+        tameKills: HacLong.Game.Pets.tame_kills(),
+        petMaxLevel: HacLong.Game.Pets.max_level(),
+        petSkillLevel: HacLong.Game.Pets.skill_level(),
+        craftLevels: HacLong.Game.Crafting.levels(),
+        smithCosts: HacLong.Game.Crafting.smith_costs(),
+        friendsMax: HacLong.Friends.max()
       },
       WORLD: Maps.client_data()
     }

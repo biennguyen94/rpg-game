@@ -19,6 +19,25 @@
   let world = { map: null, monsters: [], players: [] };
   let userId = null;
   let boss = { alive: false }; // trùm thế giới (HacLong.WorldBoss)
+  let decorating = false;       // đang trang trí nhà: tô các ô đặt được
+  const Doll = window.Doll;
+  Doll.onReady(() => draw());
+
+  // Thú cưng đi sau chủ một ô: nhớ ô trước đó của mỗi người.
+  const trails = new Map();
+  function petTile(key, x, y) {
+    let t = trails.get(key);
+    if (!t) { t = { last: [x, y], pet: [x, y + 1] }; trails.set(key, t); }
+    if (t.last[0] !== x || t.last[1] !== y) {
+      // nhảy xa (qua cổng, dịch chuyển) thì thú hiện ngay sau lưng
+      t.pet = Math.abs(t.last[0] - x) + Math.abs(t.last[1] - y) > 1 ? [x, y + 1] : t.last;
+      t.last = [x, y];
+    }
+    return t.pet;
+  }
+
+  // Đồ trang trí đã đặt trong Nhà (chỉ nhà của mình).
+  const decorAt = (P, x, y) => P.pos.map === 'home' && (P.decor || []).find((d) => d.x === x && d.y === y);
 
   // ---------- Di chuyển mượt ----------
   // Server gửi vị trí theo ô; khi vẽ thì trượt từ ô cũ sang ô mới trong `dur` ms.
@@ -75,7 +94,7 @@
   function image(path) {
     if (!images[path]) {
       const im = new Image();
-      im.onload = () => draw();
+      im.onload = () => { draw(); if (visiting) drawHome(...visiting); };
       im.src = 'assets/' + path + '.png';
       images[path] = im;
     }
@@ -118,7 +137,7 @@
     const z = m.zone != null ? ZONES[m.zone] : null;
     const ph = PHASES[world.phase] && outdoors(P) ? `<span class="phase">${PHASES[world.phase][0]}</span> ` : '';
     return `<div class="map-top">
-        <b>${ph}${m.name}</b>
+        <b>${ph}${m.name}</b>${P.view && P.view.event && P.view.event.active && outdoors(P) ? ` <span class="small" style="color:var(--gold)">${P.view.event.icon} ${P.view.event.name}</span>` : ''}
         <span class="small muted">${m.tower ? (m.tower.monsters.length ? `Còn ${m.tower.monsters.length} quái · kỷ lục tầng ${P.tower_best || 0}` : 'Cầu thang đã mở!') : z ? (P.pos.map.endsWith('_boss') ? `Phòng trùm · cấp ${z.boss.level}` : `Quái cấp ${z.levels}`) : P.pos.map === 'home' ? 'Giếng nước hồi đầy máu' : P.pos.map === 'altar' ? 'Nơi trùm thế giới xuất hiện' : 'Bước vào người dân để nói chuyện'}</span>
       </div>`;
   }
@@ -259,6 +278,22 @@
       if (im.complete) ctx.drawImage(im, px, py, TILE, TILE);
     }
 
+    if (P.pos.map === 'home') {
+      for (const d of P.decor || []) {
+        const px = Math.round(d.x * TILE - cx), py = Math.round(d.y * TILE - cy);
+        const im = image('decor/' + d.id);
+        if (im.complete) ctx.drawImage(im, px, py, TILE, TILE);
+      }
+      if (decorating) {
+        ctx.strokeStyle = 'rgba(240, 207, 122, 0.45)'; ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        for (let y = 0; y < m.tiles.length; y++) for (let x = 0; x < m.tiles[0].length; x++) {
+          if (WALK.has(m.tiles[y][x]) && !PORTAL.has(m.tiles[y][x]) && !npcAt(m, x, y)) ctx.strokeRect(Math.round(x * TILE - cx) + 1.5, Math.round(y * TILE - cy) + 1.5, TILE - 3, TILE - 3);
+        }
+        ctx.setLineDash([]);
+      }
+    }
+
     for (const n of m.npcs || []) {
       const px = Math.round(n.at[0] * TILE - cx), py = Math.round(n.at[1] * TILE - cy);
       const im = image('npcs/' + n.sprite);
@@ -280,22 +315,35 @@
     }
 
     const hero = image('monsters/hero');
+    // thú cưng: nhỏ hơn một chút, đi sau chủ một ô
+    const drawPet = (id, key, x, y) => {
+      if (!id) return;
+      const [tx, ty] = petTile(key, x, y);
+      const [qx, qy] = smooth('pet' + key, tx, ty, DUR.player * 1.4, now);
+      const im = image(id.startsWith('tame:') ? 'monsters/' + id.slice(5) : 'pets/' + id);
+      if (im.complete) ctx.drawImage(im, Math.round(qx * TILE - cx) + 4, Math.round(qy * TILE - cy) + 6, TILE - 8, TILE - 8);
+    };
     for (const o of here ? world.players : []) {
       if (o.id === userId) continue;
+      drawPet(o.look && o.look.pet, 'p' + o.id, o.x, o.y);
       const [ox, oy] = smooth('p' + o.id, o.x, o.y, DUR.player, now);
       const px = Math.round(ox * TILE - cx), py = Math.round(oy * TILE - cy);
-      ctx.globalAlpha = 0.8;
-      if (hero.complete) ctx.drawImage(hero, px, py, TILE, TILE);
+      ctx.globalAlpha = 0.9;
+      const doll = Doll.canvas(o.look);
+      if (doll) ctx.drawImage(doll, px, py, TILE, TILE); else if (hero.complete) ctx.drawImage(hero, px, py, TILE, TILE);
       ctx.globalAlpha = 1;
-      labels.push([`${o.name} · ${o.level}`, px + TILE / 2, py - 14, '#b9d7ff']);
+      labels.push([`${o.tag ? `[${o.tag}] ` : ''}${o.name} · ${o.level}`, px + TILE / 2, py - 14, '#b9d7ff']);
       const said = bubbleOf(o.id, now);
       if (said) talk.push([said, px + TILE / 2, py]);
     }
 
+    const look = P.view && P.view.look;
+    if (!m.tower) drawPet(look && look.pet, 'me', P.pos.x, P.pos.y);
     const px = Math.round(mx * TILE - cx), py = Math.round(my * TILE - cy);
     ctx.fillStyle = 'rgba(240, 207, 122, 0.35)';
     ctx.beginPath(); ctx.ellipse(px + TILE / 2, py + TILE - 4, 12, 5, 0, 0, Math.PI * 2); ctx.fill();
-    if (hero.complete) ctx.drawImage(hero, px, py, TILE, TILE);
+    const myDoll = Doll.canvas(look);
+    if (myDoll) ctx.drawImage(myDoll, px, py, TILE, TILE); else if (hero.complete) ctx.drawImage(hero, px, py, TILE, TILE);
     const mine = bubbleOf(userId, now);
     if (mine) talk.push([mine, px + TILE / 2, py]);
     // hướng dẫn người mới: vòng sáng nhấp nháy và mũi tên ở ô cần tới
@@ -365,7 +413,7 @@
         if (c == null) continue;
         const bossHere = boss.alive && m.worldBoss && m.worldBoss[0] === nx && m.worldBoss[1] === ny;
         // không đi ngang qua cầu thang (lên/xuống tầng ngoài ý muốn); ô đích thì được
-        if (!goal && (!WALK.has(c) || PORTAL.has(c) || c === '<' || c === '>' || monsterAt(nx, ny) || nodeAt(nx, ny) || npcAt(m, nx, ny) || bossHere)) continue;
+        if (!goal && (!WALK.has(c) || PORTAL.has(c) || c === '<' || c === '>' || monsterAt(nx, ny) || nodeAt(nx, ny) || npcAt(m, nx, ny) || bossHere || decorAt(P, nx, ny))) continue;
         prev.set(k, [x, y, dir]);
         if (goal) {
           // lần ngược về ô xuất phát để lấy bước đầu
@@ -379,12 +427,49 @@
     return null;
   }
 
+  // Nhà của người khác (chỉ xem): vẽ cả căn nhà vừa khung, đồ trang trí của họ, chủ nhà
+  // đứng trước cửa cùng thú cưng.
+  let visiting = null;
+  function drawHome(el, v) {
+    visiting = [el, v];
+    const m = mapOf('home');
+    const cols = m.tiles[0].length, rows = m.tiles.length;
+    const w = el.parentElement.clientWidth || cols * TILE;
+    const T = Math.max(12, Math.min(TILE, Math.floor(w / cols)));
+    const dpr = window.devicePixelRatio || 1;
+    el.style.width = cols * T + 'px'; el.style.height = rows * T + 'px';
+    el.width = Math.round(cols * T * dpr); el.height = Math.round(rows * T * dpr);
+    const c = el.getContext('2d');
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.imageSmoothingEnabled = false;
+    c.fillStyle = '#0c0910'; c.fillRect(0, 0, cols * T, rows * T);
+    const put = (im, x, y, pad) => { if (im && (im.complete === undefined || im.complete)) c.drawImage(im, x * T + (pad || 0), y * T + (pad || 0), T - 2 * (pad || 0), T - 2 * (pad || 0)); };
+    const floor = image(m.floor);
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const kind = WORLD.legend[m.tiles[y][x]];
+      put(floor, x, y);
+      if (kind !== 'floor') put(image('tiles/' + kind), x, y);
+    }
+    for (const d of v.decor || []) put(image('decor/' + d.id), d.x, d.y);
+    for (const n of m.npcs || []) put(image('npcs/' + n.sprite), n.at[0], n.at[1]);
+    const door = (m.portals[0] || { at: [Math.floor(cols / 2), rows - 1] }).at;
+    const [hx, hy] = [door[0], door[1] - 1];
+    const pet = v.look && v.look.pet;
+    if (pet) put(image(pet.startsWith('tame:') ? 'monsters/' + pet.slice(5) : 'pets/' + pet), hx + 1, hy, T / 8);
+    put(Doll.canvas(v.look) || image('monsters/hero'), hx, hy);
+  }
+
   window.MapView = {
+    drawHome,
+    stopVisit() { visiting = null; },
     html, top, mount, resize, draw, tileFromEvent, nextStep, monsterAt, monsterById,
+    // người chơi khác đứng ở ô (x, y) trên bản đồ đang đứng
+    playerAt: (x, y) => (world.map === (getPlayer() || {}).pos?.map ? world.players.find((o) => o.id !== userId && o.x === x && o.y === y) : null),
     mountedMap: () => mounted,
     setUser(id) { userId = id; },
     setBoss(st) { boss = st; draw(); },
     say(uid, text) { bubbles.set(uid, { text, until: performance.now() + BUBBLE_MS }); draw(); },
+    setDecorating(on) { decorating = on; draw(); },
     setWorld(snap) {
       world = snap;
       draw();

@@ -80,7 +80,7 @@ defmodule HacLongWeb.GameChannelTest do
     assert r.ok and r.player.cls == "knight"
     assert r.player.pos == %{map: "home", x: 5, y: 6}
     assert_push "map", %{map: "home", monsters: []}
-    assert [_, _, _] = r.player.daily.tasks
+    assert [_, _, _, _] = r.player.daily.tasks
     assert Characters.load(user.id).daily.date == HacLong.Game.Daily.today()
     assert Characters.load(user.id).name == "Hiệp"
 
@@ -110,7 +110,13 @@ defmodule HacLongWeb.GameChannelTest do
 
     r = cmd(socket, %{"act" => "move", "dir" => "up"})
     assert r.ok and r.player.battle.monster.id == "bat"
-    assert r.player.battle.encounter == %{map: "forest_1", mid: bat.id}
+
+    assert r.player.battle.encounter == %{
+             map: "forest_1",
+             mid: bat.id,
+             shared: "forest_1:#{bat.id}"
+           }
+
     # người đứng yên, quái bị khóa cho người này
     assert r.player.pos == %{map: "forest_1", x: 13, y: 16}
     assert [%{busy: true}] = MapServer.snapshot("forest_1").monsters
@@ -311,6 +317,7 @@ defmodule HacLongWeb.GameChannelTest do
       b = wait_for(fn -> Characters.load(ub.id) end, &(&1.gold > pb.gold))
       assert a.gold - pa.gold > b.gold - pb.gold
       assert a.inv["dragon_scale"] == 1 and b.inv["dragon_scale"] == 1
+      assert a.boss_top == 1 and b.boss_top == 1
       # trận của B (đang đánh dở) cũng kết thúc
       assert b.battle.over and b.battle.result == "win"
       assert b.battle.monster.hp == 0
@@ -479,6 +486,467 @@ defmodule HacLongWeb.GameChannelTest do
     end
   end
 
+  describe "tổ đội" do
+    setup do
+      HacLong.RateLimit.reset()
+      MapServer.clear_monsters("forest_1")
+      :ok
+    end
+
+    defp pop(socket, op, payload \\ %{}) do
+      ref = push(socket, "party", Map.put(payload, "op", op))
+      assert_reply ref, status, reply
+      {status, reply}
+    end
+
+    test "mời vào tổ đội, đánh chung một con quái, cùng thắng và chia thưởng" do
+      ua = create_user()
+      stats = %{str: 12, vit: 60, agi: 0, def: 30}
+      pa = player_at(ua, %{map: "forest_1", x: 12, y: 15}, %{level: 5, stats: stats})
+      {_, sa} = join_game(ua)
+      ub = create_user()
+      pb = player_at(ub, %{map: "forest_1", x: 14, y: 15}, %{level: 5, stats: stats})
+      {_, sb} = join_game(ub)
+
+      assert {:error, %{msg: "Người này không online."}} = pop(sa, "invite", %{"uid" => 999_999})
+      assert {:ok, %{party: %{members: [_]}}} = pop(sa, "invite", %{"uid" => ub.id})
+      assert_push "party_invite", %{from: from}
+      assert from == ua.id
+      assert {:ok, %{party: %{leader: leader, members: [_, _]}}} = pop(sb, "accept")
+      assert leader == ua.id
+
+      # chat tổ đội
+      ref = push(sb, "chat", %{"text" => "đánh con nhện nào", "to" => "party"})
+      assert_reply ref, :ok
+      assert_push "chat", %{text: "đánh con nhện nào", party: true}
+
+      # A chạm quái, B chạm vào cùng con quái thì vào đánh chung
+      spider = MapServer.put_monster("forest_1", "spider", {13, 15})
+      ra = cmd(sa, %{"act" => "move", "dir" => "right"})
+      key = "forest_1:#{spider.id}"
+      assert ra.player.battle.encounter.shared == key
+      full = ra.player.battle.monster.maxHp
+
+      # quái có thể né vài đòn: đánh tới khi trúng
+      ra =
+        Enum.reduce_while(1..20, nil, fn _, _ ->
+          r = cmd(sa, %{"act" => "attack"})
+          if r.player.battle.monster.hp < full, do: {:halt, r}, else: {:cont, r}
+        end)
+
+      left = ra.player.battle.monster.hp
+      assert left < full
+
+      rb = cmd(sb, %{"act" => "move", "dir" => "left"})
+      assert rb.ok and rb.msg =~ "Vào đánh cùng đồng đội (2 người)"
+      assert rb.player.battle.monster.hp == left
+      assert rb.player.battle.encounter.joined
+
+      # đánh luân phiên tới khi quái gục
+      Enum.reduce_while(1..200, nil, fn i, _ ->
+        s = if rem(i, 2) == 0, do: sa, else: sb
+        r = cmd(s, %{"act" => "attack"})
+        if r.player.battle && r.player.battle.over, do: {:halt, r}, else: {:cont, r}
+      end)
+
+      # cả hai cùng thắng (người không ra đòn cuối được báo qua Session)
+      a = wait_for(fn -> Session.get(ua.id) end, &(&1.battle && &1.battle.over))
+      b = wait_for(fn -> Session.get(ub.id) end, &(&1.battle && &1.battle.over))
+      assert a.battle.result == "win" and b.battle.result == "win"
+      # thưởng mỗi người = thưởng gốc × 1,2 / 2
+      base = HacLong.Game.Engine.make_monster(HacLong.Game.Data.monster("spider"), false).xp
+      assert a.battle.reward.xp == round(base * 0.6) and b.battle.reward.xp == round(base * 0.6)
+      assert a.kills == pa.kills + 1 and b.kills == pb.kills + 1
+      # con quái biến mất khỏi bản đồ sau khi cả hai rời trận
+      cmd(sa, %{"act" => "leave"})
+      cmd(sb, %{"act" => "leave"})
+      assert MapServer.snapshot("forest_1").monsters == []
+
+      assert {:ok, %{party: nil}} = pop(sb, "leave")
+      assert_push "party", %{party: nil}
+    end
+  end
+
+  describe "giao dịch trực tiếp" do
+    setup do
+      HacLong.RateLimit.reset()
+      HacLong.Trade.reset()
+      :ok
+    end
+
+    defp top(socket, op, payload \\ %{}) do
+      ref = push(socket, "trade", Map.put(payload, "op", op))
+      assert_reply ref, status, r
+      {status, r}
+    end
+
+    test "mời, bỏ đồ, đổi gì cũng phải xác nhận lại, cả hai xác nhận thì đổi" do
+      sword = %{uid: "#TRADE1", base: "club", rarity: 2, bonus: %{str: 3}}
+      ua = create_user()
+
+      pa =
+        player_at(ua, %{map: "village", x: 12, y: 14}, %{
+          gold: 500,
+          inv: %{"potion_s" => 5},
+          gear: [sword],
+          upgrades: %{"#TRADE1" => 2}
+        })
+
+      ub = create_user()
+      pb = player_at(ub, %{map: "village", x: 13, y: 14}, %{gold: 1000})
+      {_, sa} = join_game(ua)
+      {_, sb} = join_game(ub)
+
+      assert {:error, %{msg: "Không tự giao dịch với mình được."}} =
+               top(sa, "request", %{"uid" => ua.id})
+
+      assert {:ok, %{trade: %{status: :pending, incoming: false}}} =
+               top(sa, "request", %{"uid" => ub.id})
+
+      assert_push "trade_request", %{from: from}
+      assert from == ua.id
+      assert {:ok, %{trade: %{status: :open, partner_name: name}}} = top(sb, "accept")
+      assert name == pa.name
+
+      # không đủ đồ thì không cho bỏ vào
+      assert {:error, %{msg: "Không đủ đồ trong túi."}} =
+               top(sa, "offer", %{"offer" => %{"items" => %{"potion_s" => 9}}})
+
+      offer_a = %{"items" => %{"potion_s" => 2}, "gear" => ["#TRADE1"], "gold" => 100}
+
+      assert {:ok, %{trade: %{mine: %{gold: 100, gear: [g]}}}} =
+               top(sa, "offer", %{"offer" => offer_a})
+
+      assert g.up == 2 and g.rarity == 2
+
+      assert {:ok, _} = top(sb, "offer", %{"offer" => %{"gold" => 300}})
+      assert {:ok, %{trade: %{my_ready: true, their_ready: false}}} = top(sa, "ready")
+
+      # B đổi món thì A phải xác nhận lại
+      assert {:ok, %{trade: %{my_ready: false, their_ready: false}}} =
+               top(sb, "offer", %{"offer" => %{"gold" => 250}})
+
+      assert {:ok, _} = top(sa, "ready")
+      assert {:ok, _} = top(sb, "ready")
+
+      wait_for(fn -> HacLong.Trade.of(ua.id) end, &is_nil/1)
+      a = Session.get(ua.id)
+      b = Session.get(ub.id)
+      assert a.gold == pa.gold - 100 + 250 and b.gold == pb.gold - 250 + 100
+      assert a.inv["potion_s"] == 3 and b.inv["potion_s"] == Map.get(pb.inv, "potion_s", 0) + 2
+      assert a.gear == []
+      assert [%{uid: "#TRADE1"}] = b.gear
+      assert b.upgrades["#TRADE1"] == 2 and not Map.has_key?(a.upgrades || %{}, "#TRADE1")
+      assert Characters.load(ub.id).gold == b.gold
+    end
+
+    test "hủy, người kia bận, thiếu đồ lúc đổi thì mở lại" do
+      ua = create_user()
+      player_at(ua, %{map: "village", x: 12, y: 14}, %{gold: 500})
+      ub = create_user()
+      player_at(ub, %{map: "village", x: 13, y: 14}, %{gold: 500})
+      uc = create_user()
+      player_at(uc, %{map: "village", x: 14, y: 14})
+      {_, sa} = join_game(ua)
+      {_, sb} = join_game(ub)
+      {_, sc} = join_game(uc)
+
+      assert {:ok, _} = top(sa, "request", %{"uid" => ub.id})
+
+      assert {:error, %{msg: "Người này đang bận giao dịch."}} =
+               top(sc, "request", %{"uid" => ub.id})
+
+      assert {:ok, %{trade: nil}} = top(sb, "decline")
+      assert {:ok, %{trade: nil}} = top(sa, "info")
+
+      assert {:ok, _} = top(sa, "request", %{"uid" => ub.id})
+      assert {:ok, _} = top(sb, "accept")
+      assert {:ok, _} = top(sa, "offer", %{"offer" => %{"gold" => 400}})
+      # A tiêu mất vàng trước khi đổi
+      :sys.replace_state({:via, Registry, {HacLong.Game.Registry, ua.id}}, fn st ->
+        put_in(st.player.gold, 10)
+      end)
+
+      assert {:ok, _} = top(sa, "ready")
+      assert {:ok, _} = top(sb, "ready")
+
+      t = wait_for(fn -> HacLong.Trade.of(ub.id) end, &(&1 && &1.status == :open))
+      assert not t.my_ready and not t.their_ready
+      assert Session.get(ub.id).gold == 500
+      assert {:ok, %{trade: nil}} = top(sa, "cancel")
+    end
+  end
+
+  describe "bạn bè và tin riêng" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    defp fop(socket, op, payload \\ %{}) do
+      ref = push(socket, "friends", Map.put(payload, "op", op))
+      assert_reply ref, status, r
+      {status, r}
+    end
+
+    test "mời kết bạn theo tên, nhận lời, nhắn tin, chưa đọc, xóa bạn" do
+      ua = create_user()
+      pa = player_at(ua, %{map: "village", x: 12, y: 14})
+      ub = create_user()
+      pb = player_at(ub, %{map: "village", x: 13, y: 14})
+      {_, sa} = join_game(ua)
+      {_, sb} = join_game(ub)
+
+      assert {:error, %{msg: "Không tự kết bạn với mình được."}} =
+               fop(sa, "request", %{"uid" => ua.id})
+
+      assert {:error, %{msg: "Không có nhân vật tên này."}} =
+               fop(sa, "request", %{"name" => "Không Ai"})
+
+      # chưa là bạn thì không nhắn được
+      ref = push(sa, "dm", %{"op" => "send", "uid" => ub.id, "text" => "chào"})
+      assert_reply ref, :error, %{msg: "Chỉ nhắn riêng được cho bạn bè."}
+
+      assert {:ok, %{msg: "Đã gửi lời mời kết bạn.", outgoing: [%{id: bid}]}} =
+               fop(sa, "request", %{"name" => String.upcase(pb.name)})
+
+      assert bid == ub.id
+      assert_push "friends", %{msg: "👋 " <> _}
+      assert {:error, _} = fop(sa, "request", %{"uid" => ub.id})
+      assert {:ok, %{incoming: [%{id: aid}]}} = fop(sb, "list")
+      assert aid == ua.id
+
+      assert {:ok, %{friends: [%{id: ^aid, online: true, unread: 0}], incoming: []}} =
+               fop(sb, "accept", %{"uid" => ua.id})
+
+      assert {:ok, %{friends: [%{name: name}]}} = fop(sa, "list")
+      assert name == pb.name
+
+      ref = push(sa, "dm", %{"op" => "send", "uid" => ub.id, "text" => "  chào   bạn  "})
+      assert_reply ref, :ok, %{message: %{text: "chào bạn"}}
+      assert_push "dm", %{text: "chào bạn", from: from}
+      assert from == ua.id
+      assert {:ok, %{unread: 1, friends: [%{unread: 1}]}} = fop(sb, "list")
+
+      ref = push(sb, "dm", %{"op" => "history", "uid" => ua.id})
+
+      assert_reply ref, :ok, %{messages: [%{text: "chào bạn"}], unread: 0, with: %{name: aname}}
+      assert aname == pa.name
+
+      assert {:ok, %{unread: 0}} = fop(sb, "list")
+
+      ref = push(sa, "dm", %{"op" => "send", "uid" => ub.id, "text" => "   "})
+      assert_reply ref, :error, %{msg: "Tin nhắn trống."}
+
+      assert {:ok, %{friends: []}} = fop(sa, "remove", %{"uid" => ub.id})
+      assert {:ok, %{friends: []}} = fop(sb, "list")
+    end
+
+    test "hai người cùng mời thì thành bạn; bị chặn thì không mời được" do
+      ua = create_user()
+      player_at(ua, %{map: "village", x: 12, y: 14})
+      ub = create_user()
+      player_at(ub, %{map: "village", x: 13, y: 14})
+      {_, sa} = join_game(ua)
+      {_, sb} = join_game(ub)
+
+      assert {:ok, _} = fop(sa, "request", %{"uid" => ub.id})
+      assert {:ok, %{friends: [_]}} = fop(sb, "request", %{"uid" => ua.id})
+      assert {:ok, _} = fop(sa, "remove", %{"uid" => ub.id})
+
+      ref = push(sb, "block", %{"uid" => ua.id})
+      assert_reply ref, :ok, _
+      assert {:error, %{msg: "Không gửi được lời mời."}} = fop(sa, "request", %{"uid" => ub.id})
+    end
+  end
+
+  describe "thăm nhà" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    test "xem nhà đã trang trí của người khác, khen nhà một lần, chủ nhà được báo" do
+      owner = create_user()
+
+      player_at(owner, %{map: "village", x: 12, y: 14}, %{
+        decor: [%{id: "plant", x: 3, y: 5}, %{id: "fountain", x: 7, y: 2}],
+        pet: "hound",
+        pets: ["hound"]
+      })
+
+      {_, so} = join_game(owner)
+      guest = create_user()
+      player_at(guest, %{map: "village", x: 13, y: 14})
+      {_, sg} = join_game(guest)
+
+      ref = push(sg, "visit", %{"uid" => owner.id})
+      assert_reply ref, :ok, v
+      assert v.id == owner.id and v.likes == 0 and not v.liked
+      assert [%{id: "plant", x: 3, y: 5}, %{id: "fountain"}] = v.decor
+      assert v.comfort > 0 and v.look.pet == "hound"
+
+      ref = push(sg, "home_like", %{"uid" => owner.id})
+      assert_reply ref, :ok, %{likes: 1}
+      assert_push "notice", %{msg: "🏡 " <> _}
+      ref = push(sg, "home_like", %{"uid" => owner.id})
+      assert_reply ref, :error, %{msg: "Bạn đã khen nhà này rồi."}
+
+      ref = push(sg, "visit", %{"uid" => owner.id})
+      assert_reply ref, :ok, %{likes: 1, liked: true}
+
+      # tự khen nhà mình thì không được; nhà của mình thì xem như đã khen
+      ref = push(so, "home_like", %{"uid" => owner.id})
+      assert_reply ref, :error, %{msg: "Không tự khen nhà mình được."}
+      ref = push(so, "visit", %{"uid" => owner.id})
+      assert_reply ref, :ok, %{liked: true}
+
+      ref = push(sg, "visit", %{"uid" => -1})
+      assert_reply ref, :error, %{msg: "Không tìm thấy người chơi."}
+    end
+  end
+
+  describe "đấu trường" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    test "thách đấu bản sao người chơi khác: thắng thì lên điểm, thua không mất gì" do
+      strong = %{str: 200, vit: 150, agi: 0, def: 100}
+      weak = %{str: 5, vit: 30, agi: 0, def: 5}
+      ua = create_user()
+      pa = player_at(ua, %{map: "village", x: 12, y: 14}, %{level: 30, stats: strong, gold: 1000})
+      {_, sa} = join_game(ua)
+      # đối thủ không cần online
+      ub = create_user()
+      player_at(ub, %{map: "village", x: 13, y: 14}, %{level: 10, stats: weak})
+
+      ref = push(sa, "inspect", %{"uid" => ub.id})
+
+      assert_reply ref, :ok, %{
+        level: 10,
+        arena: %{rating: 1000},
+        look: %{weapon: "hand1/club_slant"}
+      }
+
+      assert %{ok: false, msg: "Không tự thách đấu mình được."} =
+               cmd(sa, %{"act" => "pvp_challenge", "uid" => ua.id})
+
+      r = cmd(sa, %{"act" => "pvp_challenge", "uid" => ub.id})
+      assert r.ok and r.player.battle.monster.pvp == ub.id
+
+      r =
+        Enum.reduce_while(1..50, r, fn _, _ ->
+          r = cmd(sa, %{"act" => "attack"})
+          if r.player.battle.over, do: {:halt, r}, else: {:cont, r}
+        end)
+
+      assert r.player.battle.result == "win"
+      assert r.player.battle.reward.gold > 0
+      assert r.player.gold == pa.gold + r.player.battle.reward.gold
+
+      assert HacLong.Arena.stats(ua.id).rating == 1016 and
+               HacLong.Arena.stats(ub.id).rating == 984
+
+      ref = push(sa, "arena", %{})
+      assert_reply ref, :ok, %{me: %{wins: 1, today: 1}, top: [_ | _]}
+
+      # thua: không mất vàng, không về Nhà, máu như trước trận
+      cmd(sa, %{"act" => "leave"})
+      uc = create_user()
+
+      player_at(uc, %{map: "village", x: 14, y: 14}, %{
+        level: 50,
+        stats: %{str: 900, vit: 900, agi: 0, def: 900}
+      })
+
+      before = Session.get(ua.id)
+      cmd(sa, %{"act" => "pvp_challenge", "uid" => uc.id})
+
+      r =
+        Enum.reduce_while(1..50, nil, fn _, _ ->
+          r = cmd(sa, %{"act" => "flee"})
+          if r.player.battle.over, do: {:halt, r}, else: {:cont, r}
+        end)
+
+      assert r.player.battle.result in ["lose", "fled"]
+      assert r.player.gold == before.gold and r.player.hp == before.hp
+      assert r.player.pos.map == "village"
+      assert HacLong.Arena.stats(ua.id).losses == 1
+    end
+  end
+
+  describe "chợ" do
+    setup do
+      HacLong.RateLimit.reset()
+      :ok
+    end
+
+    test "rao bán, mua, rút về; người bán nhận tiền qua hộp thư trừ phí" do
+      sword = %{uid: "#CHO1", base: "mace", rarity: 2, bonus: %{str: 3, agi: 1}}
+      ua = create_user()
+
+      player_at(ua, %{map: "village", x: 7, y: 14}, %{
+        level: 15,
+        inv: %{"potion_m" => 5},
+        gear: [sword],
+        upgrades: %{"#CHO1" => 2}
+      })
+
+      {_, sa} = join_game(ua)
+      ub = create_user()
+      pb = player_at(ub, %{map: "village", x: 8, y: 15}, %{level: 15, gold: 2000})
+      {_, sb} = join_game(ub)
+
+      r = cmd(sa, %{"act" => "market_sell", "id" => "potion_m", "count" => 3, "price" => 300})
+      assert r.ok and r.player.inv["potion_m"] == 2
+      r = cmd(sa, %{"act" => "market_sell", "id" => "#CHO1", "price" => 1000})
+      assert r.ok and r.player.gear == [] and r.player.upgrades == %{}
+
+      assert %{ok: false, msg: "Không đủ số lượng trong túi."} =
+               cmd(sa, %{"act" => "market_sell", "id" => "potion_m", "count" => 9, "price" => 10})
+
+      ref = push(sb, "market", %{})
+      assert_reply ref, :ok, %{listings: listings}
+      pot = Enum.find(listings, &(&1.item == "potion_m"))
+      gear = Enum.find(listings, &(&1.gear != nil))
+      assert pot.count == 3 and pot.seller_id == ua.id and not pot.mine
+      assert gear.gear.up == 2 and gear.name == "Chùy Gai Sức Mạnh"
+
+      assert %{ok: false, msg: "Đây là hàng của bạn."} =
+               cmd(sa, %{"act" => "market_buy", "listing" => pot.id})
+
+      r = cmd(sb, %{"act" => "market_buy", "listing" => pot.id})
+      assert r.ok and r.player.gold == pb.gold - 300 and r.player.inv["potion_m"] == 3
+      assert_push "mail", %{unread: 1}
+      assert [%{gold: 285, subject: "Chợ: bán được Bình Máu Vừa"}] = HacLong.Mailbox.list(ua.id)
+
+      assert %{ok: false, msg: "Món này đã có người mua hoặc đã rút về."} =
+               cmd(sb, %{"act" => "market_buy", "listing" => pot.id})
+
+      r = cmd(sb, %{"act" => "market_buy", "listing" => gear.id})
+      assert [%{uid: "#CHO1"}] = r.player.gear
+      assert r.player.upgrades["#CHO1"] == 2
+
+      # rút về
+      r = cmd(sa, %{"act" => "market_sell", "id" => "potion_m", "count" => 2, "price" => 50})
+      refute Map.has_key?(r.player.inv, "potion_m")
+      ref = push(sa, "market", %{})
+      assert_reply ref, :ok, %{listings: [%{id: lid, mine: true}]}
+      r = cmd(sa, %{"act" => "market_cancel", "listing" => lid})
+      assert r.ok and r.player.inv["potion_m"] == 2
+
+      # phải đứng cạnh Chủ Chợ
+      uc = create_user()
+      player_at(uc, %{map: "village", x: 12, y: 14}, %{inv: %{"herb" => 1}})
+      {_, sc} = join_game(uc)
+
+      assert %{ok: false, msg: "Hãy đến gặp Chủ Chợ ở Làng."} =
+               cmd(sc, %{"act" => "market_sell", "id" => "herb", "price" => 10})
+    end
+  end
+
   describe "bang hội" do
     setup do
       HacLong.RateLimit.reset()
@@ -496,6 +964,49 @@ defmodule HacLongWeb.GameChannelTest do
       ref = push(socket, "guild", Map.put(payload, "op", op))
       assert_reply ref, status, reply
       {status, reply}
+    end
+
+    test "hạ quái thì góp vào nhiệm vụ bang; xem nhiệm vụ và bảng xếp hạng bang" do
+      MapServer.clear_monsters("forest_1")
+      u = create_user()
+
+      player_at(u, %{map: "forest_1", x: 13, y: 16}, %{
+        gold: 20_000,
+        level: 30,
+        stats: %{str: 200, vit: 150, agi: 0, def: 100}
+      })
+
+      {_, s} = join_game(u)
+      tag = "Q#{rem(System.unique_integer([:positive]), 1000)}"
+      r = cmd(s, %{"act" => "guild_create", "name" => "Bang #{tag}", "tag" => tag})
+      gid = r.player.guild.id
+
+      assert {:ok, %{guild: %{quest: %{progress: 0, goal: goal, left: left}}}} = gop(s, "info")
+      assert goal > 0 and left > 0
+
+      # đặt việc tuần này là hạ 1 con quái để thử
+      import Ecto.Query
+
+      HacLong.Repo.update_all(from(g in "guilds", where: g.id == ^gid),
+        set: [quest_kind: "kill", quest_goal: 1]
+      )
+
+      MapServer.put_monster("forest_1", "bat", {13, 15})
+      r = cmd(s, %{"act" => "move", "dir" => "up"})
+      assert r.player.battle
+
+      Enum.reduce_while(1..50, r, fn _, _ ->
+        r = cmd(s, %{"act" => "attack"})
+        if r.player.battle.over, do: {:halt, r}, else: {:cont, r}
+      end)
+
+      wait_for(fn -> HacLong.GuildQuests.current(gid) end, & &1.done)
+      assert [%{subject: "Nhiệm vụ bang hoàn thành"}] = HacLong.Mailbox.list(u.id)
+
+      HacLong.GuildQuests.add_boss_damage(%{u.id => 1234})
+      ref = push(s, "leaderboard", %{})
+      assert_reply ref, :ok, %{guild_boss: rows}
+      assert %{boss_damage: 1234, rank: _} = Enum.find(rows, &(&1.id == gid))
     end
 
     test "lập bang, vào bang, chat bang, góp quỹ lên cấp" do
@@ -654,6 +1165,40 @@ defmodule HacLongWeb.GameChannelTest do
 
       assert body =~ "25%"
     end
+  end
+
+  test "người cùng bản đồ thấy đồ đang mặc và thú cưng của nhau" do
+    ua = create_user()
+
+    player_at(ua, %{map: "village", x: 12, y: 14}, %{
+      gold: 10_000,
+      level: 10,
+      inv: %{"broadsword" => 1}
+    })
+
+    {_, sa} = join_game(ua)
+    ub = create_user()
+    player_at(ub, %{map: "village", x: 13, y: 14})
+    {_, _sb} = join_game(ub)
+
+    cmd(sa, %{"act" => "equip", "id" => "broadsword"})
+    look = fn -> Enum.find(MapServer.snapshot("village").players, &(&1.id == ua.id)).look end
+    assert look.().weapon == "hand1/broadsword"
+
+    # dắt thú: phải mua ở Người Nuôi Thú trước
+    assert %{ok: false, msg: "Hãy đến gặp Người Nuôi Thú ở Làng."} =
+             cmd(sa, %{"act" => "pet_buy", "id" => "sheep"})
+
+    p = Session.get(ua.id)
+    {_, p} = HacLong.Game.Pets.buy(p, "sheep")
+    Characters.save!(ua.id, p)
+    [{pid, _}] = Registry.lookup(HacLong.Game.Registry, ua.id)
+    DynamicSupervisor.terminate_child(HacLong.Game.SessionSupervisor, pid)
+    {_, sa} = join_game(ua)
+    cmd(sa, %{"act" => "pet_choose", "id" => nil})
+    assert look.().pet == nil
+    cmd(sa, %{"act" => "pet_choose", "id" => "sheep"})
+    assert look.().pet == "sheep"
   end
 
   test "người chơi khác thấy nhau trên bản đồ, tab đóng thì rời bản đồ" do

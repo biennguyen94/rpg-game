@@ -9,8 +9,8 @@ defmodule HacLong.World do
   Session luôn gọi MapServer, không bao giờ ngược lại, nên không thể bị treo chờ nhau.
   """
 
-  alias HacLong.Game.{Daily, Data, Engine, Tower}
-  alias HacLong.WorldBoss
+  alias HacLong.Game.{Daily, Data, Engine, Home, Tower}
+  alias HacLong.{Party, WorldBoss}
   alias HacLong.World.{Maps, MapServer}
 
   @dirs %{"up" => {0, -1}, "down" => {0, 1}, "left" => {-1, 0}, "right" => {1, 0}}
@@ -29,7 +29,24 @@ defmodule HacLong.World do
 
   defp shared?(%{map: id}), do: not Maps.get(id).private
 
-  defp info(p), do: %{name: p.name, cls: p.cls, level: p.level}
+  @doc "Những gì người khác thấy về mình trên bản đồ: tên, lớp, cấp, ngoại hình, ký hiệu bang."
+  def info(p) do
+    %{
+      name: p.name,
+      cls: p.cls,
+      level: p.level,
+      look: Engine.look(p),
+      tag: Map.get(p, :guild) && p.guild.tag
+    }
+  end
+
+  @doc "Cập nhật thông tin người khác thấy (vd. vừa đổi đồ, lên cấp, dắt thú khác)."
+  def refresh(%{pos: pos} = p, uid) do
+    if shared?(pos), do: MapServer.update(pos.map, uid, info(p))
+    :ok
+  end
+
+  def refresh(_p, _uid), do: :ok
 
   @doc "Có mặt trên bản đồ hiện tại (khi người chơi mở game)."
   def enter(%{pos: pos} = p, uid) do
@@ -79,6 +96,7 @@ defmodule HacLong.World do
         Maps.tile(map, tx, ty) == "W" -> touch_waystone(p, map)
         map.world_boss == {tx, ty} and WorldBoss.hp() != nil -> world_boss(p, uid, confirm?)
         not Maps.walkable?(map, tx, ty) -> {%{ok: false}, p}
+        map.private and Home.at(p, tx, ty) != nil -> {%{ok: false}, p}
         map.private -> {%{ok: true}, put_pos(p, map_id, tx, ty)}
         true -> step_shared(p, uid, map, {tx, ty}, confirm?)
       end
@@ -198,22 +216,44 @@ defmodule HacLong.World do
         {%{ok: false, confirm: "boss", boss: %{id: m.kind, name: boss.name, level: boss.level}},
          p}
 
-      {:busy, _m} ->
-        {%{ok: false, msg: "Con quái này đang giao chiến với người khác."}, p}
+      {:busy, m} ->
+        join_shared(p, uid, map, m)
 
       {:engage, m} ->
-        zone = Data.zone(map.zone)
-        spec = if m.boss, do: zone.boss, else: Enum.find(zone.monsters, &(&1.id == m.kind))
-        spec = if m[:rare], do: night_variant(spec), else: spec
-
-        case Engine.start_encounter(p, map.zone, spec, m.boss) do
+        case Engine.start_encounter(p, map.zone, spec_of(map, m), m.boss) do
           {%{ok: true} = r, p} ->
-            {r, put_in(p.battle[:encounter], %{map: map.id, mid: m.id})}
+            # trong tổ đội: ghi trận để đồng đội vào đánh cùng
+            key = fight_key(map.id, m.id)
+            Party.open_fight(key, uid, p.battle.monster)
+            {r, put_in(p.battle[:encounter], %{map: map.id, mid: m.id, shared: key})}
 
           {r, p} ->
             MapServer.release(map.id, uid, m.id)
             {r, p}
         end
+    end
+  end
+
+  defp spec_of(map, m) do
+    zone = Data.zone(map.zone)
+    spec = if m.boss, do: zone.boss, else: Enum.find(zone.monsters, &(&1.id == m.kind))
+    if m[:rare], do: night_variant(spec), else: spec
+  end
+
+  def fight_key(map_id, mid), do: "#{map_id}:#{mid}"
+
+  # Con quái đang đánh với đồng đội cùng tổ: vào đánh chung (máu chung ở HacLong.Party).
+  defp join_shared(p, uid, map, m) do
+    key = fight_key(map.id, m.id)
+
+    with {:ok, f} <- Party.join_fight(key, uid),
+         {%{ok: true} = r, p} <- Engine.start_encounter(p, map.zone, spec_of(map, m), m.boss) do
+      p = put_in(p.battle.monster.hp, f.hp)
+      p = put_in(p.battle[:encounter], %{map: map.id, mid: m.id, shared: key, joined: true})
+      {Map.put(r, :msg, "Vào đánh cùng đồng đội (#{f.n} người)."), p}
+    else
+      {:error, msg} -> {%{ok: false, msg: msg}, p}
+      {r, p} -> {r, p}
     end
   end
 
@@ -288,10 +328,25 @@ defmodule HacLong.World do
   """
   def finish_encounter(%{battle: %{over: true} = b} = p, uid) do
     case b[:encounter] do
-      %{map: map_id, mid: mid} ->
-        if b.result == "win",
-          do: MapServer.defeat(map_id, uid, mid),
-          else: MapServer.release(map_id, uid, mid)
+      # vào đánh cùng đồng đội: con quái do người khác giữ
+      %{joined: true, shared: key} ->
+        if b.result != "win", do: Party.leave_fight(key, uid)
+
+      %{map: map_id, mid: mid} = enc ->
+        cond do
+          b.result == "win" ->
+            MapServer.defeat(map_id, uid, mid)
+
+          # mình thua hoặc bỏ chạy nhưng đồng đội còn đánh: chuyển quái cho người khác
+          enc[:shared] ->
+            case Party.leave_fight(enc.shared, uid) do
+              {:owner, next} -> MapServer.reassign(map_id, uid, mid, next)
+              :ok -> MapServer.release(map_id, uid, mid)
+            end
+
+          true ->
+            MapServer.release(map_id, uid, mid)
+        end
 
       _ ->
         :ok
